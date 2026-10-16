@@ -1,0 +1,34 @@
+# Blueprint para demonstração/homologação econômica.
+# ATENÇÃO: Render Postgres Free expira após 30 dias. Faça upgrade do banco
+# antes de armazenar dados reais ou aceitar clientes pagantes.
+services:
+  - type: web
+    name: hitech-voltguard
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: voltguard-db
+          property: connectionString
+      - key: ENABLE_DEMO_USERS
+        value: "0"
+      - key: SIMULATE_TELEMETRY
+        value: "0"
+
+databases:
+  - name: voltguard-db
+    databaseName: voltguard
+    user: voltguard_user
+    plan: free
+    region: oregon
+    postgresMajorVersion: "16"
+    ipAllowList: []
