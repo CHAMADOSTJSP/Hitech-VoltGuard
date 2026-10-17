@@ -299,7 +299,7 @@
 
         function buscarDadosPainéis() {
             if(!tokenJwt) return;
-            fetch('/api/panels', {headers: {'Authorization': `Bearer ${tokenJwt}`}})
+            return fetch('/api/panels', {headers: {'Authorization': `Bearer ${tokenJwt}`}})
                 .then(res => res.json())
                 .then(data => {
                     if(data.panels) {
@@ -322,6 +322,9 @@
                             // a seleção do painel e voltava ao primeiro item a cada 3 s.
                             // Os dados continuam sendo atualizados em memória e serão
                             // usados na próxima renderização/navegação.
+                        } else if (currentTab === 'orders') {
+                            // Preserve unsaved OS form values and open history panels.
+                            // The list is re-rendered after an explicit create/update or tab navigation.
                         } else if (currentTab !== 'commission') {
                             // Não substituir formulários enquanto o usuário digita.
                             const container = document.getElementById('main-container');
@@ -494,7 +497,7 @@
                 const res = await fetch('/api/work-orders', {method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${tokenJwt}`}, body:JSON.stringify(payload)});
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.detail || 'Não foi possível criar a ordem.');
-                alert('Ordem de serviço criada.'); buscarDadosPainéis();
+                alert('Ordem de serviço criada.'); await buscarDadosPainéis(); renderizar();
             } catch (err) { alert(err.message); }
         }
 
@@ -506,7 +509,7 @@
                 const res = await fetch(`/api/work-orders/${id}`, {method:'PATCH', headers:{'Content-Type':'application/json','Authorization':`Bearer ${tokenJwt}`}, body:JSON.stringify({status:select.value, resolution})});
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.detail || 'Não foi possível atualizar a ordem.');
-                alert('Ordem de serviço atualizada.'); buscarDadosPainéis();
+                alert('Ordem de serviço atualizada.'); await buscarDadosPainéis(); renderizar();
             } catch (err) { alert(err.message); }
         }
 

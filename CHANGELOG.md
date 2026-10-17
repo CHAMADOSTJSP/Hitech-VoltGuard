@@ -1,4 +1,7 @@
 # Changelog
+## v0.7.2 — Preservação de rascunhos de ordem de serviço
+- O polling deixa de reconstruir a aba de OS e, portanto, não apaga formulários parcialmente preenchidos ao perder o foco.
+- A lista atualiza depois de criar ou atualizar uma OS; as consultas periódicas continuam atualizando os dados em memória.
 
 ## v0.7.1 — Persistência visual do histórico
 - A expansão do histórico por OS é mantida durante a atualização automática do painel e novas renderizações da tela.

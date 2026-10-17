@@ -2,6 +2,10 @@
 
 Versão revisada para **demonstração e homologação controlada**. Este pacote não é SCADA industrial certificado e não deve ser conectado a funções de proteção, intertravamento ou comando de equipamentos elétricos.
 
+## v0.7.2 — Preservação de rascunhos de ordem de serviço
+
+O polling atualiza os dados em memória sem reconstruir a aba de OS, preservando campos preenchidos e histórico expandido. A lista é redesenhada após criar/atualizar uma OS ou navegar novamente para a aba.
+
 ## v0.7.1 — Histórico permanece aberto durante o polling
 
 A seção expansível do histórico mantém seu estado aberto enquanto os dados do painel são atualizados automaticamente.
