@@ -1,3 +1,8 @@
+## v0.5.8 — Preservação do painel selecionado nas regras
+- Corrigido o polling do dashboard para não reconstruir a aba Regras de Alarme a cada 3 segundos.
+- A seleção do painel e os valores editados permanecem na interface enquanto os dados em memória continuam atualizando.
+- A navegação para fora e de volta à aba continua recarregando as regras do painel selecionado pela interface.
+
 ## v0.5.5 — Correção de atualização dos gráficos
 - Corrigida a verificação dos canvases de histórico: o polling agora procura os IDs reais `chart-temp-*` e `chart-current-*`.
 - Evita reconstruir toda a aba de tendências a cada ciclo de atualização, impedindo que os gráficos desapareçam intermitentemente.

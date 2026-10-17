@@ -155,3 +155,8 @@ A aba **Tendência Térmica** mostra gráficos de temperatura e corrente a parti
 
 ### Regras de alarme por painel (v0.5.6)
 A aba **Regras de Alarme** permite configurar limites e histerese por painel. Endpoints: `GET /api/panels/{panel_id}/alarm-rules` e `PUT /api/panels/{panel_id}/alarm-rules`. Painéis sem regra específica continuam usando os limites da organização. A tabela `panel_alarm_rules` é criada por `create_all`; não exige apagar ou recriar o banco existente.
+
+
+## v0.5.8
+
+A aba Regras de Alarme não é mais reconstruída pelo polling periódico, preservando o painel selecionado e evitando que o formulário volte automaticamente ao primeiro painel.

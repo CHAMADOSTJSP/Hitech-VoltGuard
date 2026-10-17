@@ -304,10 +304,14 @@
                         
                         if (currentTab === 'predictive') {
                             atualizarGraficosExistentes();
+                        } else if (currentTab === 'rules') {
+                            // A aba de regras contém um seletor e campos editáveis.
+                            // Não reconstruir seu HTML durante o polling: isso apagava
+                            // a seleção do painel e voltava ao primeiro item a cada 3 s.
+                            // Os dados continuam sendo atualizados em memória e serão
+                            // usados na próxima renderização/navegação.
                         } else if (currentTab !== 'commission') {
-                            // Não substituir o formulário enquanto o usuário digita.
-                            // O polling continua atualizando os dados em memória, mas a
-                            // renderização fica suspensa enquanto um campo estiver focado.
+                            // Não substituir formulários enquanto o usuário digita.
                             const container = document.getElementById('main-container');
                             const active = document.activeElement;
                             const editingField = container && active && container.contains(active)
