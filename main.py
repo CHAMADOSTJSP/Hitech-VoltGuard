@@ -292,7 +292,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.35.2",
+    version="0.36.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -1405,7 +1405,93 @@ def export_executive_report(db: Session = Depends(get_db), current_user: User = 
         ["Tarefas de manutenção", len(tasks)],
         ["Itens de estoque abaixo do mínimo", sum(1 for i in inventory if i.quantity_in_stock < i.min_threshold)],
     ]
-    setup_sheet(summary, "Relatório Executivo Operacional — HITECH VoltGuard", ["Indicador", "Quantidade"], summary_rows)
+    summary.sheet_view.showGridLines = False
+    summary.sheet_view.zoomScale = 90
+    summary.sheet_view.selection[0].activeCell = "A1"
+    summary.sheet_view.selection[0].sqref = "A1"
+    for column in range(1, 9):
+        summary.column_dimensions[get_column_letter(column)].width = 18
+
+    def merge_styled(row, start_col, end_col, value, fill_color, font, alignment, border):
+        summary.merge_cells(start_row=row, start_column=start_col, end_row=row, end_column=end_col)
+        for column in range(start_col, end_col + 1):
+            cell = summary.cell(row, column)
+            cell.fill = PatternFill("solid", fgColor=fill_color)
+            cell.border = border
+        cell = summary.cell(row, start_col)
+        cell.value = value
+        cell.font = font
+        cell.alignment = alignment
+
+    report_border = Border(
+        left=thin_green, right=thin_green, top=thin_green, bottom=thin_green,
+    )
+    merge_styled(
+        1, 1, 8, "Relatório Executivo Operacional — HITECH VoltGuard", dark_green,
+        Font(name="Calibri", size=20, bold=True, color=white),
+        Alignment(vertical="center", horizontal="left", indent=1), report_border,
+    )
+    summary.row_dimensions[1].height = 42
+    merge_styled(
+        2, 1, 8,
+        f"Organização: {safe_text(current_user.tenant_id)}   |   Gerado em UTC: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}",
+        "ECFDF5", Font(name="Calibri", size=10, bold=True, color=dark_green),
+        Alignment(vertical="center", horizontal="left", indent=1), report_border,
+    )
+    summary.row_dimensions[2].height = 25
+    merge_styled(
+        3, 1, 8,
+        "Retrato dos dados cadastrados no momento da exportação. Dados demonstrativos não substituem avaliação operacional.",
+        "F0FDF4", Font(name="Calibri", size=9, italic=True, color="4B5563"),
+        Alignment(vertical="center", horizontal="left", wrap_text=True, indent=1), report_border,
+    )
+    summary.row_dimensions[3].height = 28
+    summary.row_dimensions[4].height = 12
+
+    card_colors = {
+        "Painéis críticos": "B91C1C",
+        "Alarmes ativos": "B91C1C",
+        "Alarmes reconhecidos": "B45309",
+        "Itens de estoque abaixo do mínimo": "B45309",
+        "Ordens de serviço abertas": "0F766E",
+    }
+    for index, (label, value) in enumerate(summary_rows):
+        card_row = 5 + (index // 2) * 3
+        start_col = 1 if index % 2 == 0 else 5
+        end_col = start_col + 3
+        value_color = card_colors.get(label, dark_green)
+        merge_styled(
+            card_row, start_col, end_col, label.upper(), value_color,
+            Font(name="Calibri", size=10, bold=True, color=white),
+            Alignment(vertical="center", horizontal="left", indent=1), report_border,
+        )
+        merge_styled(
+            card_row + 1, start_col, end_col, value, "F0FDF4",
+            Font(name="Calibri", size=22, bold=True, color=value_color),
+            Alignment(vertical="center", horizontal="left", indent=1), report_border,
+        )
+        summary.row_dimensions[card_row].height = 23
+        summary.row_dimensions[card_row + 1].height = 39
+        if index % 2 == 1 and index < len(summary_rows) - 1:
+            summary.row_dimensions[card_row + 2].height = 10
+
+    footer_row = 20
+    merge_styled(
+        footer_row, 1, 8, "Consulte as abas seguintes para os registros detalhados e a rastreabilidade operacional.",
+        "ECFDF5", Font(name="Calibri", size=9, italic=True, color="4B5563"),
+        Alignment(vertical="center", horizontal="left", indent=1), report_border,
+    )
+    summary.row_dimensions[footer_row].height = 24
+    summary.sheet_properties.pageSetUpPr.fitToPage = True
+    summary.page_setup.fitToWidth = 1
+    summary.page_setup.fitToHeight = 1
+    summary.page_setup.orientation = "landscape"
+    summary.page_margins.left = 0.25
+    summary.page_margins.right = 0.25
+    summary.page_margins.top = 0.4
+    summary.page_margins.bottom = 0.4
+    summary.print_area = "A1:H20"
+    summary.print_options.horizontalCentered = True
 
     detail_sheets = [
         ("Painéis", ["ID", "Nome", "Local", "Tensão", "Corrente (A)", "Temperatura (°C)", "Estado", "Componente", "Recomendação"], [[p.id, p.name, p.location, p.voltage, p.current, p.temperature, p.status, p.component, p.recommendation] for p in panels]),

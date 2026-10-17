@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.36.0 — Resumo executivo em cartões
+
+A aba inicial do relatório apresenta os indicadores em cartões coloridos organizados em duas colunas, com maior destaque para itens críticos. O layout ocupa melhor a página, centraliza a impressão em uma folha horizontal e mantém as abas seguintes para consulta detalhada.
+
 ## v0.35.2 — Mais espaço no título do resumo
 
 Ampliadas as colunas da aba Resumo para dar margem visual ao título e às notas no Excel.

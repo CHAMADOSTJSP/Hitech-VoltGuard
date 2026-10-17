@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.36.0 — Resumo executivo em cartões
+- Substituído o resumo tabular por cartões de indicadores organizados em duas colunas.
+- Destacados em vermelho os indicadores críticos e em âmbar os pontos de atenção.
+- Ajustado o resumo para impressão horizontal em uma página, preservando as abas detalhadas.
+
 ## v0.35.2 — Mais espaço no título do resumo
 - Ampliadas as colunas da aba Resumo para dar margem visual ao título e às notas no Excel.
 
