@@ -1071,6 +1071,23 @@
         async function criarPlanoManutencao(event) {
             event.preventDefault(); try { await apiJson('/api/maintenance/plans',{method:'POST',body:JSON.stringify({asset_id:Number(document.getElementById('mp-asset').value),title:document.getElementById('mp-title').value,interval_days:Number(document.getElementById('mp-interval').value),checklist:document.getElementById('mp-checklist').value})}); alert('Plano criado e primeira tarefa agendada.'); await carregarManutencao(); } catch(e) { alert(e.message); }
         }
+        async function criarTarefaManutencao(event) {
+            event.preventDefault();
+            const dueValue = document.getElementById('mt-new-due').value;
+            const payload = {
+                asset_id: Number(document.getElementById('mt-new-asset').value),
+                title: document.getElementById('mt-new-title').value.trim(),
+                due_at: dueValue ? new Date(dueValue).toISOString() : null,
+                assigned_to: document.getElementById('mt-new-assigned').value.trim() || null,
+                notes: document.getElementById('mt-new-notes').value.trim(),
+            };
+            try {
+                await apiJson('/api/maintenance/tasks', {method:'POST', body:JSON.stringify(payload)});
+                event.currentTarget.reset();
+                await carregarManutencao();
+                alert('Tarefa avulsa agendada.');
+            } catch(e) { alert(e.message || 'Não foi possível agendar a tarefa.'); }
+        }
         async function atualizarTarefaManutencao(id) {
             const status = document.getElementById(`mt-status-${Number(id)}`).value;
             const assigned_to = document.getElementById(`mt-assigned-${Number(id)}`).value;
@@ -1232,13 +1249,56 @@
             if (currentTab === 'maintenance') {
                 const now = Date.now();
                 const overdueTask = t => !['CONCLUIDA','CANCELADA'].includes(t.status) && new Date(/(?:Z|[+-]\d{2}:\d{2})$/.test(t.due_at||'') ? t.due_at : `${t.due_at||''}Z`).getTime() < now;
-                const openTasks = maintenanceTasks.filter(t => ['PENDENTE','EM_ANDAMENTO'].includes(t.status));
                 const filteredTasks = maintenanceTasks.filter(t => {
                     const query = maintenanceSearchText.trim().toLowerCase();
                     const matchesQuery = !query || [t.asset_name,t.title,t.assigned_to,t.status].some(value => String(value || '').toLowerCase().includes(query));
                     return matchesQuery && (maintenanceStatusFilter === 'TODOS' || t.status === maintenanceStatusFilter) && (!maintenanceOnlyOverdue || overdueTask(t));
                 });
-                container.innerHTML = `<div style="grid-column:1/-1;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:20px;border-radius:8px"><h3 style="color:#10b981">🧰 Manutenção Preventiva</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px">${[['PENDENTES',maintenanceTasks.filter(t=>t.status==='PENDENTE').length],['EM ANDAMENTO',maintenanceTasks.filter(t=>t.status==='EM_ANDAMENTO').length],['ATRASADAS',maintenanceTasks.filter(overdueTask).length],['CONCLUÍDAS',maintenanceTasks.filter(t=>t.status==='CONCLUIDA').length]].map(([label,count])=>`<div style="border:1px solid #075e48;border-radius:6px;padding:10px"><small>${label}</small><strong style="display:block;color:${label==='ATRASADAS'&&count?'#ef4444':'#10b981'}">${count}</strong></div>`).join('')}</div><form onsubmit="criarPlanoManutencao(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px"><div class="input-group"><label>Ativo</label><select id="mp-asset" required>${assetsData.map(a=>`<option value="${Number(a.id)}">${escapeHtml(a.asset_tag)} — ${escapeHtml(a.name)}</option>`).join('')}</select></div><div class="input-group"><label>Nome do plano</label><input id="mp-title" required maxlength="180" placeholder="Inspeção trimestral"></div><div class="input-group"><label>Periodicidade (dias)</label><input id="mp-interval" type="number" min="1" max="3650" value="30" required></div><div class="input-group" style="grid-column:1/-1"><label>Checklist (separe os itens por ponto e vírgula)</label><textarea id="mp-checklist" maxlength="4000">Inspeção visual;Verificar conexões;Registrar observações</textarea></div><button class="btn-primary" type="submit" ${assetsData.length?'':'disabled'}>Criar plano e agendar primeira tarefa</button></form><h4>Planos</h4><div style="overflow-x:auto"><table class="enterprise-table"><tr><th>Ativo</th><th>Plano</th><th>Periodicidade</th><th>Checklist</th><th>Próxima execução</th></tr>${maintenancePlans.map(p=>`<tr><td>${escapeHtml(p.asset_name||p.asset_id)}</td><td>${escapeHtml(p.title)}</td><td>${Number(p.interval_days)} dias</td><td>${escapeHtml(p.checklist||'—')}</td><td>${formatarDataHora(p.next_due_at)}</td></tr>`).join('')}</table></div><h4>Tarefas (${filteredTasks.length} de ${maintenanceTasks.length})</h4><div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:12px"><div class="input-group"><label>Buscar</label><input id="maintenance-search" value="${escapeHtml(maintenanceSearchText)}" placeholder="Ativo, tarefa ou responsável" onchange="maintenanceSearchText=this.value;renderizar()"></div><button type="button" class="btn-action" onclick="maintenanceSearchText=document.getElementById('maintenance-search').value;renderizar()">Buscar</button><div class="input-group"><label>Estado</label><select onchange="maintenanceStatusFilter=this.value;renderizar()"><option value="TODOS" ${maintenanceStatusFilter==='TODOS'?'selected':''}>Todos os estados</option>${['PENDENTE','EM_ANDAMENTO','CONCLUIDA','CANCELADA'].map(s=>`<option value="${s}" ${maintenanceStatusFilter===s?'selected':''}>${s}</option>`).join('')}</select></div><label><input type="checkbox" ${maintenanceOnlyOverdue?'checked':''} onchange="maintenanceOnlyOverdue=this.checked;renderizar()"> Somente atrasadas</label></div><div style="overflow-x:auto"><table class="enterprise-table"><tr><th>Prazo</th><th>Ativo</th><th>Tarefa</th><th>Responsável</th><th>Estado</th><th>Ação</th></tr>${filteredTasks.map(t=>`<tr><td style="color:${overdueTask(t)?'#ef4444':'inherit'}">${overdueTask(t)?'ATRASADA · ':''}${formatarDataHora(t.due_at)}</td><td>${escapeHtml(t.asset_name||t.asset_id)}</td><td>${escapeHtml(t.title)}</td><td><input id="mt-assigned-${Number(t.id)}" value="${escapeHtml(t.assigned_to||'')}" maxlength="120" placeholder="Responsável"></td><td><select id="mt-status-${Number(t.id)}"><option value="PENDENTE" ${t.status==='PENDENTE'?'selected':''}>PENDENTE</option><option value="EM_ANDAMENTO" ${t.status==='EM_ANDAMENTO'?'selected':''}>EM_ANDAMENTO</option><option value="CONCLUIDA" ${t.status==='CONCLUIDA'?'selected':''}>CONCLUIDA</option><option value="CANCELADA" ${t.status==='CANCELADA'?'selected':''}>CANCELADA</option></select></td><td><input id="mt-due-${Number(t.id)}" type="datetime-local" value="${dataHoraLocalInput(t.due_at)}"><button type="button" class="btn-action" onclick="atualizarTarefaManutencao(${Number(t.id)})">Salvar</button></td></tr>`).join('')}</table>${filteredTasks.length?'':'<p>Nenhuma tarefa corresponde aos filtros selecionados.</p>'}</div></div>`;
+                const taskRows = filteredTasks.map(t => {
+                    const terminal = ['CONCLUIDA','CANCELADA'].includes(t.status);
+                    return `<tr>
+                        <td style="color:${overdueTask(t)?'#ef4444':'inherit'}">${overdueTask(t)?'ATRASADA · ':''}${formatarDataHora(t.due_at)}</td>
+                        <td>${escapeHtml(t.asset_name||t.asset_id)}</td>
+                        <td>${escapeHtml(t.title)}<details style="margin-top:6px"><summary>Ver checklist / observações</summary><small style="white-space:pre-wrap">${escapeHtml(t.notes||'Sem checklist ou observações registradas.')}</small></details></td>
+                        <td><input id="mt-assigned-${Number(t.id)}" value="${escapeHtml(t.assigned_to||'')}" maxlength="120" placeholder="Responsável"></td>
+                        <td><select id="mt-status-${Number(t.id)}" ${terminal?'disabled title="Tarefa finalizada; reabertura não permitida."':''}>${['PENDENTE','EM_ANDAMENTO','CONCLUIDA','CANCELADA'].map(s=>`<option value="${s}" ${t.status===s?'selected':''}>${s}</option>`).join('')}</select>${terminal?'<small style="display:block;color:#9ca3af">Estado final</small>':''}</td>
+                        <td>${t.completed_at?formatarDataHora(t.completed_at):'—'}</td>
+                        <td><input id="mt-due-${Number(t.id)}" type="datetime-local" value="${dataHoraLocalInput(t.due_at)}"><button type="button" class="btn-action" onclick="atualizarTarefaManutencao(${Number(t.id)})">Salvar</button></td>
+                    </tr>`;
+                }).join('') || `<tr><td colspan="7">${maintenanceTasks.length?'Nenhuma tarefa corresponde aos filtros selecionados.':'Nenhuma tarefa agendada.'}</td></tr>`;
+                const assetOptions = assetsData.map(a=>`<option value="${Number(a.id)}">${escapeHtml(a.asset_tag)} — ${escapeHtml(a.name)}</option>`).join('');
+                const taskCounters = [['PENDENTES',maintenanceTasks.filter(t=>t.status==='PENDENTE').length],['EM ANDAMENTO',maintenanceTasks.filter(t=>t.status==='EM_ANDAMENTO').length],['ATRASADAS',maintenanceTasks.filter(overdueTask).length],['CONCLUÍDAS',maintenanceTasks.filter(t=>t.status==='CONCLUIDA').length]];
+                container.innerHTML = `<div style="grid-column:1/-1;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:20px;border-radius:8px">
+                    <h3 style="color:#10b981">🧰 Manutenção Preventiva</h3>
+                    <div class="os-overview">${taskCounters.map(([label,count])=>`<div class="os-overview-card"><span>${label}</span><strong style="color:${label==='ATRASADAS'&&count?'#ef4444':'#10b981'}">${count}</strong></div>`).join('')}</div>
+                    <h4>Criar plano recorrente</h4>
+                    <form onsubmit="criarPlanoManutencao(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+                        <div class="input-group"><label for="mp-asset">Ativo</label><select id="mp-asset" required>${assetOptions}</select></div>
+                        <div class="input-group"><label for="mp-title">Nome do plano</label><input id="mp-title" required maxlength="180" placeholder="Inspeção trimestral"></div>
+                        <div class="input-group"><label for="mp-interval">Periodicidade (dias)</label><input id="mp-interval" type="number" min="1" max="3650" value="30" required></div>
+                        <div class="input-group" style="grid-column:1/-1"><label for="mp-checklist">Checklist (separe os itens por ponto e vírgula)</label><textarea id="mp-checklist" maxlength="4000">Inspeção visual;Verificar conexões;Registrar observações</textarea></div>
+                        <button class="btn-primary" type="submit" ${assetsData.length?'':'disabled'}>Criar plano e agendar primeira tarefa</button>
+                    </form>
+                    <h4>Agendar tarefa avulsa</h4>
+                    <form onsubmit="criarTarefaManutencao(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+                        <div class="input-group"><label for="mt-new-asset">Ativo</label><select id="mt-new-asset" required>${assetOptions}</select></div>
+                        <div class="input-group"><label for="mt-new-title">Tarefa</label><input id="mt-new-title" maxlength="180" required placeholder="Ex.: Inspecionar conexão"></div>
+                        <div class="input-group"><label for="mt-new-due">Prazo</label><input id="mt-new-due" type="datetime-local" required></div>
+                        <div class="input-group"><label for="mt-new-assigned">Responsável</label><input id="mt-new-assigned" maxlength="120"></div>
+                        <div class="input-group" style="grid-column:1/-1"><label for="mt-new-notes">Checklist / observações</label><textarea id="mt-new-notes" maxlength="4000" placeholder="Procedimentos, verificações e observações da tarefa"></textarea></div>
+                        <button class="btn-primary" type="submit" ${assetsData.length?'':'disabled'}>Agendar tarefa avulsa</button>
+                    </form>
+                    ${assetsData.length?'':'<p>Cadastre um ativo antes de agendar manutenção.</p>'}
+                    <h4>Planos recorrentes</h4>
+                    <div style="overflow-x:auto"><table class="enterprise-table"><thead><tr><th>Ativo</th><th>Plano</th><th>Periodicidade</th><th>Checklist</th><th>Próxima execução</th></tr></thead><tbody>${maintenancePlans.map(p=>`<tr><td>${escapeHtml(p.asset_name||p.asset_id)}</td><td>${escapeHtml(p.title)}</td><td>${Number(p.interval_days)} dias</td><td>${escapeHtml(p.checklist||'—')}</td><td>${formatarDataHora(p.next_due_at)}</td></tr>`).join('')||'<tr><td colspan="5">Nenhum plano recorrente cadastrado.</td></tr>'}</tbody></table></div>
+                    <h4>Tarefas (${filteredTasks.length} de ${maintenanceTasks.length})</h4>
+                    <div class="os-filters"><div class="input-group"><label for="maintenance-search">Buscar</label><input id="maintenance-search" value="${escapeHtml(maintenanceSearchText)}" placeholder="Ativo, tarefa ou responsável" onchange="maintenanceSearchText=this.value;renderizar()"></div>
+                        <button type="button" class="btn-action" onclick="maintenanceSearchText=document.getElementById('maintenance-search').value;renderizar()">Buscar</button>
+                        <div class="input-group"><label>Estado</label><select onchange="maintenanceStatusFilter=this.value;renderizar()"><option value="TODOS" ${maintenanceStatusFilter==='TODOS'?'selected':''}>Todos os estados</option>${['PENDENTE','EM_ANDAMENTO','CONCLUIDA','CANCELADA'].map(s=>`<option value="${s}" ${maintenanceStatusFilter===s?'selected':''}>${s}</option>`).join('')}</select></div>
+                        <label><input type="checkbox" ${maintenanceOnlyOverdue?'checked':''} onchange="maintenanceOnlyOverdue=this.checked;renderizar()"> Somente atrasadas</label>
+                    </div>
+                    <div style="overflow-x:auto"><table class="enterprise-table"><thead><tr><th>Prazo</th><th>Ativo</th><th>Tarefa / detalhes</th><th>Responsável</th><th>Estado</th><th>Conclusão</th><th>Ação</th></tr></thead><tbody>${taskRows}</tbody></table></div>
+                </div>`;
                 return;
             }
             if (currentTab === 'devices') {

@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.29.0 — Tarefas avulsas de manutenção
+
+A aba Manutenção permite agendar tarefas avulsas além dos planos recorrentes. Checklist e observações ficam visíveis nos detalhes da tarefa, a data de conclusão aparece na lista e tarefas concluídas ou canceladas têm o estado final bloqueado na interface.
+
 ## v0.28.0 — Resumo da gestão de ativos
 
 A aba Ativos mostra totais cadastrados, em operação, em manutenção e vinculados a painéis. A tabela aplica cores ao estado e informa claramente quando não há ativos ou quando os filtros não encontram resultados.

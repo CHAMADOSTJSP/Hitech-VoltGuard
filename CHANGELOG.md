@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.29.0 — Tarefas avulsas de manutenção
+- Adicionado formulário para agendar tarefa avulsa com ativo, prazo, responsável e checklist/observações.
+- Exibidos detalhes e data de conclusão das tarefas na listagem.
+- Bloqueada na interface a troca de estado para tarefas concluídas ou canceladas, em linha com as transições da API.
+- Incluídas mensagens vazias para tarefas e planos sem registros.
+
 ## v0.28.0 — Resumo da gestão de ativos
 - Adicionados contadores para ativos cadastrados, em operação, em manutenção e vinculados a painéis.
 - Destacados estados na listagem e mensagens explícitas para lista vazia ou filtros sem resultados.
