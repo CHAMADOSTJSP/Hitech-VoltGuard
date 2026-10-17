@@ -89,3 +89,10 @@ A organização de dispositivos/ativos, dashboards, telemetria e alarmes segue p
 - O controle de assinaturas ainda não processa pagamentos reais.
 - A versão não é certificada para comando/proteção de instalações industriais e não declara conformidade automática com NR-10, IEC 62443 ou LGPD.
 - A migração atual de banco continua limitada; para mudanças de esquema futuras, adotar Alembic e processo de backup/rollback.
+
+
+## Revisão adicional — versão 0.5.0
+
+Implementados cadastro de ativos, planos/tarefas de manutenção e credenciais próprias de dispositivos. As credenciais são armazenadas como hashes e podem ser revogadas; a ingestão autenticada valida que o token só escreve no painel vinculado. A recorrência é orientada à conclusão da tarefa e não depende de um scheduler.
+
+Antes de produção: usar migrações formais (Alembic), limitar taxa distribuída, testar restauração/backup, revisar WebSocket e CSP/XSS, adicionar notificações com entrega monitorada, realizar testes de carga e revisão independente de segurança. Nenhuma integração Modbus/OPC UA ou certificação de segurança funcional está incluída.

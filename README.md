@@ -75,7 +75,24 @@ O Blueprint está configurado para avaliação econômica. Serviços e bancos gr
 
 Leia `REVISAO_TECNICA.md` antes de usar dados reais.
 
-## Central de Alarmes (v0.4.0)
+## Novos módulos (v0.5.0)
+
+### Gestão de ativos
+A aba **Ativos** permite cadastrar tag patrimonial, nome, tipo, localização, fabricante, modelo, número de série, painel associado e observações. A tag é validada como única por organização na aplicação.
+
+Endpoints autenticados: `GET /api/assets` e `POST /api/assets`.
+
+### Manutenção preventiva
+A aba **Manutenção** permite criar planos com periodicidade em dias e checklist, gera a primeira tarefa e agenda a próxima execução quando uma tarefa recorrente é concluída. Estados: `PENDENTE`, `EM_ANDAMENTO`, `CONCLUIDA`, `CANCELADA`. A recorrência é acionada na conclusão da tarefa, não por um scheduler externo.
+
+Endpoints autenticados: `GET/POST /api/maintenance/plans`, `GET/POST /api/maintenance/tasks`, `PATCH /api/maintenance/tasks/{id}`.
+
+### Credenciais dedicadas de dispositivo
+A aba **Dispositivos** permite emitir um token exclusivo vinculado a um painel. A API guarda somente o hash SHA-256 do token; o valor bruto aparece uma única vez na criação. Credenciais podem ser revogadas. Use HTTPS, armazene o token em cofre de segredos no gateway e nunca no JavaScript do navegador.
+
+Envie telemetria com `POST /api/device/telemetry`, cabeçalho `Authorization: Bearer <device-token>` e JSON contendo `panel_id`, `temperature`, `current` e opcionalmente `voltage`. Cada token só pode enviar dados ao painel ao qual foi vinculado. Isso implementa o endpoint de ingestão autenticada, mas não instala driver Modbus/OPC UA nem conecta automaticamente equipamento físico.
+
+## Central de Alarmes (v0.4.1)
 Acesse a aba **Central de Alarmes** depois de entrar. Os alarmes de temperatura/corrente são criados quando a telemetria autenticada excede os limites da organização. O ciclo de vida inclui `ACTIVE`, `ACKNOWLEDGED` e `CLEARED`. Para gerar um alarme de teste, use um painel da própria organização e envie telemetria pelo endpoint autenticado `POST /api/telemetry` com valores acima dos limites configurados. Dados de teste não devem ser enviados a equipamentos de campo.
 
 Endpoints autenticados:

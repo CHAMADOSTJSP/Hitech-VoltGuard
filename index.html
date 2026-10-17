@@ -145,7 +145,7 @@
     <script>
         let currentTab = 'realtime';
         let currentUser = '', currentCargo = '', tokenJwt = '';
-        let dadosGlobais = {}, auditLogs = [], billingData = {}, inventoryData = {}, historyData = {}, workOrders = [], alarmsData = [], pollingInterval = null;
+        let dadosGlobais = {}, auditLogs = [], billingData = {}, inventoryData = {}, historyData = {}, workOrders = [], alarmsData = [], assetsData = [], maintenancePlans = [], maintenanceTasks = [], deviceCredentials = [], pollingInterval = null;
         let chartInstances = {};
         let html5QrCodeScanner = null;
 
@@ -250,6 +250,9 @@
                 html += `<button type="button" class="tab-btn" id="t-predictive" onclick="mudarAba('predictive')">📈 Tendência Térmica</button>`;
                 html += `<button type="button" class="tab-btn" id="t-esg" onclick="mudarAba('esg')">🌱 ESG</button>`;
                 html += `<button type="button" class="tab-btn" id="t-inventory" onclick="mudarAba('inventory')">📦 Almoxarifado</button>`;
+                html += `<button type="button" class="tab-btn" id="t-assets" onclick="mudarAba('assets')">🏷️ Ativos</button>`;
+                html += `<button type="button" class="tab-btn" id="t-maintenance" onclick="mudarAba('maintenance')">🧰 Manutenção</button>`;
+                html += `<button type="button" class="tab-btn" id="t-devices" onclick="mudarAba('devices')">🔑 Dispositivos</button>`;
                 html += `<button type="button" class="tab-btn" id="t-rules" onclick="mudarAba('rules')">⚙️ Regras de Alarme</button>`;
             }
             html += `<button type="button" class="tab-btn" id="t-alarms" onclick="mudarAba('alarms')">🚨 Central de Alarmes</button>`;
@@ -332,11 +335,14 @@
 
         function mudarAba(aba) {
             currentTab = aba;
-            ['realtime', 'commission', 'predictive', 'esg', 'inventory', 'rules', 'alarms', 'orders', 'audit', 'billing', 'executive', 'webhooks', 'demo'].forEach(t => {
+            ['realtime', 'commission', 'predictive', 'esg', 'inventory', 'assets', 'maintenance', 'devices', 'rules', 'alarms', 'orders', 'audit', 'billing', 'executive', 'webhooks', 'demo'].forEach(t => {
                 const el = document.getElementById(`t-${t}`);
                 if(el) el.className = t === aba ? 'tab-btn active' : 'tab-btn';
             });
-            renderizar();
+            if (aba === 'assets') carregarAtivos();
+            else if (aba === 'maintenance') carregarManutencao();
+            else if (aba === 'devices') carregarDispositivos();
+            else renderizar();
         }
 
         async function consultarQR(qrCode) {
@@ -493,10 +499,48 @@
             });
         }
 
+        async function apiJson(path, options = {}) {
+            const headers = Object.assign({'Authorization': `Bearer ${tokenJwt}`, 'Content-Type':'application/json'}, options.headers || {});
+            const response = await fetch(path, Object.assign({}, options, {headers}));
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.detail || `Erro HTTP ${response.status}`);
+            return data;
+        }
+        async function carregarAtivos() { try { assetsData = await apiJson('/api/assets'); renderizar(); } catch(e) { alert(e.message); } }
+        async function criarAtivo(event) {
+            event.preventDefault();
+            try { await apiJson('/api/assets', {method:'POST', body:JSON.stringify({asset_tag:document.getElementById('asset-tag').value,name:document.getElementById('asset-name').value,asset_type:document.getElementById('asset-type').value,location:document.getElementById('asset-location').value,manufacturer:document.getElementById('asset-manufacturer').value,model:document.getElementById('asset-model').value,serial_number:document.getElementById('asset-serial').value,panel_id:document.getElementById('asset-panel').value || null,notes:document.getElementById('asset-notes').value})}); alert('Ativo cadastrado.'); assetsData = await apiJson('/api/assets'); renderizar(); } catch(e) { alert(e.message); }
+        }
+        async function carregarManutencao() { try { [maintenancePlans, maintenanceTasks, assetsData] = await Promise.all([apiJson('/api/maintenance/plans'),apiJson('/api/maintenance/tasks'),apiJson('/api/assets')]); renderizar(); } catch(e) { alert(e.message); } }
+        async function criarPlanoManutencao(event) {
+            event.preventDefault(); try { await apiJson('/api/maintenance/plans',{method:'POST',body:JSON.stringify({asset_id:Number(document.getElementById('mp-asset').value),title:document.getElementById('mp-title').value,interval_days:Number(document.getElementById('mp-interval').value),checklist:document.getElementById('mp-checklist').value})}); alert('Plano criado e primeira tarefa agendada.'); await carregarManutencao(); } catch(e) { alert(e.message); }
+        }
+        async function atualizarTarefaManutencao(id) {
+            const status = document.getElementById(`mt-status-${Number(id)}`).value; try { await apiJson(`/api/maintenance/tasks/${Number(id)}`,{method:'PATCH',body:JSON.stringify({status})}); await carregarManutencao(); } catch(e) { alert(e.message); }
+        }
+        async function carregarDispositivos() { try { deviceCredentials = await apiJson('/api/devices/credentials'); renderizar(); } catch(e) { alert(e.message); } }
+        async function criarCredencialDispositivo(event) {
+            event.preventDefault(); try { const result = await apiJson('/api/devices/credentials',{method:'POST',body:JSON.stringify({panel_id:document.getElementById('device-panel').value,name:document.getElementById('device-name').value})}); alert(`Copie e guarde agora o token do dispositivo. Ele não será mostrado novamente:\n\n${result.device_token}`); deviceCredentials = await apiJson('/api/devices/credentials'); renderizar(); } catch(e) { alert(e.message); }
+        }
+        async function revogarDispositivo(id) { if(!confirm('Revogar esta credencial? O dispositivo deixará de enviar telemetria.')) return; try { await apiJson(`/api/devices/credentials/${Number(id)}/revoke`,{method:'POST'}); await carregarDispositivos(); } catch(e) { alert(e.message); } }
+
         function renderizar() {
             const container = document.getElementById('main-container');
             if(!container) return;
             const lista = Object.values(dadosGlobais);
+
+            if (currentTab === 'assets') {
+                container.innerHTML = `<div style="grid-column:1/-1;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:20px;border-radius:8px"><h3 style="color:#10b981">🏷️ Cadastro de Ativos</h3><form onsubmit="criarAtivo(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px"><div class="input-group"><label>Tag / patrimônio</label><input id="asset-tag" required maxlength="80"></div><div class="input-group"><label>Nome do ativo</label><input id="asset-name" required maxlength="160"></div><div class="input-group"><label>Tipo</label><select id="asset-type"><option>PAINEL_ELETRICO</option><option>MOTOR</option><option>INVERSOR</option><option>TRANSFORMADOR</option><option>MEDIDOR</option><option>OUTRO</option></select></div><div class="input-group"><label>Localização</label><input id="asset-location" maxlength="200"></div><div class="input-group"><label>Fabricante</label><input id="asset-manufacturer" maxlength="120"></div><div class="input-group"><label>Modelo</label><input id="asset-model" maxlength="120"></div><div class="input-group"><label>Número de série</label><input id="asset-serial" maxlength="120"></div><div class="input-group"><label>Painel associado</label><select id="asset-panel"><option value="">Nenhum</option>${lista.map(x=>`<option value="${escapeHtml(x.id)}">${escapeHtml(x.id)}</option>`).join('')}</select></div><div class="input-group" style="grid-column:1/-1"><label>Observações</label><textarea id="asset-notes" maxlength="2000"></textarea></div><button class="btn-primary" type="submit">Cadastrar ativo</button></form><h4>Ativos cadastrados</h4><div style="overflow-x:auto"><table class="enterprise-table"><tr><th>Tag</th><th>Nome</th><th>Tipo</th><th>Local</th><th>Painel</th><th>Série</th></tr>${assetsData.map(a=>`<tr><td>${escapeHtml(a.asset_tag)}</td><td>${escapeHtml(a.name)}</td><td>${escapeHtml(a.asset_type)}</td><td>${escapeHtml(a.location||'—')}</td><td>${escapeHtml(a.panel_id||'—')}</td><td>${escapeHtml(a.serial_number||'—')}</td></tr>`).join('')}</table></div></div>`;
+                return;
+            }
+            if (currentTab === 'maintenance') {
+                container.innerHTML = `<div style="grid-column:1/-1;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:20px;border-radius:8px"><h3 style="color:#10b981">🧰 Manutenção Preventiva</h3><form onsubmit="criarPlanoManutencao(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px"><div class="input-group"><label>Ativo</label><select id="mp-asset" required>${assetsData.map(a=>`<option value="${Number(a.id)}">${escapeHtml(a.asset_tag)} — ${escapeHtml(a.name)}</option>`).join('')}</select></div><div class="input-group"><label>Nome do plano</label><input id="mp-title" required maxlength="180" placeholder="Inspeção trimestral"></div><div class="input-group"><label>Periodicidade (dias)</label><input id="mp-interval" type="number" min="1" max="3650" value="30" required></div><div class="input-group" style="grid-column:1/-1"><label>Checklist (separe os itens por ponto e vírgula)</label><textarea id="mp-checklist" maxlength="4000">Inspeção visual;Verificar conexões;Registrar observações</textarea></div><button class="btn-primary" type="submit" ${assetsData.length?'':'disabled'}>Criar plano e agendar primeira tarefa</button></form><h4>Planos</h4><table class="enterprise-table"><tr><th>Ativo</th><th>Plano</th><th>Intervalo</th><th>Próxima execução</th></tr>${maintenancePlans.map(p=>`<tr><td>${escapeHtml(p.asset_name||p.asset_id)}</td><td>${escapeHtml(p.title)}</td><td>${Number(p.interval_days)} dias</td><td>${escapeHtml(p.next_due_at)}</td></tr>`).join('')}</table><h4>Tarefas</h4><div style="overflow-x:auto"><table class="enterprise-table"><tr><th>Vencimento</th><th>Ativo</th><th>Tarefa</th><th>Responsável</th><th>Estado</th><th>Ação</th></tr>${maintenanceTasks.map(t=>`<tr><td>${escapeHtml(t.due_at)}</td><td>${escapeHtml(t.asset_name||t.asset_id)}</td><td>${escapeHtml(t.title)}</td><td>${escapeHtml(t.assigned_to||'—')}</td><td>${escapeHtml(t.status)}</td><td><select id="mt-status-${Number(t.id)}"><option ${t.status==='PENDENTE'?'selected':''}>PENDENTE</option><option ${t.status==='EM_ANDAMENTO'?'selected':''}>EM_ANDAMENTO</option><option ${t.status==='CONCLUIDA'?'selected':''}>CONCLUIDA</option><option ${t.status==='CANCELADA'?'selected':''}>CANCELADA</option></select><button class="btn-action" onclick="atualizarTarefaManutencao(${Number(t.id)})">Guardar</button></td></tr>`).join('')}</table></div></div>`;
+                return;
+            }
+            if (currentTab === 'devices') {
+                container.innerHTML = `<div style="grid-column:1/-1;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:20px;border-radius:8px"><h3 style="color:#10b981">🔑 Credenciais de Telemetria por Dispositivo</h3><p>O token é exibido somente uma vez. Guarde-o num cofre de segredos; não o publique no frontend.</p><form onsubmit="criarCredencialDispositivo(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px"><div class="input-group"><label>Painel autorizado</label><select id="device-panel" required>${lista.map(x=>`<option value="${escapeHtml(x.id)}">${escapeHtml(x.id)} — ${escapeHtml(x.name)}</option>`).join('')}</select></div><div class="input-group"><label>Nome da credencial</label><input id="device-name" maxlength="120" required placeholder="Gateway sala elétrica"></div><button class="btn-primary" type="submit">Criar credencial</button></form><p>Endpoint de ingestão: <code>POST /api/device/telemetry</code> com cabeçalho <code>Authorization: Bearer TOKEN</code>.</p><table class="enterprise-table"><tr><th>Nome</th><th>Painel</th><th>Criada em</th><th>Último uso</th><th>Estado</th><th>Ação</th></tr>${deviceCredentials.map(d=>`<tr><td>${escapeHtml(d.name)}</td><td>${escapeHtml(d.panel_id)}</td><td>${escapeHtml(d.created_at)}</td><td>${escapeHtml(d.last_used_at||'Nunca')}</td><td>${d.revoked?'REVOGADA':'ATIVA'}</td><td>${d.revoked?'—':`<button class="btn-action" onclick="revogarDispositivo(${Number(d.id)})">Revogar</button>`}</td></tr>`).join('')}</table></div>`;
+                return;
+            }
 
             if (currentTab !== 'predictive') { chartInstances = {}; }
 

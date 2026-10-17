@@ -108,6 +108,50 @@ class VoltGuardSmokeTests(unittest.TestCase):
         self.assertIn("HIGH_TEMPERATURE", types)
         self.assertIn("HIGH_CURRENT", types)
 
+    def test_asset_creation_and_tenant_isolation(self):
+        tenant, headers = self.create_tenant("ASSET")
+        other_tenant, other_headers = self.create_tenant("ASSETOTHER")
+        panel = self.client.get("/api/panels", headers=headers).json()["panels"][0]
+        created = self.client.post("/api/assets", headers=headers, json={
+            "asset_tag": "ATIVO-001", "name": "Motor da bomba", "asset_type": "MOTOR",
+            "location": "Sala de bombas", "manufacturer": "Fabricante teste", "panel_id": panel["id"]
+        })
+        self.assertEqual(created.status_code, 201, created.text)
+        self.assertEqual(len(self.client.get("/api/assets", headers=headers).json()), 1)
+        self.assertEqual(self.client.get("/api/assets", headers=other_headers).json(), [])
+        duplicate = self.client.post("/api/assets", headers=headers, json={"asset_tag":"ATIVO-001","name":"Duplicado"})
+        self.assertEqual(duplicate.status_code, 409)
+
+    def test_maintenance_plan_generates_tasks_and_recurs(self):
+        _, headers = self.create_tenant("MAINT")
+        panel = self.client.get("/api/panels", headers=headers).json()["panels"][0]
+        asset = self.client.post("/api/assets", headers=headers, json={"asset_tag":"AT-MANUT","name":"Painel teste","panel_id":panel["id"]})
+        self.assertEqual(asset.status_code, 201, asset.text)
+        plan = self.client.post("/api/maintenance/plans", headers=headers, json={"asset_id":asset.json()["id"],"title":"Inspeção mensal","interval_days":30,"checklist":"Visual;Conexões"})
+        self.assertEqual(plan.status_code, 201, plan.text)
+        tasks = self.client.get("/api/maintenance/tasks", headers=headers).json()
+        self.assertEqual(len(tasks), 1)
+        task_id = tasks[0]["id"]
+        completed = self.client.patch(f"/api/maintenance/tasks/{task_id}", headers=headers, json={"status":"CONCLUIDA"})
+        self.assertEqual(completed.status_code, 200, completed.text)
+        self.assertEqual(len(self.client.get("/api/maintenance/tasks", headers=headers).json()), 2)
+
+    def test_device_credential_ingestion_and_revocation(self):
+        _, headers = self.create_tenant("DEVICE")
+        panel = self.client.get("/api/panels", headers=headers).json()["panels"][0]
+        credential = self.client.post("/api/devices/credentials", headers=headers, json={"panel_id":panel["id"],"name":"Gateway teste"})
+        self.assertEqual(credential.status_code, 201, credential.text)
+        token = credential.json()["device_token"]
+        payload = {"panel_id":panel["id"],"temperature":45,"current":120,"voltage":"380V AC"}
+        ingest = self.client.post("/api/device/telemetry", headers={"Authorization":f"Bearer {token}"}, json=payload)
+        self.assertEqual(ingest.status_code, 200, ingest.text)
+        wrong_panel = self.client.post("/api/device/telemetry", headers={"Authorization":f"Bearer {token}"}, json={**payload,"panel_id":"OUTRO"})
+        self.assertEqual(wrong_panel.status_code, 403)
+        revoked = self.client.post(f"/api/devices/credentials/{credential.json()['id']}/revoke", headers=headers)
+        self.assertEqual(revoked.status_code, 200, revoked.text)
+        rejected = self.client.post("/api/device/telemetry", headers={"Authorization":f"Bearer {token}"}, json=payload)
+        self.assertEqual(rejected.status_code, 401)
+
     def test_report_requires_authentication(self):
         response = self.client.get("/api/export/executive-report")
         self.assertEqual(response.status_code, 401)

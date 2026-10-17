@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 import httpx
 from datetime import datetime, timedelta
 from typing import List, Optional
-from fastapi import FastAPI, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, Request
+from fastapi import FastAPI, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, Request, Header
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from pydantic import BaseModel
@@ -142,6 +142,59 @@ class AlarmModel(Base):
     cleared_at = Column(DateTime, nullable=True)
 
 
+class AssetModel(Base):
+    __tablename__ = "assets"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(String, index=True, nullable=False)
+    asset_tag = Column(String, nullable=False, index=True)
+    name = Column(String, nullable=False)
+    asset_type = Column(String, default="PAINEL_ELETRICO")
+    location = Column(String, default="")
+    manufacturer = Column(String, default="")
+    model = Column(String, default="")
+    serial_number = Column(String, default="")
+    panel_id = Column(String, nullable=True, index=True)
+    status = Column(String, default="ATIVO")
+    notes = Column(String, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class MaintenancePlanModel(Base):
+    __tablename__ = "maintenance_plans"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(String, index=True, nullable=False)
+    asset_id = Column(Integer, index=True, nullable=False)
+    title = Column(String, nullable=False)
+    checklist = Column(String, default="Inspeção visual;Verificar conexões;Registrar observações")
+    interval_days = Column(Integer, default=30)
+    next_due_at = Column(DateTime, nullable=False)
+    active = Column(Integer, default=1)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class MaintenanceTaskModel(Base):
+    __tablename__ = "maintenance_tasks"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(String, index=True, nullable=False)
+    plan_id = Column(Integer, index=True, nullable=True)
+    asset_id = Column(Integer, index=True, nullable=False)
+    title = Column(String, nullable=False)
+    due_at = Column(DateTime, nullable=False)
+    status = Column(String, default="PENDENTE")
+    assigned_to = Column(String, nullable=True)
+    notes = Column(String, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+
+class DeviceCredentialModel(Base):
+    __tablename__ = "device_credentials"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(String, index=True, nullable=False)
+    panel_id = Column(String, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    token_hash = Column(String, unique=True, index=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_used_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+
 class UserModel(Base):
     __tablename__ = "users"
     username = Column(String, primary_key=True, index=True)
@@ -182,7 +235,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.3.0",
+    version="0.5.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -905,6 +958,199 @@ def update_work_order(order_id: int, data: WorkOrderUpdate, db: Session = Depend
     db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="ATUALIZAR_ORDEM_SERVICO", details=f"Ordem {order_id} atualizada; estado={order.status}."))
     db.commit()
     return {"status": "success", "id": order.id, "order_status": order.status}
+
+class AssetCreate(BaseModel):
+    asset_tag: str
+    name: str
+    asset_type: str = "PAINEL_ELETRICO"
+    location: str = ""
+    manufacturer: str = ""
+    model: str = ""
+    serial_number: str = ""
+    panel_id: Optional[str] = None
+    notes: str = ""
+
+class MaintenancePlanCreate(BaseModel):
+    asset_id: int
+    title: str
+    interval_days: int = 30
+    next_due_at: Optional[datetime] = None
+    checklist: str = "Inspeção visual;Verificar conexões;Registrar observações"
+
+class MaintenanceTaskCreate(BaseModel):
+    asset_id: int
+    title: str
+    due_at: Optional[datetime] = None
+    assigned_to: Optional[str] = None
+    notes: str = ""
+
+class MaintenanceTaskUpdate(BaseModel):
+    status: str
+    assigned_to: Optional[str] = None
+    notes: Optional[str] = None
+
+class DeviceCredentialCreate(BaseModel):
+    panel_id: str
+    name: str
+
+class DeviceTelemetry(BaseModel):
+    panel_id: str
+    temperature: float
+    current: float
+    voltage: Optional[str] = "380V AC"
+    gateway_qr: Optional[str] = None
+
+@app.get("/api/assets")
+def list_assets(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    rows = db.query(AssetModel).filter(AssetModel.tenant_id == current_user.tenant_id).order_by(AssetModel.name).all()
+    return [{"id": x.id, "asset_tag": x.asset_tag, "name": x.name, "asset_type": x.asset_type, "location": x.location, "manufacturer": x.manufacturer, "model": x.model, "serial_number": x.serial_number, "panel_id": x.panel_id, "status": x.status, "notes": x.notes, "created_at": x.created_at.isoformat()} for x in rows]
+
+@app.post("/api/assets", status_code=201)
+def create_asset(data: AssetCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role not in {"CEO", "Gerente", "Técnico de Campo"}:
+        raise HTTPException(status_code=403, detail="Sem permissão para cadastrar ativos.")
+    tag, name = data.asset_tag.strip(), data.name.strip()
+    if not tag or len(tag) > 80 or not name or len(name) > 160:
+        raise HTTPException(status_code=422, detail="Identificação ou nome do ativo inválido.")
+    if db.query(AssetModel).filter(AssetModel.tenant_id == current_user.tenant_id, AssetModel.asset_tag == tag).first():
+        raise HTTPException(status_code=409, detail="Já existe um ativo com essa identificação.")
+    if data.panel_id and not db.query(PanelModel).filter(PanelModel.id == data.panel_id, PanelModel.tenant_id == current_user.tenant_id).first():
+        raise HTTPException(status_code=404, detail="Painel não encontrado nesta organização.")
+    for value, limit, label in [(data.location, 200, "Localização"), (data.manufacturer, 120, "Fabricante"), (data.model, 120, "Modelo"), (data.serial_number, 120, "Número de série"), (data.notes, 2000, "Observações")]:
+        if len(value or "") > limit:
+            raise HTTPException(status_code=422, detail=f"{label} demasiado longo.")
+    row = AssetModel(tenant_id=current_user.tenant_id, asset_tag=tag, name=name, asset_type=data.asset_type[:80], location=data.location.strip(), manufacturer=data.manufacturer.strip(), model=data.model.strip(), serial_number=data.serial_number.strip(), panel_id=data.panel_id, notes=data.notes.strip())
+    db.add(row); db.flush()
+    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="CRIAR_ATIVO", details=f"Ativo {tag} cadastrado."))
+    db.commit(); db.refresh(row)
+    return {"id": row.id, "asset_tag": row.asset_tag, "name": row.name, "asset_type": row.asset_type, "location": row.location, "manufacturer": row.manufacturer, "model": row.model, "serial_number": row.serial_number, "panel_id": row.panel_id, "status": row.status, "notes": row.notes, "created_at": row.created_at.isoformat()}
+
+@app.get("/api/maintenance/plans")
+def list_maintenance_plans(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    rows = db.query(MaintenancePlanModel).filter(MaintenancePlanModel.tenant_id == current_user.tenant_id).order_by(MaintenancePlanModel.next_due_at).all()
+    return [{"id": x.id, "asset_id": x.asset_id, "asset_name": db.query(AssetModel.name).filter(AssetModel.id == x.asset_id, AssetModel.tenant_id == current_user.tenant_id).scalar(), "title": x.title, "checklist": x.checklist, "interval_days": x.interval_days, "next_due_at": x.next_due_at.isoformat(), "active": bool(x.active)} for x in rows]
+
+@app.post("/api/maintenance/plans", status_code=201)
+def create_maintenance_plan(data: MaintenancePlanCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role not in {"CEO", "Gerente", "Técnico de Campo"}:
+        raise HTTPException(status_code=403, detail="Sem permissão para criar planos de manutenção.")
+    if not data.title.strip() or len(data.title) > 180 or not 1 <= data.interval_days <= 3650 or len(data.checklist) > 4000:
+        raise HTTPException(status_code=422, detail="Título, periodicidade ou checklist inválido.")
+    asset = db.query(AssetModel).filter(AssetModel.id == data.asset_id, AssetModel.tenant_id == current_user.tenant_id).first()
+    if not asset: raise HTTPException(status_code=404, detail="Ativo não encontrado nesta organização.")
+    due = data.next_due_at or (datetime.utcnow() + timedelta(days=data.interval_days))
+    row = MaintenancePlanModel(tenant_id=current_user.tenant_id, asset_id=asset.id, title=data.title.strip(), interval_days=data.interval_days, next_due_at=due, checklist=data.checklist.strip())
+    db.add(row); db.flush()
+    task = MaintenanceTaskModel(tenant_id=current_user.tenant_id, plan_id=row.id, asset_id=asset.id, title=row.title, due_at=due, notes="Checklist: " + row.checklist)
+    db.add(task)
+    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="CRIAR_PLANO_MANUTENCAO", details=f"Plano {row.title}; ativo {asset.asset_tag}; próxima execução {due.isoformat()}"))
+    db.commit(); db.refresh(row)
+    return {"id": row.id, "asset_id": row.asset_id, "title": row.title, "interval_days": row.interval_days, "next_due_at": row.next_due_at.isoformat(), "active": True, "first_task_id": task.id}
+
+@app.get("/api/maintenance/tasks")
+def list_maintenance_tasks(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    rows = db.query(MaintenanceTaskModel).filter(MaintenanceTaskModel.tenant_id == current_user.tenant_id).order_by(MaintenanceTaskModel.due_at).all()
+    return [{"id": x.id, "plan_id": x.plan_id, "asset_id": x.asset_id, "asset_name": db.query(AssetModel.name).filter(AssetModel.id == x.asset_id, AssetModel.tenant_id == current_user.tenant_id).scalar(), "title": x.title, "due_at": x.due_at.isoformat(), "status": x.status, "assigned_to": x.assigned_to, "notes": x.notes, "completed_at": x.completed_at.isoformat() if x.completed_at else None} for x in rows]
+
+@app.post("/api/maintenance/tasks", status_code=201)
+def create_maintenance_task(data: MaintenanceTaskCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role not in {"CEO", "Gerente", "Técnico de Campo"}:
+        raise HTTPException(status_code=403, detail="Sem permissão para criar tarefas.")
+    asset = db.query(AssetModel).filter(AssetModel.id == data.asset_id, AssetModel.tenant_id == current_user.tenant_id).first()
+    if not asset: raise HTTPException(status_code=404, detail="Ativo não encontrado nesta organização.")
+    if not data.title.strip() or len(data.title) > 180 or len(data.notes) > 4000:
+        raise HTTPException(status_code=422, detail="Título ou observações inválidos.")
+    row = MaintenanceTaskModel(tenant_id=current_user.tenant_id, asset_id=asset.id, title=data.title.strip(), due_at=data.due_at or datetime.utcnow(), assigned_to=(data.assigned_to or "").strip() or None, notes=data.notes.strip())
+    db.add(row); db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="CRIAR_TAREFA_MANUTENCAO", details=f"Tarefa {row.title}; ativo {asset.asset_tag}")); db.commit(); db.refresh(row)
+    return {"id": row.id, "asset_id": row.asset_id, "title": row.title, "due_at": row.due_at.isoformat(), "status": row.status}
+
+@app.patch("/api/maintenance/tasks/{task_id}")
+def update_maintenance_task(task_id: int, data: MaintenanceTaskUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    row = db.query(MaintenanceTaskModel).filter(MaintenanceTaskModel.id == task_id, MaintenanceTaskModel.tenant_id == current_user.tenant_id).first()
+    if not row: raise HTTPException(status_code=404, detail="Tarefa não encontrada.")
+    if data.status not in {"PENDENTE", "EM_ANDAMENTO", "CONCLUIDA", "CANCELADA"}: raise HTTPException(status_code=422, detail="Estado inválido.")
+    was_completed = row.status == "CONCLUIDA"
+    row.status = data.status
+    if data.assigned_to is not None: row.assigned_to = data.assigned_to[:120].strip() or None
+    if data.notes is not None: row.notes = data.notes[:4000]
+    row.completed_at = datetime.utcnow() if data.status == "CONCLUIDA" else None
+    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="ATUALIZAR_TAREFA_MANUTENCAO", details=f"Tarefa {task_id}; estado {row.status}")); db.commit()
+    # When a recurring task is completed, schedule the next task from the plan interval.
+    if row.status == "CONCLUIDA" and not was_completed and row.plan_id:
+        plan = db.query(MaintenancePlanModel).filter(MaintenancePlanModel.id == row.plan_id, MaintenancePlanModel.tenant_id == current_user.tenant_id, MaintenancePlanModel.active == 1).first()
+        if plan:
+            next_due = max(plan.next_due_at, datetime.utcnow()) + timedelta(days=plan.interval_days)
+            plan.next_due_at = next_due
+            db.add(MaintenanceTaskModel(tenant_id=current_user.tenant_id, plan_id=plan.id, asset_id=plan.asset_id, title=plan.title, due_at=next_due, notes="Checklist: " + plan.checklist))
+            db.commit()
+    return {"status": "success", "id": row.id, "task_status": row.status}
+
+@app.get("/api/devices/credentials")
+def list_device_credentials(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    rows = db.query(DeviceCredentialModel).filter(DeviceCredentialModel.tenant_id == current_user.tenant_id).order_by(DeviceCredentialModel.created_at.desc()).all()
+    return [{"id": x.id, "panel_id": x.panel_id, "name": x.name, "created_at": x.created_at.isoformat(), "last_used_at": x.last_used_at.isoformat() if x.last_used_at else None, "revoked": bool(x.revoked_at)} for x in rows]
+
+@app.post("/api/devices/credentials", status_code=201)
+def create_device_credential(data: DeviceCredentialCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role not in {"CEO", "Gerente"}: raise HTTPException(status_code=403, detail="Somente CEO ou Gerente pode criar credenciais.")
+    panel = db.query(PanelModel).filter(PanelModel.id == data.panel_id, PanelModel.tenant_id == current_user.tenant_id).first()
+    if not panel: raise HTTPException(status_code=404, detail="Painel não encontrado nesta organização.")
+    if not data.name.strip() or len(data.name) > 120: raise HTTPException(status_code=422, detail="Nome da credencial inválido.")
+    raw = "vgd_" + secrets.token_urlsafe(32)
+    row = DeviceCredentialModel(tenant_id=current_user.tenant_id, panel_id=panel.id, name=data.name.strip(), token_hash=hashlib.sha256(raw.encode()).hexdigest())
+    db.add(row); db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="CRIAR_CREDENCIAL_DISPOSITIVO", details=f"Credencial criada para painel {panel.id}; id {row.id}")); db.commit(); db.refresh(row)
+    return {"id": row.id, "panel_id": row.panel_id, "name": row.name, "device_token": raw, "warning": "Copie agora; o token não será exibido novamente."}
+
+@app.post("/api/devices/credentials/{credential_id}/revoke")
+def revoke_device_credential(credential_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role not in {"CEO", "Gerente"}: raise HTTPException(status_code=403, detail="Sem permissão para revogar credenciais.")
+    row = db.query(DeviceCredentialModel).filter(DeviceCredentialModel.id == credential_id, DeviceCredentialModel.tenant_id == current_user.tenant_id).first()
+    if not row: raise HTTPException(status_code=404, detail="Credencial não encontrada.")
+    row.revoked_at = datetime.utcnow(); db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="REVOGAR_CREDENCIAL_DISPOSITIVO", details=f"Credencial {credential_id} revogada.")); db.commit()
+    return {"status": "revoked", "id": credential_id}
+
+@app.post("/api/device/telemetry", tags=["Device Ingestion"])
+def ingest_device_telemetry(data: DeviceTelemetry, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)):
+    """Ingestão de telemetria com token exclusivo de dispositivo, armazenado apenas como hash."""
+    import math
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Informe Authorization: Bearer <device-token>.")
+    raw_token = authorization[7:].strip()
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    credential = db.query(DeviceCredentialModel).filter(DeviceCredentialModel.token_hash == token_hash, DeviceCredentialModel.revoked_at.is_(None)).first()
+    if not credential:
+        raise HTTPException(status_code=401, detail="Credencial de dispositivo inválida ou revogada.")
+    if data.panel_id != credential.panel_id:
+        raise HTTPException(status_code=403, detail="Esta credencial não está autorizada para o painel informado.")
+    if not math.isfinite(data.temperature) or not -50 <= data.temperature <= 250 or not math.isfinite(data.current) or not 0 <= data.current <= 100000:
+        raise HTTPException(status_code=422, detail="Temperatura ou corrente fora do intervalo permitido.")
+    if data.voltage is not None and len(data.voltage) > 80: raise HTTPException(status_code=422, detail="Tensão demasiado longa.")
+    if data.gateway_qr is not None and len(data.gateway_qr) > 160: raise HTTPException(status_code=422, detail="Identificador do gateway demasiado longo.")
+    panel = db.query(PanelModel).filter(PanelModel.id == credential.panel_id, PanelModel.tenant_id == credential.tenant_id).first()
+    if not panel: raise HTTPException(status_code=404, detail="Painel associado não encontrado.")
+    rule = db.query(TenantRuleModel).filter(TenantRuleModel.tenant_id == credential.tenant_id).first()
+    temp_limit, current_limit = (rule.max_temperature, rule.max_current) if rule else (85.0, 500.0)
+    panel.temperature, panel.current = data.temperature, data.current
+    if data.voltage: panel.voltage = data.voltage[:80]
+    active_conditions = []
+    if data.temperature > temp_limit: active_conditions.append(("HIGH_TEMPERATURE", f"Temperatura {data.temperature} °C acima do limite {temp_limit} °C."))
+    if data.current > current_limit: active_conditions.append(("HIGH_CURRENT", f"Corrente {data.current} A acima do limite {current_limit} A."))
+    panel.status = "CRITICO" if active_conditions else "NORMAL"
+    panel.recommendation = "ALERTA: " + "; ".join(message for _, message in active_conditions) if active_conditions else "Sistema a operar dentro dos parâmetros configurados."
+    now = datetime.utcnow()
+    opened = db.query(AlarmModel).filter(AlarmModel.tenant_id == credential.tenant_id, AlarmModel.panel_id == panel.id, AlarmModel.status.in_(["ACTIVE", "ACKNOWLEDGED"])).all()
+    active_types = {item[0] for item in active_conditions}
+    for alarm_type, message in active_conditions:
+        existing = next((x for x in opened if x.alarm_type == alarm_type), None)
+        if existing: existing.last_triggered_at = now; existing.message = message
+        else: db.add(AlarmModel(tenant_id=credential.tenant_id, panel_id=panel.id, alarm_type=alarm_type, severity="CRITICAL", message=message, status="ACTIVE", first_triggered_at=now, last_triggered_at=now))
+    for alarm in opened:
+        if alarm.alarm_type in {"HIGH_TEMPERATURE", "HIGH_CURRENT"} and alarm.alarm_type not in active_types:
+            alarm.status = "CLEARED"; alarm.cleared_at = now
+    credential.last_used_at = now
+    db.add(PanelHistoryModel(panel_id=panel.id, tenant_id=credential.tenant_id, timestamp=now.isoformat(timespec="seconds") + "Z", temperature=panel.temperature))
+    db.commit()
+    return {"status": "success", "panel_id": panel.id, "received_at": now.isoformat() + "Z", "active_alarms": len(active_conditions)}
 
 @app.get("/")
 def serve_index():
