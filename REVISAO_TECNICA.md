@@ -68,3 +68,24 @@ Não declarar conformidade com NR-10, IEC 62443, LGPD ou qualquer certificação
 - [ ] Política de retenção, privacidade, resposta a incidentes e suporte definida.
 - [ ] Fonte e confiabilidade de cada leitura claramente identificadas.
 - [ ] Telemetria industrial validada em laboratório e isolada de sistemas de proteção/comando.
+
+## Atualização técnica v0.4.0
+
+### Melhorias implementadas nesta rodada
+- Central de Alarmes com persistência no banco, severidade, estado, primeira/última ocorrência, reconhecimento e encerramento.
+- Alarmes de temperatura e corrente são gerados a partir da telemetria autenticada e dos limites configurados pela organização.
+- Repetições atualizam o alarme aberto existente do mesmo tipo para o painel, evitando criar uma nova linha a cada leitura.
+- Quando uma leitura posterior volta aos limites, o alarme correspondente é encerrado automaticamente. O encerramento manual permanece disponível para usuários autorizados.
+- Endpoints de listagem, reconhecimento e encerramento filtram por `tenant_id`; ações manuais geram trilha de auditoria.
+- A interface ganhou a aba Central de Alarmes.
+
+### Referências de produto usadas como inspiração funcional
+A organização de dispositivos/ativos, dashboards, telemetria e alarmes segue padrões públicos encontrados na documentação do ThingsBoard. O código e a interface foram implementados especificamente para este projeto, sem copiar código proprietário.
+
+### Limitações que continuam abertas
+- O painel ainda inclui métricas e ativos de demonstração; valores simulados não devem ser interpretados como medições de campo.
+- Não foi implementado driver físico Modbus TCP/OPC UA nem provisionamento de credenciais independentes por dispositivo nesta rodada.
+- Notificações externas de alarmes exigem configuração e testes próprios; webhook não substitui um sistema de entrega confiável.
+- O controle de assinaturas ainda não processa pagamentos reais.
+- A versão não é certificada para comando/proteção de instalações industriais e não declara conformidade automática com NR-10, IEC 62443 ou LGPD.
+- A migração atual de banco continua limitada; para mudanças de esquema futuras, adotar Alembic e processo de backup/rollback.

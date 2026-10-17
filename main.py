@@ -126,6 +126,22 @@ class InventoryModel(Base):
     min_threshold = Column(Integer, default=3)
     unit_cost = Column(Float, default=150.0)
 
+class AlarmModel(Base):
+    __tablename__ = "alarms"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(String, index=True, nullable=False)
+    panel_id = Column(String, index=True, nullable=False)
+    alarm_type = Column(String, nullable=False)
+    severity = Column(String, default="WARNING", nullable=False)
+    message = Column(String, nullable=False)
+    status = Column(String, default="ACTIVE", nullable=False)  # ACTIVE, ACKNOWLEDGED, CLEARED
+    first_triggered_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_triggered_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    acknowledged_at = Column(DateTime, nullable=True)
+    acknowledged_by = Column(String, nullable=True)
+    cleared_at = Column(DateTime, nullable=True)
+
+
 class UserModel(Base):
     __tablename__ = "users"
     username = Column(String, primary_key=True, index=True)
@@ -519,9 +535,34 @@ def ingest_telemetry(data: TelemetryData, current_user: User = Depends(get_curre
         panel.status = "NORMAL"
         panel.recommendation = "Sistema a operar dentro dos parâmetros configurados."
         
-    db.add(PanelHistoryModel(panel_id=panel.id, tenant_id=current_user.tenant_id, timestamp=datetime.utcnow().isoformat(timespec="seconds") + "Z", temperature=panel.temperature))
+    # Alarm lifecycle: one open alarm per panel/type; repeated events update the same record.
+    active_conditions = []
+    if data.temperature > temp_limit:
+        active_conditions.append(("HIGH_TEMPERATURE", "CRITICAL", f"Temperatura {data.temperature} °C acima do limite {temp_limit} °C."))
+    if data.current > current_limit:
+        active_conditions.append(("HIGH_CURRENT", "CRITICAL", f"Corrente {data.current} A acima do limite {current_limit} A."))
+    open_alarms = db.query(AlarmModel).filter(
+        AlarmModel.tenant_id == current_user.tenant_id,
+        AlarmModel.panel_id == panel.id,
+        AlarmModel.status.in_(["ACTIVE", "ACKNOWLEDGED"]),
+    ).all()
+    active_types = {condition[0] for condition in active_conditions}
+    now = datetime.utcnow()
+    for alarm_type, severity, message in active_conditions:
+        alarm = next((item for item in open_alarms if item.alarm_type == alarm_type), None)
+        if alarm:
+            alarm.last_triggered_at = now
+            alarm.message = message
+            alarm.severity = severity
+        else:
+            db.add(AlarmModel(tenant_id=current_user.tenant_id, panel_id=panel.id, alarm_type=alarm_type, severity=severity, message=message, status="ACTIVE", first_triggered_at=now, last_triggered_at=now))
+    for alarm in open_alarms:
+        if alarm.alarm_type in {"HIGH_TEMPERATURE", "HIGH_CURRENT"} and alarm.alarm_type not in active_types:
+            alarm.status = "CLEARED"
+            alarm.cleared_at = now
+    db.add(PanelHistoryModel(panel_id=panel.id, tenant_id=current_user.tenant_id, timestamp=now.isoformat(timespec="seconds") + "Z", temperature=panel.temperature))
     db.commit()
-    return {"status": "success", "message": f"Telemetria de {data.panel_id} atualizada com base no limite de {temp_limit}°C."}
+    return {"status": "success", "message": f"Telemetria de {data.panel_id} atualizada com base nos limites configurados.", "active_alarms": len(active_conditions)}
 
 @app.post("/api/demo/force-failure")
 async def force_failure(data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -586,6 +627,7 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
         rule = db.query(TenantRuleModel).filter(TenantRuleModel.tenant_id == current_user.tenant_id).first()
         work_orders = db.query(WorkOrderModel).filter(WorkOrderModel.tenant_id == current_user.tenant_id).all()
         inventory = db.query(InventoryModel).filter(InventoryModel.tenant_id == current_user.tenant_id).all()
+        alarms = db.query(AlarmModel).filter(AlarmModel.tenant_id == current_user.tenant_id).order_by(AlarmModel.first_triggered_at.desc()).limit(200).all()
         
         history_data = {}
         for p in panels:
@@ -606,12 +648,61 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
             "max_current": rule.max_current if rule else 500.0
         }
 
+        alarm_data = [{"id": a.id, "panel_id": a.panel_id, "alarm_type": a.alarm_type, "severity": a.severity,
+                       "message": a.message, "status": a.status, "first_triggered_at": a.first_triggered_at.isoformat() + "Z",
+                       "last_triggered_at": a.last_triggered_at.isoformat() + "Z", "acknowledged_at": a.acknowledged_at.isoformat() + "Z" if a.acknowledged_at else None,
+                       "acknowledged_by": a.acknowledged_by, "cleared_at": a.cleared_at.isoformat() + "Z" if a.cleared_at else None} for a in alarms]
         return {
             "panels": panels_data, "audit_logs": logs_data, "work_orders": wo_data,
-            "inventory": inv_data, "history": history_data, "tenant_id": current_user.tenant_id, "billing": billing_info
+            "inventory": inv_data, "history": history_data, "alarms": alarm_data, "tenant_id": current_user.tenant_id, "billing": billing_info
         }
     except Exception:
         raise HTTPException(status_code=500, detail="Não foi possível carregar os dados do painel.")
+
+@app.get("/api/alarms")
+def list_alarms(status_filter: Optional[str] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    query = db.query(AlarmModel).filter(AlarmModel.tenant_id == current_user.tenant_id)
+    if status_filter:
+        if status_filter not in {"ACTIVE", "ACKNOWLEDGED", "CLEARED"}:
+            raise HTTPException(status_code=422, detail="Filtro de estado de alarme inválido.")
+        query = query.filter(AlarmModel.status == status_filter)
+    return [{"id": a.id, "panel_id": a.panel_id, "alarm_type": a.alarm_type, "severity": a.severity,
+             "message": a.message, "status": a.status, "first_triggered_at": a.first_triggered_at.isoformat() + "Z",
+             "last_triggered_at": a.last_triggered_at.isoformat() + "Z", "acknowledged_at": a.acknowledged_at.isoformat() + "Z" if a.acknowledged_at else None,
+             "acknowledged_by": a.acknowledged_by, "cleared_at": a.cleared_at.isoformat() + "Z" if a.cleared_at else None}
+            for a in query.order_by(AlarmModel.first_triggered_at.desc()).limit(500).all()]
+
+
+@app.post("/api/alarms/{alarm_id}/acknowledge")
+def acknowledge_alarm(alarm_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    alarm = db.query(AlarmModel).filter(AlarmModel.id == alarm_id, AlarmModel.tenant_id == current_user.tenant_id).first()
+    if not alarm:
+        raise HTTPException(status_code=404, detail="Alarme não encontrado nesta organização.")
+    if alarm.status == "CLEARED":
+        raise HTTPException(status_code=409, detail="Um alarme encerrado não pode ser reconhecido.")
+    if alarm.status != "ACKNOWLEDGED":
+        alarm.status = "ACKNOWLEDGED"
+        alarm.acknowledged_at = datetime.utcnow()
+        alarm.acknowledged_by = current_user.username
+        db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="RECONHECER_ALARME", details=f"Alarme {alarm_id} reconhecido."))
+        db.commit()
+    return {"status": "success", "id": alarm.id, "alarm_status": alarm.status}
+
+
+@app.post("/api/alarms/{alarm_id}/clear")
+def clear_alarm(alarm_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role not in {"CEO", "Gerente", "Técnico de Campo"}:
+        raise HTTPException(status_code=403, detail="Sem permissão para encerrar alarmes.")
+    alarm = db.query(AlarmModel).filter(AlarmModel.id == alarm_id, AlarmModel.tenant_id == current_user.tenant_id).first()
+    if not alarm:
+        raise HTTPException(status_code=404, detail="Alarme não encontrado nesta organização.")
+    if alarm.status != "CLEARED":
+        alarm.status = "CLEARED"
+        alarm.cleared_at = datetime.utcnow()
+        db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="ENCERRAR_ALARME", details=f"Alarme {alarm_id} encerrado manualmente."))
+        db.commit()
+    return {"status": "success", "id": alarm.id, "alarm_status": alarm.status}
+
 
 @app.get("/api/panels/qr/{qr_code}")
 def get_panel_by_qr(qr_code: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

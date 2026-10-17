@@ -74,3 +74,13 @@ O Blueprint está configurado para avaliação econômica. Serviços e bancos gr
 - O limitador de requisições usa armazenamento em memória por processo; não é proteção distribuída para uma implantação escalada.
 
 Leia `REVISAO_TECNICA.md` antes de usar dados reais.
+
+## Central de Alarmes (v0.4.0)
+Acesse a aba **Central de Alarmes** depois de entrar. Os alarmes de temperatura/corrente são criados quando a telemetria autenticada excede os limites da organização. O ciclo de vida inclui `ACTIVE`, `ACKNOWLEDGED` e `CLEARED`. Para gerar um alarme de teste, use um painel da própria organização e envie telemetria pelo endpoint autenticado `POST /api/telemetry` com valores acima dos limites configurados. Dados de teste não devem ser enviados a equipamentos de campo.
+
+Endpoints autenticados:
+- `GET /api/alarms` (opcional `?status_filter=ACTIVE|ACKNOWLEDGED|CLEARED`)
+- `POST /api/alarms/{id}/acknowledge`
+- `POST /api/alarms/{id}/clear`
+
+O estado dos alarmes é específico por organização. Esta versão ainda não configura notificações de produção ou integrações com PLCs.

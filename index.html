@@ -145,7 +145,7 @@
     <script>
         let currentTab = 'realtime';
         let currentUser = '', currentCargo = '', tokenJwt = '';
-        let dadosGlobais = {}, auditLogs = [], billingData = {}, inventoryData = {}, historyData = {}, workOrders = [], pollingInterval = null;
+        let dadosGlobais = {}, auditLogs = [], billingData = {}, inventoryData = {}, historyData = {}, workOrders = [], alarmsData = [], pollingInterval = null;
         let chartInstances = {};
         let html5QrCodeScanner = null;
 
@@ -252,6 +252,7 @@
                 html += `<button type="button" class="tab-btn" id="t-inventory" onclick="mudarAba('inventory')">📦 Almoxarifado</button>`;
                 html += `<button type="button" class="tab-btn" id="t-rules" onclick="mudarAba('rules')">⚙️ Regras de Alarme</button>`;
             }
+            html += `<button type="button" class="tab-btn" id="t-alarms" onclick="mudarAba('alarms')">🚨 Central de Alarmes</button>`;
             html += `<button type="button" class="tab-btn" id="t-orders" onclick="mudarAba('orders')">📋 Ordens de Serviço</button>`;
             if (currentCargo === 'CEO') {
                 html += `<button type="button" class="tab-btn" id="t-audit" onclick="mudarAba('audit')">🛡️ Auditoria</button>`;
@@ -292,6 +293,7 @@
                         auditLogs = data.audit_logs || [];
                         inventoryData = data.inventory || [];
                         workOrders = data.work_orders || [];
+                        alarmsData = data.alarms || [];
                         historyData = data.history || {};
                         dadosGlobais = {};
                         data.panels.forEach(p => { dadosGlobais[p.id] = p; });
@@ -318,9 +320,19 @@
             pollingInterval = setInterval(buscarDadosPainéis, 3000);
         }
 
+        async function acaoAlarme(id, action) {
+            try {
+                const res = await fetch(`/api/alarms/${id}/${action}`, {method:'POST', headers:{'Authorization':`Bearer ${tokenJwt}`}});
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Não foi possível atualizar o alarme.');
+                await buscarDadosPainéis();
+                alert(action === 'acknowledge' ? 'Alarme reconhecido.' : 'Alarme encerrado.');
+            } catch (err) { alert(err.message || 'Falha ao atualizar alarme.'); }
+        }
+
         function mudarAba(aba) {
             currentTab = aba;
-            ['realtime', 'commission', 'predictive', 'esg', 'inventory', 'rules', 'orders', 'audit', 'billing', 'executive', 'webhooks', 'demo'].forEach(t => {
+            ['realtime', 'commission', 'predictive', 'esg', 'inventory', 'rules', 'alarms', 'orders', 'audit', 'billing', 'executive', 'webhooks', 'demo'].forEach(t => {
                 const el = document.getElementById(`t-${t}`);
                 if(el) el.className = t === aba ? 'tab-btn active' : 'tab-btn';
             });
@@ -564,6 +576,17 @@
                             <button type="submit" class="btn-primary" style="margin-top: 10px;">Guardar Regras do Tenant</button>
                         </form>
                     </div>`;
+                return;
+            }
+
+            if (currentTab === 'alarms') {
+                const openCount = alarmsData.filter(a => a.status !== 'CLEARED').length;
+                container.innerHTML = `<div style="grid-column:1/-1;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:20px;border-radius:8px;">
+                  <h3 style="color:#10b981;margin-top:0;">🚨 Central de Alarmes</h3>
+                  <p>${openCount} alarme(s) ativo(s) ou reconhecido(s). Alarmes são gerados a partir da telemetria recebida e dos limites configurados.</p>
+                  <div style="overflow-x:auto;"><table class="enterprise-table"><tr><th>Data (UTC)</th><th>Painel</th><th>Tipo</th><th>Severidade</th><th>Mensagem</th><th>Estado</th><th>Ações</th></tr>
+                  ${alarmsData.map(a => `<tr><td>${escapeHtml((a.first_triggered_at || '').replace('T',' ').replace('Z',''))}</td><td>${escapeHtml(a.panel_id)}</td><td>${escapeHtml(a.alarm_type)}</td><td>${escapeHtml(a.severity)}</td><td>${escapeHtml(a.message)}</td><td>${escapeHtml(a.status)}</td><td>${a.status === 'ACTIVE' ? `<button type="button" class="btn-primary" onclick="acaoAlarme(${Number(a.id)},'acknowledge')">Reconhecer</button>` : ''} ${a.status !== 'CLEARED' ? `<button type="button" class="btn-primary" onclick="acaoAlarme(${Number(a.id)},'clear')">Encerrar</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7">Nenhum alarme registrado. Ao receber telemetria fora dos limites, os alarmes aparecerão aqui.</td></tr>'}
+                  </table></div></div>`;
                 return;
             }
 

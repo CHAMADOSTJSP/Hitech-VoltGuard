@@ -73,6 +73,28 @@ class VoltGuardSmokeTests(unittest.TestCase):
         })
         self.assertEqual(response.status_code, 422, response.text)
 
+    def test_alarm_lifecycle_and_tenant_isolation(self):
+        tenant, headers = self.create_tenant("ALARMS")
+        other_tenant, other_headers = self.create_tenant("OTHERALARMS")
+        panel = self.client.get("/api/panels", headers=headers).json()["panels"][0]
+        ingest = self.client.post("/api/telemetry", headers=headers, json={
+            "panel_id": panel["id"], "temperature": 120, "current": 20, "voltage": "380V AC"
+        })
+        self.assertEqual(ingest.status_code, 200, ingest.text)
+        alarms = self.client.get("/api/alarms?status_filter=ACTIVE", headers=headers)
+        self.assertEqual(alarms.status_code, 200, alarms.text)
+        self.assertTrue(any(a["alarm_type"] == "HIGH_TEMPERATURE" for a in alarms.json()))
+        alarm = next(a for a in alarms.json() if a["alarm_type"] == "HIGH_TEMPERATURE")
+        self.assertEqual(self.client.post(f"/api/alarms/{alarm['id']}/acknowledge", headers=headers).status_code, 200)
+        foreign = self.client.post(f"/api/alarms/{alarm['id']}/clear", headers=other_headers)
+        self.assertEqual(foreign.status_code, 404)
+        clear_telemetry = self.client.post("/api/telemetry", headers=headers, json={
+            "panel_id": panel["id"], "temperature": 30, "current": 20, "voltage": "380V AC"
+        })
+        self.assertEqual(clear_telemetry.status_code, 200, clear_telemetry.text)
+        cleared = self.client.get(f"/api/alarms?status_filter=CLEARED", headers=headers)
+        self.assertTrue(any(a["id"] == alarm["id"] for a in cleared.json()))
+
     def test_report_requires_authentication(self):
         response = self.client.get("/api/export/executive-report")
         self.assertEqual(response.status_code, 401)

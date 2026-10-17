@@ -17,3 +17,11 @@
 ## Limitações remanescentes
 
 Consulte `REVISAO_TECNICA.md`. A aplicação permanece candidata a demonstração/homologação, não certificada para uso industrial crítico.
+
+## v0.4.0 — Alarm lifecycle and operator workflow
+- Added tenant-scoped persistent alarm records with severity, first/last trigger timestamps, acknowledgement metadata, and clearing timestamp.
+- Telemetry threshold evaluation now opens or updates high-temperature/high-current alarms and automatically clears those conditions when subsequent telemetry returns within configured limits.
+- Added authenticated alarm list, acknowledge, and clear endpoints with tenant isolation and audit trail entries.
+- Added a Central de Alarmes interface with status, severity, timestamps, message, and operator actions.
+- Added automated smoke coverage for alarm lifecycle and cross-tenant access denial.
+- This release does not add physical PLC integration, production notification delivery, billing collection, or industrial certification.
