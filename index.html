@@ -147,6 +147,7 @@
         let currentUser = '', currentCargo = '', tokenJwt = '';
         let dadosGlobais = {}, auditLogs = [], billingData = {}, inventoryData = {}, historyData = {}, workOrders = [], alarmsData = [], assetsData = [], maintenancePlans = [], maintenanceTasks = [], deviceCredentials = [], pollingInterval = null;
         let chartInstances = {};
+        let historyWindowHours = 168;
         let html5QrCodeScanner = null;
 
         function formatarNome(n) { return String(n || '').replace(/([a-z])([A-Z])/g, '$1 $2'); }
@@ -453,44 +454,60 @@
             } catch (err) { alert(err.message); }
         }
 
+        function definirJanelaHistorico(hours) {
+            const parsed = Number(hours);
+            historyWindowHours = [1, 24, 168, 0].includes(parsed) ? parsed : 168;
+            Object.values(chartInstances).forEach(chart => { try { chart.destroy(); } catch (_) {} });
+            chartInstances = {};
+            renderizar();
+        }
+
         function renderizarChart(panelId) {
-            const ctx = document.getElementById(`chart-${panelId}`);
-            if(!ctx) return;
-            const records = historyData[panelId] || [];
-            const labels = records.map(r => r.timestamp);
-            const temps = records.map(r => r.temperature);
-
-            if(chartInstances[panelId]) {
-                chartInstances[panelId].data.labels = labels;
-                chartInstances[panelId].data.datasets[0].data = temps;
-                chartInstances[panelId].update('none');
-                return;
-            }
-
-            chartInstances[panelId] = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Temperatura (°C)',
-                        data: temps,
-                        borderColor: '#10b981',
-                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.3
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    animation: false,
-                    plugins: { legend: { labels: { color: '#ffffff', font: { size: 10 } } } },
-                    scales: {
-                        x: { ticks: { color: '#9ca3af', font: { size: 9 } }, grid: { color: '#065f46' } },
-                        y: { ticks: { color: '#9ca3af', font: { size: 9 } }, grid: { color: '#065f46' } }
-                    }
-                }
+            const records = (historyData[panelId] || []).filter(r => r && r.timestamp);
+            const cutoff = historyWindowHours === 0 ? 0 : Date.now() - historyWindowHours * 60 * 60 * 1000;
+            const filtered = records.filter(r => {
+                const time = Date.parse(r.timestamp);
+                return Number.isFinite(time) && (cutoff === 0 || time >= cutoff);
             });
+            const labels = filtered.map(r => {
+                const time = new Date(r.timestamp);
+                return Number.isNaN(time.getTime()) ? 'Data inválida' : time.toLocaleString('pt-BR');
+            });
+            const tempCanvas = document.getElementById(`chart-temp-${panelId}`);
+            const currentCanvas = document.getElementById(`chart-current-${panelId}`);
+            const statusEl = document.getElementById(`history-status-${panelId}`);
+            if (statusEl) {
+                statusEl.textContent = filtered.length
+                    ? `${filtered.length} amostra(s) no período selecionado. A tensão é exibida como texto na última leitura.`
+                    : 'Sem amostras de telemetria no período selecionado. Nenhum valor foi inventado.';
+            }
+            const createOrUpdate = (canvas, key, label, field, borderColor, fillColor, unit) => {
+                if (!canvas) return;
+                const values = filtered.map(r => r[field] == null || !Number.isFinite(Number(r[field])) ? null : Number(r[field]));
+                if (chartInstances[key]) {
+                    chartInstances[key].data.labels = labels;
+                    chartInstances[key].data.datasets[0].data = values;
+                    chartInstances[key].update('none');
+                    return;
+                }
+                chartInstances[key] = new Chart(canvas, {
+                    type: 'line',
+                    data: { labels, datasets: [{ label, data: values, borderColor, backgroundColor: fillColor, borderWidth: 2, fill: true, tension: 0.25, spanGaps: false }] },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: { legend: { labels: { color: '#ffffff', font: { size: 10 } } }, tooltip: { callbacks: { label: item => `${item.dataset.label}: ${item.raw == null ? 'sem dado' : item.raw + ' ' + unit}` } } },
+                        scales: {
+                            x: { ticks: { color: '#9ca3af', maxTicksLimit: 6, font: { size: 9 } }, grid: { color: '#065f46' } },
+                            y: { title: { display: true, text: unit, color: '#9ca3af' }, ticks: { color: '#9ca3af', font: { size: 9 } }, grid: { color: '#065f46' } }
+                        }
+                    }
+                });
+            };
+            createOrUpdate(tempCanvas, `${panelId}:temperature`, 'Temperatura (°C)', 'temperature', '#10b981', 'rgba(16,185,129,.12)', '°C');
+            createOrUpdate(currentCanvas, `${panelId}:current`, 'Corrente (A)', 'current', '#60a5fa', 'rgba(96,165,250,.12)', 'A');
         }
 
         function atualizarGraficosExistentes() {
@@ -736,12 +753,24 @@
                         <p><strong>Último contato:</strong> ${escapeHtml(p.last_seen_at || 'Ainda não recebido')}</p>
                     </div>`).join('');
             } else if (currentTab === 'predictive') {
-                container.innerHTML = lista.map(p => `
+                container.innerHTML = `<div style="grid-column:1/-1;display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:12px;border-radius:8px;">
+                    <strong>Período do histórico:</strong>
+                    <select aria-label="Período do histórico" onchange="definirJanelaHistorico(this.value)" style="max-width:220px;background:#071b13;color:#fff;border:1px solid #10b981;padding:8px;border-radius:5px;">
+                        <option value="1" ${historyWindowHours===1?'selected':''}>Última hora</option>
+                        <option value="24" ${historyWindowHours===24?'selected':''}>Últimas 24 horas</option>
+                        <option value="168" ${historyWindowHours===168?'selected':''}>Últimos 7 dias</option>
+                        <option value="0" ${historyWindowHours===0?'selected':''}>Todo o histórico carregado</option>
+                    </select>
+                    <span style="font-size:11px;color:#9ca3af">Gráficos usam apenas amostras registradas. O painel carrega até 500 amostras por dispositivo.</span>
+                </div>` + lista.map(p => `
                     <div class="panel-card ${p.status === 'CRITICO' ? 'critico' : ''}">
-                        <h3>📈 Tendência Térmica - ${escapeHtml(p.id)}</h3>
+                        <h3>📈 Histórico de telemetria — ${escapeHtml(p.id)}</h3>
                         <p><strong>Componente:</strong> ${escapeHtml(p.component)}</p>
-                        <canvas id="chart-${escapeHtml(p.id)}" style="width:100%; max-height:160px; margin-top:10px;"></canvas>
-                        <p style="margin-top:10px; font-size:11px; color:#9ca3af;">${escapeHtml(p.recommendation)}</p>
+                        <p id="history-status-${escapeHtml(p.id)}" style="font-size:11px;color:#9ca3af;">Carregando amostras...</p>
+                        <div style="height:190px;margin-top:10px;"><canvas id="chart-temp-${escapeHtml(p.id)}" aria-label="Histórico de temperatura do painel ${escapeHtml(p.id)}"></canvas></div>
+                        <div style="height:190px;margin-top:16px;"><canvas id="chart-current-${escapeHtml(p.id)}" aria-label="Histórico de corrente do painel ${escapeHtml(p.id)}"></canvas></div>
+                        <p><strong>Última tensão recebida:</strong> ${escapeHtml(p.voltage ?? 'Sem dado')}</p>
+                        <p style="margin-top:10px;font-size:11px;color:#9ca3af;">${escapeHtml(p.recommendation)}</p>
                     </div>`).join('');
                 setTimeout(() => { lista.forEach(p => renderizarChart(p.id)); }, 50);
             } else if (currentTab === 'esg') {

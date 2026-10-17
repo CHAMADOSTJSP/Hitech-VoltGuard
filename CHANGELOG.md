@@ -1,4 +1,13 @@
-## v0.5.3 — Telemetria confiável e conectividade
+# Changelog
+
+## v0.5.4 — Histórico gráfico de telemetria
+- A aba Tendência Térmica passou a exibir gráficos separados de temperatura e corrente com base em amostras persistidas.
+- Adicionado filtro local por última hora, últimas 24 horas, últimos 7 dias ou todo o histórico carregado.
+- Exibida mensagem explícita quando não há amostras no período; valores ausentes permanecem vazios, sem interpolação ou dados fictícios.
+- A tensão recebida é apresentada como última leitura textual, pois o modelo atual armazena tensão como texto (ex.: `380V AC`), não como série numérica.
+- O endpoint histórico existente mantém paginação, limite de consulta e isolamento por organização.
+- A validação automatizada local não pôde ser concluída neste ambiente por ausência do pacote `slowapi`; executar `pip install -r requirements.txt` antes de repetir os testes.
+
 - Status de conectividade baseado em atividade real de credenciais de dispositivo ativas.
 - Endpoint autenticado de histórico de telemetria com paginação e isolamento multiempresa.
 - Payload do dashboard limita o histórico aos 500 pontos mais recentes por painel.
