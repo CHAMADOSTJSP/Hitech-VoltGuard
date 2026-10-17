@@ -299,7 +299,14 @@
                         if (currentTab === 'predictive') {
                             atualizarGraficosExistentes();
                         } else if (currentTab !== 'commission') {
-                            renderizar();
+                            // Não substituir o formulário enquanto o usuário digita.
+                            // O polling continua atualizando os dados em memória, mas a
+                            // renderização fica suspensa enquanto um campo estiver focado.
+                            const container = document.getElementById('main-container');
+                            const active = document.activeElement;
+                            const editingField = container && active && container.contains(active)
+                                && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName);
+                            if (!editingField) renderizar();
                         }
                     }
                 }).catch(err => console.error(err));
