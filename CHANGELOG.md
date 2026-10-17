@@ -47,3 +47,9 @@ Consulte `REVISAO_TECNICA.md`. A aplicação permanece candidata a demonstraçã
 - Adicionado endpoint `/api/device/telemetry`, limitado ao painel vinculado à credencial e com atualização de histórico e alarmes.
 - Adicionadas abas Ativos, Manutenção e Dispositivos e testes de isolamento, recorrência, ingestão e revogação.
 - Limites: integração Modbus/OPC UA, scheduler externo, notificações, cobrança real e validação industrial continuam fora desta entrega.
+
+
+## v0.5.2 — 2026-10-17
+- Substituído o alerta nativo ao criar credencial por uma janela acessível com token selecionável e botão **Copiar token**.
+- Incluído fallback de cópia e instrução para usar Ctrl+C se o navegador bloquear a cópia automática.
+- O token continua sendo exibido somente na criação e não é gravado no armazenamento do navegador.

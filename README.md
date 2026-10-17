@@ -131,3 +131,7 @@ O estado dos alarmes é específico por organização. Esta versão ainda não c
 5. Para encerrar automaticamente por retorno à faixa normal, envie telemetria dentro dos limites configurados via endpoint autenticado `/api/telemetry`.
 
 Este botão altera apenas dados simulados da aplicação. Não envia comandos a equipamentos físicos nem deve ser usado como teste de proteção industrial.
+
+
+### v0.5.2 — copiar token de dispositivo
+Ao criar uma credencial em **Dispositivos**, abre uma janela com o token e botão **Copiar token**. O token é mostrado somente nessa criação; se fechar a janela sem guardá-lo, revogue a credencial e gere outra.

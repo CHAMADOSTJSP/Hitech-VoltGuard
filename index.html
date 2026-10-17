@@ -519,8 +519,77 @@
             const status = document.getElementById(`mt-status-${Number(id)}`).value; try { await apiJson(`/api/maintenance/tasks/${Number(id)}`,{method:'PATCH',body:JSON.stringify({status})}); await carregarManutencao(); } catch(e) { alert(e.message); }
         }
         async function carregarDispositivos() { try { deviceCredentials = await apiJson('/api/devices/credentials'); renderizar(); } catch(e) { alert(e.message); } }
+        function mostrarTokenDispositivo(token) {
+            const anterior = document.getElementById('device-token-modal');
+            if (anterior) anterior.remove();
+            const overlay = document.createElement('div');
+            overlay.id = 'device-token-modal';
+            overlay.setAttribute('role', 'dialog');
+            overlay.setAttribute('aria-modal', 'true');
+            overlay.setAttribute('aria-labelledby', 'device-token-title');
+            overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;padding:18px;';
+            const card = document.createElement('div');
+            card.style.cssText = 'width:min(620px,100%);background:#0f2319;border:1px solid #10b981;border-radius:12px;padding:24px;color:#fff;box-shadow:0 18px 60px #000;';
+            const title = document.createElement('h2');
+            title.id = 'device-token-title';
+            title.textContent = 'Credencial criada — copie seu token';
+            title.style.cssText = 'margin:0 0 10px;color:#34d399;font-size:20px;';
+            const warning = document.createElement('p');
+            warning.textContent = 'Este token será mostrado somente agora. Copie-o e guarde-o em um cofre de segredos. Não compartilhe nem publique no GitHub.';
+            warning.style.cssText = 'font-size:14px;line-height:1.5;color:#d1d5db;';
+            const tokenField = document.createElement('textarea');
+            tokenField.readOnly = true;
+            tokenField.value = String(token || '');
+            tokenField.setAttribute('aria-label', 'Token de telemetria');
+            tokenField.rows = 3;
+            tokenField.style.cssText = 'width:100%;box-sizing:border-box;resize:vertical;background:#06110b;border:1px solid #065f46;border-radius:6px;color:#fff;padding:12px;font:13px monospace;overflow-wrap:anywhere;';
+            const status = document.createElement('p');
+            status.setAttribute('aria-live', 'polite');
+            status.style.cssText = 'min-height:18px;font-size:13px;color:#34d399;';
+            const actions = document.createElement('div');
+            actions.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end;';
+            const copyButton = document.createElement('button');
+            copyButton.type = 'button';
+            copyButton.textContent = 'Copiar token';
+            copyButton.style.cssText = 'background:#10b981;border:0;border-radius:6px;padding:11px 16px;font-weight:bold;cursor:pointer;color:#04110b;';
+            copyButton.addEventListener('click', async () => {
+                try {
+                    if (navigator.clipboard && window.isSecureContext) {
+                        await navigator.clipboard.writeText(tokenField.value);
+                    } else {
+                        tokenField.focus(); tokenField.select();
+                        const copied = document.execCommand('copy');
+                        if (!copied) throw new Error('O navegador não permitiu copiar automaticamente. Selecione o token e use Ctrl+C.');
+                    }
+                    status.textContent = 'Token copiado. Guarde-o em local seguro.';
+                    copyButton.textContent = 'Copiado ✓';
+                } catch (error) {
+                    tokenField.focus(); tokenField.select();
+                    status.textContent = error.message || 'Não foi possível copiar automaticamente. Selecione o token e use Ctrl+C.';
+                    status.style.color = '#fbbf24';
+                }
+            });
+            const closeButton = document.createElement('button');
+            closeButton.type = 'button';
+            closeButton.textContent = 'Já guardei — fechar';
+            closeButton.style.cssText = 'background:#1f3b2c;border:1px solid #10b981;border-radius:6px;padding:11px 16px;font-weight:bold;cursor:pointer;color:#fff;';
+            closeButton.addEventListener('click', () => overlay.remove());
+            actions.append(copyButton, closeButton);
+            card.append(title, warning, tokenField, status, actions);
+            overlay.append(card);
+            overlay.addEventListener('click', (event) => { if (event.target === overlay) overlay.remove(); });
+            document.body.append(overlay);
+            tokenField.focus(); tokenField.select();
+        }
+
         async function criarCredencialDispositivo(event) {
-            event.preventDefault(); try { const result = await apiJson('/api/devices/credentials',{method:'POST',body:JSON.stringify({panel_id:document.getElementById('device-panel').value,name:document.getElementById('device-name').value})}); alert(`Copie e guarde agora o token do dispositivo. Ele não será mostrado novamente:\n\n${result.device_token}`); deviceCredentials = await apiJson('/api/devices/credentials'); renderizar(); } catch(e) { alert(e.message); }
+            event.preventDefault();
+            try {
+                const result = await apiJson('/api/devices/credentials', {method:'POST', body:JSON.stringify({panel_id:document.getElementById('device-panel').value,name:document.getElementById('device-name').value})});
+                deviceCredentials = await apiJson('/api/devices/credentials');
+                renderizar();
+                mostrarTokenDispositivo(result.device_token);
+            } catch(e) { alert(e.message); }
         }
         async function revogarDispositivo(id) { if(!confirm('Revogar esta credencial? O dispositivo deixará de enviar telemetria.')) return; try { await apiJson(`/api/devices/credentials/${Number(id)}/revoke`,{method:'POST'}); await carregarDispositivos(); } catch(e) { alert(e.message); } }
 
