@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.37.0 — Teste independente de webhook
+
+A aba Webhooks permite enviar um evento de teste ao endpoint salvo sem simular uma falha nem criar alarmes. A interface informa o resultado HTTP e cada tentativa é registrada na auditoria da organização.
+
 ## v0.36.2 — Painel mais amplo no Excel Online
 
 O resumo foi reorganizado em três cartões por linha, ocupando mais largura da tela sem depender do zoom do aplicativo. Inclui contagens de painéis normais e alarmes encerrados.

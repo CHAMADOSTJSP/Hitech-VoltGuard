@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.37.0 — Teste independente de webhook
+- Adicionado teste do endpoint salvo, sem criar alarmes nem alterar a telemetria.
+- Exibido o resultado HTTP e registrado cada teste na auditoria da organização.
+- A interface habilita o teste após salvar um endpoint e o desabilita quando a configuração é removida.
+
 ## v0.36.2 — Painel mais amplo no Excel Online
 - Reorganizados os indicadores em três cartões por linha para aproveitar melhor a largura da tela.
 - Incluídas contagens de painéis normais e alarmes encerrados.

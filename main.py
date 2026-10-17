@@ -292,7 +292,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.36.2",
+    version="0.37.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -568,6 +568,52 @@ def save_webhook(data: dict, db: Session = Depends(get_db), current_user: User =
     db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="CONFIGURAR_WEBHOOK", details="Webhook atualizado."))
     db.commit()
     return {"status": "success", "message": "Webhook atualizado com sucesso."}
+
+@app.post("/api/tenant/webhook/test")
+async def test_webhook(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Envia um evento de teste ao endpoint salvo, sem criar alarmes."""
+    if current_user.role != "CEO":
+        raise HTTPException(status_code=403, detail="Acesso restrito a CEO.")
+    sub = db.query(TenantSubscriptionModel).filter(
+        TenantSubscriptionModel.tenant_id == current_user.tenant_id
+    ).first()
+    if not sub or not sub.webhook_url:
+        raise HTTPException(status_code=409, detail="Configure e salve um endpoint antes de enviar o teste.")
+
+    safe_url = validate_webhook_url(sub.webhook_url)
+    event_id = secrets.token_urlsafe(12)
+    http_status = None
+    delivered = False
+    try:
+        async with httpx.AsyncClient(follow_redirects=False, timeout=5.0) as client:
+            response = await client.post(safe_url, json={
+                "event": "WEBHOOK_TEST",
+                "event_id": event_id,
+                "organization_id": current_user.tenant_id,
+                "sent_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+            })
+        http_status = response.status_code
+        delivered = 200 <= http_status < 300
+    except Exception:
+        # Não devolver exceções de rede, que podem expor dados do endpoint configurado.
+        delivered = False
+
+    result = "DELIVERED" if delivered else "FAILED"
+    details = f"Teste de webhook {result}" + (f" (HTTP {http_status})." if http_status else ". Sem resposta HTTP confirmada.")
+    db.add(AuditLogModel(
+        tenant_id=current_user.tenant_id,
+        user_name=current_user.username,
+        role=current_user.role,
+        action="TESTAR_WEBHOOK",
+        details=details,
+    ))
+    db.commit()
+    return {
+        "status": "success",
+        "delivery": result,
+        "http_status": http_status,
+        "message": "Evento de teste entregue." if delivered else "O endpoint não confirmou a entrega.",
+    }
 
 @app.post("/api/tenant/rules")
 def update_tenant_rules(data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

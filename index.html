@@ -592,11 +592,44 @@
                 billingData.webhook_url = url;
                 status.textContent = url ? 'Webhook salvo e ativo.' : 'Webhook removido e desativado.';
                 status.style.color = '#10b981';
+                const stateLabel = document.getElementById('webhook-state-label');
+                if (stateLabel) {
+                    stateLabel.textContent = url ? 'Configurado' : 'Desativado';
+                    stateLabel.style.color = url ? '#10b981' : '#9ca3af';
+                }
+                const testButton = document.getElementById('webhook-test-button');
+                if (testButton) testButton.disabled = !url;
             } catch (err) {
                 status.textContent = err.message || 'Falha ao salvar o webhook.';
                 status.style.color = '#ef4444';
             } finally {
                 button.disabled = false;
+            }
+        }
+
+        async function testarWebhook() {
+            const button = document.getElementById('webhook-test-button');
+            const status = document.getElementById('webhook-test-status');
+            button.disabled = true;
+            status.textContent = 'Enviando evento de teste…';
+            status.style.color = '#9ca3af';
+            try {
+                const res = await fetch('/api/tenant/webhook/test', {
+                    method: 'POST',
+                    headers: {'Authorization': `Bearer ${tokenJwt}`}
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.detail || 'Não foi possível testar o webhook.');
+                const delivered = data.delivery === 'DELIVERED';
+                status.textContent = delivered
+                    ? `Evento entregue (HTTP ${Number(data.http_status)}).`
+                    : `Entrega não confirmada${data.http_status ? ` (HTTP ${Number(data.http_status)})` : ''}. Verifique o endpoint.`;
+                status.style.color = delivered ? '#10b981' : '#f59e0b';
+            } catch (err) {
+                status.textContent = err.message || 'Falha ao testar o webhook.';
+                status.style.color = '#ef4444';
+            } finally {
+                button.disabled = !billingData.webhook_url;
             }
         }
 
@@ -1421,12 +1454,14 @@
                 container.innerHTML = `
                     <div style="grid-column: 1/-1; background: rgba(17, 42, 29, 0.95); border: 1px solid #10b981; padding: 25px; border-radius: 8px; max-width: 600px;">
                         <h3 style="color:#10b981; margin-top:0;">🔔 Webhook para alertas críticos</h3>
-                        <p style="font-size:13px; color:#d1d5db;">Estado: <strong style="color:${webhookConfigured ? '#10b981' : '#9ca3af'}">${webhookConfigured ? 'Configurado' : 'Desativado'}</strong></p>
+                        <p style="font-size:13px; color:#d1d5db;">Estado: <strong id="webhook-state-label" style="color:${webhookConfigured ? '#10b981' : '#9ca3af'}">${webhookConfigured ? 'Configurado' : 'Desativado'}</strong></p>
                         <p style="font-size:13px; color:#d1d5db;">No momento, o envio acontece quando a ação de simular falha crítica é executada. O endpoint deve ser HTTPS público. Deixe o campo vazio e salve para desativar.</p>
                         <form onsubmit="salvarWebhook(event)" style="margin-top: 15px;">
                             <div class="input-group"><label for="webhook-url-input">Endpoint URL</label><input type="url" id="webhook-url-input" maxlength="2048" placeholder="https://exemplo.com/webhook" value="${escapeHtml(billingData.webhook_url || '')}"></div>
                             <button id="webhook-save-button" type="submit" class="btn-primary" style="margin-top: 10px;">Salvar configuração</button>
                             <p id="webhook-save-status" role="status" aria-live="polite" style="font-size:13px;min-height:1em"></p>
+                            <button id="webhook-test-button" type="button" class="btn-primary" style="margin-top: 10px;" onclick="testarWebhook()" ${webhookConfigured ? '' : 'disabled'}>Enviar evento de teste</button>
+                            <p id="webhook-test-status" role="status" aria-live="polite" style="font-size:13px;min-height:1em">${webhookConfigured ? 'O teste não cria alarmes; o resultado será registrado na auditoria.' : 'Salve um endpoint para habilitar o teste.'}</p>
                         </form>
                     </div>`;
                 return;
