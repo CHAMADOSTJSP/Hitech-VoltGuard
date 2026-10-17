@@ -13,6 +13,27 @@ Versão revisada para **demonstração e homologação controlada**. Este pacote
 - `.env.example`: exemplo de configuração local sem segredos reais.
 - `REVISAO_TECNICA.md`: limitações conhecidas e checklist antes de produção.
 
+## v0.5.1 — Histórico completo de telemetria
+
+O histórico agora registra temperatura, corrente e tensão por amostra, além do timestamp UTC. As colunas novas são adicionadas de forma compatível com registros antigos; medições históricas que não foram armazenadas anteriormente permanecem sem corrente/tensão (`null`), sem inventar valores.
+
+### Teste de telemetria autenticada
+
+1. Na aba **Dispositivos**, crie uma credencial para um painel de teste e copie o token apenas no momento em que ele for exibido.
+2. Envie uma leitura para `POST /api/device/telemetry` com `Authorization: Bearer <TOKEN>` e JSON semelhante ao exemplo abaixo. Substitua `PANEL_ID` e `TOKEN`; não os coloque em repositórios públicos.
+
+```bash
+curl -X POST "https://SEU-SERVICO.onrender.com/api/device/telemetry" \
+  -H "Authorization: Bearer TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"panel_id":"PANEL_ID","temperature":42.5,"current":118.4,"voltage":"380V AC"}'
+```
+
+3. A resposta deve conter `status: success`. Consulte o painel e o histórico para confirmar temperatura, corrente e tensão. Uma leitura acima dos limites configurados deve gerar/atualizar o alarme correspondente; uma leitura normal deve limpar automaticamente a condição ativa.
+4. Em **Dispositivos**, confirme que “Último uso” foi atualizado. Revogue a credencial e repita a chamada: a API deve responder `401`.
+
+Validações locais nesta versão: 11 testes automatizados aprovados. O teste foi executado com um stub de `slowapi` porque essa dependência não estava disponível no ambiente local; portanto, o rate limiting deve ser confirmado com as dependências completas no Render. A atualização não foi publicada automaticamente no serviço do usuário.
+
 ## Publicação recomendada no Render
 
 1. Extraia o ZIP e confirme que `main.py`, `index.html`, `requirements.txt`, `Dockerfile` e `render.yaml` estão na raiz do repositório.

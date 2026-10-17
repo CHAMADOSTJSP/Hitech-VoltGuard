@@ -1,5 +1,13 @@
 # Histórico de alterações
 
+## v0.5.1 — Histórico completo de telemetria
+- O histórico persistido passa a armazenar corrente e tensão, além da temperatura e timestamp.
+- Migração compatível adiciona colunas nullable para preservar registros anteriores sem fabricar dados ausentes.
+- A resposta de `/api/panels` expõe as medições novas no histórico.
+- Testes da ingestão autenticada agora verificam persistência de temperatura/corrente/tensão, atualização de último uso, token ausente e faixa inválida.
+- Incluído roteiro curl para teste de ponta a ponta no Render.
+
+
 ## Revisão para Render
 
 - Padronizados os nomes de arquivos e caminhos de implantação.

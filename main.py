@@ -77,6 +77,9 @@ class PanelHistoryModel(Base):
     tenant_id = Column(String, index=True, nullable=False, default="HITECH-DEFAULT")
     timestamp = Column(String, nullable=False)
     temperature = Column(Float, nullable=False)
+    # Nullable for backward compatibility with historical rows created before v0.5.1.
+    current = Column(Float, nullable=True)
+    voltage = Column(String, nullable=True)
 
 class AuditLogModel(Base):
     __tablename__ = "audit_logs"
@@ -332,6 +335,11 @@ def init_db():
                 if "tenant_id" not in columns:
                     connection.execute(text("ALTER TABLE panel_history ADD COLUMN tenant_id VARCHAR"))
                     connection.execute(text("UPDATE panel_history SET tenant_id = COALESCE((SELECT panels.tenant_id FROM panels WHERE panels.id = panel_history.panel_id), 'ORPHANED') WHERE tenant_id IS NULL"))
+                # Backward-compatible additions: old history rows retain NULL for unavailable measurements.
+                if "current" not in columns:
+                    connection.execute(text("ALTER TABLE panel_history ADD COLUMN current FLOAT"))
+                if "voltage" not in columns:
+                    connection.execute(text("ALTER TABLE panel_history ADD COLUMN voltage VARCHAR"))
         Base.metadata.create_all(bind=engine)
         
         # Não criar contas de demonstração com senhas conhecidas. Todas as contas
@@ -456,7 +464,7 @@ def register_tenant(request: Request, data: dict, db: Session = Depends(get_db))
             recommendation=recommendation, esg_waste_kwh=0.0,
         )
         db.add(panel)
-        db.add(PanelHistoryModel(panel_id=panel_id, tenant_id=tenant_id, timestamp=datetime.utcnow().isoformat(timespec="seconds") + "Z", temperature=temperature))
+        db.add(PanelHistoryModel(panel_id=panel_id, tenant_id=tenant_id, timestamp=datetime.utcnow().isoformat(timespec="seconds") + "Z", temperature=temperature, current=panel.current, voltage=panel.voltage))
 
     db.add(AuditLogModel(tenant_id=tenant_id, user_name=admin_user, role="CEO", action="REGISTO_TENANT", details=f"Organização {tenant_id} registada com três painéis demonstrativos."))
     db.commit()
@@ -545,7 +553,7 @@ def add_panel(data: dict, db: Session = Depends(get_db), current_user: User = De
         recommendation="Painel recém-comissionado. Operação estável.", esg_waste_kwh=1.0
     )
     db.add(new_panel)
-    db.add(PanelHistoryModel(panel_id=panel_id, tenant_id=current_user.tenant_id, timestamp=datetime.utcnow().isoformat(timespec="seconds") + "Z", temperature=new_panel.temperature))
+    db.add(PanelHistoryModel(panel_id=panel_id, tenant_id=current_user.tenant_id, timestamp=datetime.utcnow().isoformat(timespec="seconds") + "Z", temperature=new_panel.temperature, current=new_panel.current, voltage=new_panel.voltage))
     db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="ADICIONAR_PAINEL", details=f"Painel {panel_id} adicionado."))
     db.commit()
     return {"status": "success", "message": f"Painel {panel_id} adicionado com sucesso!"}
@@ -613,7 +621,7 @@ def ingest_telemetry(data: TelemetryData, current_user: User = Depends(get_curre
         if alarm.alarm_type in {"HIGH_TEMPERATURE", "HIGH_CURRENT"} and alarm.alarm_type not in active_types:
             alarm.status = "CLEARED"
             alarm.cleared_at = now
-    db.add(PanelHistoryModel(panel_id=panel.id, tenant_id=current_user.tenant_id, timestamp=now.isoformat(timespec="seconds") + "Z", temperature=panel.temperature))
+    db.add(PanelHistoryModel(panel_id=panel.id, tenant_id=current_user.tenant_id, timestamp=now.isoformat(timespec="seconds") + "Z", temperature=panel.temperature, current=panel.current, voltage=panel.voltage))
     db.commit()
     return {"status": "success", "message": f"Telemetria de {data.panel_id} atualizada com base nos limites configurados.", "active_alarms": len(active_conditions)}
 
@@ -662,7 +670,7 @@ async def force_failure(data: dict, db: Session = Depends(get_db), current_user:
                 status="ACTIVE", first_triggered_at=now, last_triggered_at=now,
             ))
 
-    db.add(PanelHistoryModel(panel_id=panel.id, tenant_id=current_user.tenant_id, timestamp=now.isoformat(timespec="seconds") + "Z", temperature=panel.temperature))
+    db.add(PanelHistoryModel(panel_id=panel.id, tenant_id=current_user.tenant_id, timestamp=now.isoformat(timespec="seconds") + "Z", temperature=panel.temperature, current=panel.current, voltage=panel.voltage))
     db.add(AuditLogModel(
         tenant_id=current_user.tenant_id,
         user_name=current_user.username,
@@ -720,7 +728,7 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
         history_data = {}
         for p in panels:
             h_records = db.query(PanelHistoryModel).filter(PanelHistoryModel.panel_id == p.id, PanelHistoryModel.tenant_id == current_user.tenant_id).order_by(PanelHistoryModel.id.asc()).all()
-            history_data[p.id] = [{"timestamp": h.timestamp, "temperature": h.temperature} for h in h_records]
+            history_data[p.id] = [{"timestamp": h.timestamp, "temperature": h.temperature, "current": h.current, "voltage": h.voltage} for h in h_records]
 
         logs_data = [{"timestamp": str(l.timestamp), "user_name": l.user_name, "role": l.role, "action": l.action, "details": l.details} for l in logs]
         wo_data = [{"id": w.id, "panel_id": w.panel_id, "title": w.title, "priority": w.priority, "status": w.status, "assigned_technician": w.assigned_technician, "created_at": str(w.created_at), "description": w.description} for w in work_orders]
@@ -1148,7 +1156,7 @@ def ingest_device_telemetry(data: DeviceTelemetry, authorization: Optional[str] 
         if alarm.alarm_type in {"HIGH_TEMPERATURE", "HIGH_CURRENT"} and alarm.alarm_type not in active_types:
             alarm.status = "CLEARED"; alarm.cleared_at = now
     credential.last_used_at = now
-    db.add(PanelHistoryModel(panel_id=panel.id, tenant_id=credential.tenant_id, timestamp=now.isoformat(timespec="seconds") + "Z", temperature=panel.temperature))
+    db.add(PanelHistoryModel(panel_id=panel.id, tenant_id=credential.tenant_id, timestamp=now.isoformat(timespec="seconds") + "Z", temperature=panel.temperature, current=panel.current, voltage=panel.voltage))
     db.commit()
     return {"status": "success", "panel_id": panel.id, "received_at": now.isoformat() + "Z", "active_alarms": len(active_conditions)}
 

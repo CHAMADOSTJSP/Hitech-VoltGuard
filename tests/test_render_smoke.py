@@ -145,12 +145,34 @@ class VoltGuardSmokeTests(unittest.TestCase):
         payload = {"panel_id":panel["id"],"temperature":45,"current":120,"voltage":"380V AC"}
         ingest = self.client.post("/api/device/telemetry", headers={"Authorization":f"Bearer {token}"}, json=payload)
         self.assertEqual(ingest.status_code, 200, ingest.text)
+        self.assertEqual(ingest.json()["panel_id"], panel["id"])
+        # Verify end-to-end persistence of all measurements, not just the current panel snapshot.
+        dashboard = self.client.get("/api/panels", headers=headers)
+        self.assertEqual(dashboard.status_code, 200, dashboard.text)
+        latest = dashboard.json()["history"][panel["id"]][-1]
+        self.assertEqual(latest["temperature"], 45)
+        self.assertEqual(latest["current"], 120)
+        self.assertEqual(latest["voltage"], "380V AC")
+        credentials = self.client.get("/api/devices/credentials", headers=headers).json()
+        self.assertTrue(credentials[0]["last_used_at"])
         wrong_panel = self.client.post("/api/device/telemetry", headers={"Authorization":f"Bearer {token}"}, json={**payload,"panel_id":"OUTRO"})
         self.assertEqual(wrong_panel.status_code, 403)
         revoked = self.client.post(f"/api/devices/credentials/{credential.json()['id']}/revoke", headers=headers)
         self.assertEqual(revoked.status_code, 200, revoked.text)
         rejected = self.client.post("/api/device/telemetry", headers={"Authorization":f"Bearer {token}"}, json=payload)
         self.assertEqual(rejected.status_code, 401)
+
+    def test_device_telemetry_rejects_missing_token_and_invalid_ranges(self):
+        _, headers = self.create_tenant("DEVICEVALIDATION")
+        panel = self.client.get("/api/panels", headers=headers).json()["panels"][0]
+        credential = self.client.post("/api/devices/credentials", headers=headers, json={"panel_id":panel["id"],"name":"Gateway validação"})
+        self.assertEqual(credential.status_code, 201, credential.text)
+        token = credential.json()["device_token"]
+        payload = {"panel_id":panel["id"],"temperature":25,"current":10,"voltage":"380V AC"}
+        no_token = self.client.post("/api/device/telemetry", json=payload)
+        self.assertEqual(no_token.status_code, 401)
+        invalid = self.client.post("/api/device/telemetry", headers={"Authorization":f"Bearer {token}"}, json={**payload,"current":-1})
+        self.assertEqual(invalid.status_code, 422)
 
     def test_report_requires_authentication(self):
         response = self.client.get("/api/export/executive-report")
