@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.13.0 — Busca e filtros na Central de Alarmes
+- Adicionada busca por painel, tipo, severidade, mensagem e usuário que reconheceu o alarme.
+- Adicionados filtros de estado (ativo, reconhecido e encerrado) e severidade.
+- Exibido o usuário que reconheceu cada alarme.
+
 ## v0.12.0 — Edição dos dados da OS
 - Adicionada edição de título, prioridade, técnico, prazo e descrição de uma ordem existente.
 - Mudanças dos dados principais são registradas no histórico da OS e na auditoria.

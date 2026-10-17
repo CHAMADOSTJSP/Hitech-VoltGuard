@@ -171,6 +171,7 @@
         const workOrderHistoryOpen = new Set();
         const workOrderEditOpen = new Set();
         let workOrderSearchText = '', workOrderStatusFilter = 'TODAS', workOrderOnlyOverdue = false;
+        let alarmSearchText = '', alarmStatusFilter = 'TODAS', alarmSeverityFilter = 'TODAS';
         let chartInstances = {};
         let historyWindowHours = 168;
         let html5QrCodeScanner = null;
@@ -379,6 +380,25 @@
                 await buscarDadosPainéis();
                 alert(action === 'acknowledge' ? 'Alarme reconhecido.' : 'Alarme encerrado.');
             } catch (err) { alert(err.message || 'Falha ao atualizar alarme.'); }
+        }
+
+        function filtrarAlarmes() {
+            alarmSearchText = document.getElementById('alarm-search')?.value || '';
+            alarmStatusFilter = document.getElementById('alarm-status-filter')?.value || 'TODAS';
+            alarmSeverityFilter = document.getElementById('alarm-severity-filter')?.value || 'TODAS';
+            const query = alarmSearchText.toLocaleLowerCase('pt-BR').trim();
+            let visibleCount = 0;
+            document.querySelectorAll('[data-alarm-row]').forEach(row => {
+                const matches = (!query || row.dataset.search.includes(query))
+                    && (alarmStatusFilter === 'TODAS' || row.dataset.status === alarmStatusFilter)
+                    && (alarmSeverityFilter === 'TODAS' || row.dataset.severity === alarmSeverityFilter);
+                row.hidden = !matches;
+                if (matches) visibleCount += 1;
+            });
+            const empty = document.getElementById('alarm-no-results');
+            if (empty) empty.hidden = visibleCount !== 0;
+            const count = document.getElementById('alarm-filter-count');
+            if (count) count.textContent = `${visibleCount} alarme(s) exibido(s)`;
         }
 
         async function abrirOrdemDoAlarme(id) {
@@ -981,12 +1001,20 @@
 
             if (currentTab === 'alarms') {
                 const openCount = alarmsData.filter(a => a.status !== 'CLEARED').length;
+                const filteredAlarms = alarmsData.filter(a => {
+                    const query = alarmSearchText.toLocaleLowerCase('pt-BR').trim();
+                    const text = [a.panel_id, a.alarm_type, a.severity, a.message, a.acknowledged_by].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
+                    return (!query || text.includes(query))
+                        && (alarmStatusFilter === 'TODAS' || a.status === alarmStatusFilter)
+                        && (alarmSeverityFilter === 'TODAS' || a.severity === alarmSeverityFilter);
+                });
                 container.innerHTML = `<div style="grid-column:1/-1;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:20px;border-radius:8px;">
                   <h3 style="color:#10b981;margin-top:0;">🚨 Central de Alarmes</h3>
                   <p>${openCount} alarme(s) ativo(s) ou reconhecido(s). Alarmes são gerados a partir da telemetria recebida e dos limites configurados.</p>
-                  <div style="overflow-x:auto;"><table class="enterprise-table"><tr><th>Data (UTC)</th><th>Painel</th><th>Tipo</th><th>Severidade</th><th>Mensagem</th><th>Estado</th><th>Ações</th></tr>
-                  ${alarmsData.map(a => `<tr><td>${escapeHtml((a.first_triggered_at || '').replace('T',' ').replace('Z',''))}</td><td>${escapeHtml(a.panel_id)}</td><td>${escapeHtml(a.alarm_type)}</td><td>${escapeHtml(a.severity)}</td><td>${escapeHtml(a.message)}</td><td>${escapeHtml(a.status)}</td><td>${a.work_order_id ? `<span>OS #${Number(a.work_order_id)}</span>` : (a.status !== 'CLEARED' && ['CEO','Gerente','Técnico de Campo'].includes(currentCargo) ? `<button type="button" class="btn-primary" onclick="abrirOrdemDoAlarme(${Number(a.id)})">Abrir OS</button>` : '')} ${a.status === 'ACTIVE' && ['CEO','Gerente','Técnico de Campo'].includes(currentCargo) ? `<button type="button" class="btn-primary" onclick="acaoAlarme(${Number(a.id)},'acknowledge')">Reconhecer</button>` : ''} ${a.status !== 'CLEARED' && ['CEO','Gerente','Técnico de Campo'].includes(currentCargo) ? `<button type="button" class="btn-primary" onclick="acaoAlarme(${Number(a.id)},'clear')">Encerrar</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7">Nenhum alarme registrado. Ao receber telemetria fora dos limites, os alarmes aparecerão aqui.</td></tr>'}
-                  </table></div></div>`;
+                  <div class="os-filters"><div class="input-group"><label for="alarm-search">Buscar alarme</label><input id="alarm-search" value="${escapeHtml(alarmSearchText)}" oninput="filtrarAlarmes()" placeholder="Painel, tipo ou mensagem"></div><div class="input-group"><label for="alarm-status-filter">Estado</label><select id="alarm-status-filter" onchange="filtrarAlarmes()"><option value="TODAS" ${alarmStatusFilter==='TODAS'?'selected':''}>Todos os estados</option><option value="ACTIVE" ${alarmStatusFilter==='ACTIVE'?'selected':''}>Ativo</option><option value="ACKNOWLEDGED" ${alarmStatusFilter==='ACKNOWLEDGED'?'selected':''}>Reconhecido</option><option value="CLEARED" ${alarmStatusFilter==='CLEARED'?'selected':''}>Encerrado</option></select></div><div class="input-group"><label for="alarm-severity-filter">Severidade</label><select id="alarm-severity-filter" onchange="filtrarAlarmes()"><option value="TODAS" ${alarmSeverityFilter==='TODAS'?'selected':''}>Todas</option><option value="CRITICAL" ${alarmSeverityFilter==='CRITICAL'?'selected':''}>Crítica</option></select></div><span id="alarm-filter-count">${filteredAlarms.length} alarme(s) exibido(s)</span></div>
+                  <div style="overflow-x:auto;"><table class="enterprise-table"><tr><th>Data/hora</th><th>Painel</th><th>Tipo</th><th>Severidade</th><th>Mensagem</th><th>Estado</th><th>Ações</th></tr>
+                  ${filteredAlarms.map(a => `<tr data-alarm-row data-status="${escapeHtml(a.status)}" data-severity="${escapeHtml(a.severity)}" data-search="${escapeHtml([a.panel_id, a.alarm_type, a.severity, a.message, a.acknowledged_by].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR'))}"><td>${escapeHtml(formatarDataHora(a.first_triggered_at))}</td><td>${escapeHtml(a.panel_id)}</td><td>${escapeHtml(a.alarm_type)}</td><td>${escapeHtml(a.severity)}</td><td>${escapeHtml(a.message)}</td><td>${escapeHtml(a.status)}${a.acknowledged_by ? `<br><small>Por ${escapeHtml(a.acknowledged_by)}</small>` : ''}</td><td>${a.work_order_id ? `<span>OS #${Number(a.work_order_id)}</span>` : (a.status !== 'CLEARED' && ['CEO','Gerente','Técnico de Campo'].includes(currentCargo) ? `<button type="button" class="btn-primary" onclick="abrirOrdemDoAlarme(${Number(a.id)})">Abrir OS</button>` : '')} ${a.status === 'ACTIVE' && ['CEO','Gerente','Técnico de Campo'].includes(currentCargo) ? `<button type="button" class="btn-primary" onclick="acaoAlarme(${Number(a.id)},'acknowledge')">Reconhecer</button>` : ''} ${a.status !== 'CLEARED' && ['CEO','Gerente','Técnico de Campo'].includes(currentCargo) ? `<button type="button" class="btn-primary" onclick="acaoAlarme(${Number(a.id)},'clear')">Encerrar</button>` : ''}</td></tr>`).join('') || (alarmsData.length ? '' : '<tr><td colspan="7">Nenhum alarme registrado. Ao receber telemetria fora dos limites, os alarmes aparecerão aqui.</td></tr>')}
+                  </table><p id="alarm-no-results" ${alarmsData.length && !filteredAlarms.length ? '' : 'hidden'}>Nenhum alarme corresponde aos filtros selecionados.</p></div></div>`;
                 return;
             }
 

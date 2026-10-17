@@ -2,6 +2,10 @@
 
 Versão revisada para **demonstração e homologação controlada**. Este pacote não é SCADA industrial certificado e não deve ser conectado a funções de proteção, intertravamento ou comando de equipamentos elétricos.
 
+## v0.13.0 — Busca e filtros na Central de Alarmes
+
+A lista de alarmes agora pode ser pesquisada por painel, tipo ou mensagem e filtrada por estado e severidade. Alarmes reconhecidos mostram o usuário responsável.
+
 ## v0.12.0 — Edição dos dados da OS
 
 Os dados principais de uma ordem existente podem ser editados pela coluna **Título**: título, prioridade, técnico atribuído, prazo e descrição. As alterações são registradas no histórico da ordem.
