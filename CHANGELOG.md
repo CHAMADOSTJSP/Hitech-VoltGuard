@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.38.0 — Leitor QR em português
+- Traduzidos os controles do leitor de QR para português, inclusive quando a biblioteca os atualiza dinamicamente.
+- Esclarecido na aba que a câmera é opcional e que há consulta manual por código/ID e leitura por imagem.
+
 ## v0.37.0 — Teste independente de webhook
 - Adicionado teste do endpoint salvo, sem criar alarmes nem alterar a telemetria.
 - Exibido o resultado HTTP e registrado cada teste na auditoria da organização.

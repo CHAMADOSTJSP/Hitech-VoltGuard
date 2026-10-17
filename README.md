@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.38.0 — Leitor QR em português
+
+Os controles do leitor QR passam a ser exibidos em português. A orientação da aba esclarece que a câmera é opcional e que também é possível consultar o painel por imagem, código ou ID.
+
 ## v0.37.0 — Teste independente de webhook
 
 A aba Webhooks permite enviar um evento de teste ao endpoint salvo sem simular uma falha nem criar alarmes. A interface informa o resultado HTTP e cada tentativa é registrada na auditoria da organização.
