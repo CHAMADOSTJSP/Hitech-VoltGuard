@@ -2,6 +2,10 @@
 
 Versão revisada para **demonstração e homologação controlada**. Este pacote não é SCADA industrial certificado e não deve ser conectado a funções de proteção, intertravamento ou comando de equipamentos elétricos.
 
+## v0.17.0 — Credenciais de dispositivos
+
+A aba Dispositivos resume credenciais ativas, nunca utilizadas e revogadas, com busca e filtros por painel/estado. O log de criação guarda o ID atribuído pelo banco; chamadas repetidas para revogar não alteram o horário original.
+
 ## v0.16.0 — Acompanhamento de manutenção
 
 A aba Manutenção apresenta contadores operacionais, destaca e filtra tarefas atrasadas, permite buscar por ativo/tarefa/responsável e ajustar o responsável, prazo e estado da tarefa. Alterações operacionais entram na auditoria.

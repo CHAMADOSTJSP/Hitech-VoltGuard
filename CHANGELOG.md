@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.17.0 — Credenciais de dispositivos
+- Corrigido o registro de auditoria na criação para incluir o ID definitivo da credencial.
+- Tornada idempotente a revogação repetida, preservando o instante original da revogação.
+- Adicionados indicadores, busca e filtros por painel e estado na lista de credenciais.
+- Exibidos horários localizados e indicação explícita de credencial nunca utilizada.
+
 ## v0.16.0 — Acompanhamento de manutenção
 - Adicionados indicadores de tarefas pendentes, em andamento, atrasadas e concluídas.
 - Adicionados busca, filtro por estado e filtro de tarefas atrasadas.

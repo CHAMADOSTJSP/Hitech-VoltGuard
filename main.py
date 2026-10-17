@@ -292,7 +292,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.16.0",
+    version="0.17.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -1785,7 +1785,8 @@ def create_device_credential(data: DeviceCredentialCreate, db: Session = Depends
     if not data.name.strip() or len(data.name) > 120: raise HTTPException(status_code=422, detail="Nome da credencial inválido.")
     raw = "vgd_" + secrets.token_urlsafe(32)
     row = DeviceCredentialModel(tenant_id=current_user.tenant_id, panel_id=panel.id, name=data.name.strip(), token_hash=hashlib.sha256(raw.encode()).hexdigest())
-    db.add(row); db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="CRIAR_CREDENCIAL_DISPOSITIVO", details=f"Credencial criada para painel {panel.id}; id {row.id}")); db.commit(); db.refresh(row)
+    db.add(row); db.flush()
+    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="CRIAR_CREDENCIAL_DISPOSITIVO", details=f"Credencial {row.id} criada para painel {panel.id}.")); db.commit(); db.refresh(row)
     return {"id": row.id, "panel_id": row.panel_id, "name": row.name, "device_token": raw, "warning": "Copie agora; o token não será exibido novamente."}
 
 @app.post("/api/devices/credentials/{credential_id}/revoke")
@@ -1793,6 +1794,8 @@ def revoke_device_credential(credential_id: int, db: Session = Depends(get_db), 
     if current_user.role not in {"CEO", "Gerente"}: raise HTTPException(status_code=403, detail="Sem permissão para revogar credenciais.")
     row = db.query(DeviceCredentialModel).filter(DeviceCredentialModel.id == credential_id, DeviceCredentialModel.tenant_id == current_user.tenant_id).first()
     if not row: raise HTTPException(status_code=404, detail="Credencial não encontrada.")
+    if row.revoked_at:
+        return {"status": "already_revoked", "id": credential_id}
     row.revoked_at = datetime.utcnow(); db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="REVOGAR_CREDENCIAL_DISPOSITIVO", details=f"Credencial {credential_id} revogada.")); db.commit()
     return {"status": "revoked", "id": credential_id}
 
