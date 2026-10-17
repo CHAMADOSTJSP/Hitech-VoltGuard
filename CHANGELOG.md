@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.28.0 — Resumo da gestão de ativos
+- Adicionados contadores para ativos cadastrados, em operação, em manutenção e vinculados a painéis.
+- Destacados estados na listagem e mensagens explícitas para lista vazia ou filtros sem resultados.
+- Preservados cadastro, edição e filtros existentes.
+
 ## v0.27.0 — Movimentação de estoque pela interface
 - Ligado o formulário do Almoxarifado à API autenticada de movimentação de inventário.
 - Adicionados movimentos positivos para entrada e negativos para saída, com validação do backend.

@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.28.0 — Resumo da gestão de ativos
+
+A aba Ativos mostra totais cadastrados, em operação, em manutenção e vinculados a painéis. A tabela aplica cores ao estado e informa claramente quando não há ativos ou quando os filtros não encontram resultados.
+
 ## v0.27.0 — Movimentação de estoque pela interface
 
 A aba Almoxarifado permite registrar itens e movimentações de entrada/saída pela API existente, mostra os itens abaixo do mínimo e calcula o valor estimado em estoque. Ao informar o nome exato de um item existente, categoria, mínimo e custo são preenchidos com os valores atuais antes do ajuste.
