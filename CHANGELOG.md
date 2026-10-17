@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.36.2 — Painel mais amplo no Excel Online
+- Reorganizados os indicadores em três cartões por linha para aproveitar melhor a largura da tela.
+- Incluídas contagens de painéis normais e alarmes encerrados.
+
 ## v0.36.1 — Zoom e cores de alerta condicionais
 - Definido zoom inicial de 140% na aba Resumo para reduzir o espaço vazio na tela.
 - Alertas críticos e de estoque só recebem vermelho/âmbar quando a contagem é maior que zero.

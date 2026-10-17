@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.36.2 — Painel mais amplo no Excel Online
+
+O resumo foi reorganizado em três cartões por linha, ocupando mais largura da tela sem depender do zoom do aplicativo. Inclui contagens de painéis normais e alarmes encerrados.
+
 ## v0.36.1 — Zoom e cores de alerta condicionais
 
 A aba Resumo abre com zoom de 140% para aproveitar melhor a tela. Cartões de painéis críticos, alarmes ativos/reconhecidos e estoque abaixo do mínimo usam cores de alerta apenas quando a contagem é maior que zero.

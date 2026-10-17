@@ -292,7 +292,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.36.1",
+    version="0.36.2",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -1396,9 +1396,11 @@ def export_executive_report(db: Session = Depends(get_db), current_user: User = 
     summary_rows = [
         ["Painéis", len(panels)],
         ["Painéis críticos", sum(1 for p in panels if p.status == "CRITICO")],
+        ["Painéis normais", sum(1 for p in panels if p.status == "NORMAL")],
         ["Alarmes", len(alarms)],
         ["Alarmes ativos", sum(1 for a in alarms if a.status == "ACTIVE")],
         ["Alarmes reconhecidos", sum(1 for a in alarms if a.status == "ACKNOWLEDGED")],
+        ["Alarmes encerrados", sum(1 for a in alarms if a.status == "CLEARED")],
         ["Ordens de serviço abertas", sum(1 for w in work_orders if w.status not in ("CONCLUIDA", "CANCELADA"))],
         ["Ordens originadas de alarmes", sum(1 for w in work_orders if w.alarm_id is not None)],
         ["Ativos cadastrados", len(assets)],
@@ -1409,7 +1411,7 @@ def export_executive_report(db: Session = Depends(get_db), current_user: User = 
     summary.sheet_view.zoomScale = 90
     summary.sheet_view.selection[0].activeCell = "A1"
     summary.sheet_view.selection[0].sqref = "A1"
-    for column in range(1, 9):
+    for column in range(1, 13):
         summary.column_dimensions[get_column_letter(column)].width = 18
 
     def merge_styled(row, start_col, end_col, value, fill_color, font, alignment, border):
@@ -1427,20 +1429,20 @@ def export_executive_report(db: Session = Depends(get_db), current_user: User = 
         left=thin_green, right=thin_green, top=thin_green, bottom=thin_green,
     )
     merge_styled(
-        1, 1, 8, "Relatório Executivo Operacional — HITECH VoltGuard", dark_green,
+        1, 1, 12, "Relatório Executivo Operacional — HITECH VoltGuard", dark_green,
         Font(name="Calibri", size=20, bold=True, color=white),
         Alignment(vertical="center", horizontal="left", indent=1), report_border,
     )
     summary.row_dimensions[1].height = 42
     merge_styled(
-        2, 1, 8,
+        2, 1, 12,
         f"Organização: {safe_text(current_user.tenant_id)}   |   Gerado em UTC: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}",
         "ECFDF5", Font(name="Calibri", size=10, bold=True, color=dark_green),
         Alignment(vertical="center", horizontal="left", indent=1), report_border,
     )
     summary.row_dimensions[2].height = 25
     merge_styled(
-        3, 1, 8,
+        3, 1, 12,
         "Retrato dos dados cadastrados no momento da exportação. Dados demonstrativos não substituem avaliação operacional.",
         "F0FDF4", Font(name="Calibri", size=9, italic=True, color="4B5563"),
         Alignment(vertical="center", horizontal="left", wrap_text=True, indent=1), report_border,
@@ -1455,29 +1457,29 @@ def export_executive_report(db: Session = Depends(get_db), current_user: User = 
         "Itens de estoque abaixo do mínimo": "B45309",
     }
     for index, (label, value) in enumerate(summary_rows):
-        card_row = 5 + (index // 2) * 3
-        start_col = 1 if index % 2 == 0 else 5
+        card_row = 5 + (index // 3) * 3
+        start_col = 1 + (index % 3) * 4
         end_col = start_col + 3
         alert_color = card_alert_colors.get(label)
         value_color = alert_color if alert_color and value > 0 else dark_green
         merge_styled(
             card_row, start_col, end_col, label.upper(), value_color,
-            Font(name="Calibri", size=10, bold=True, color=white),
+            Font(name="Calibri", size=12, bold=True, color=white),
             Alignment(vertical="center", horizontal="left", indent=1), report_border,
         )
         merge_styled(
             card_row + 1, start_col, end_col, value, "F0FDF4",
-            Font(name="Calibri", size=22, bold=True, color=value_color),
+            Font(name="Calibri", size=28, bold=True, color=value_color),
             Alignment(vertical="center", horizontal="left", indent=1), report_border,
         )
-        summary.row_dimensions[card_row].height = 23
-        summary.row_dimensions[card_row + 1].height = 39
-        if index % 2 == 1 and index < len(summary_rows) - 1:
+        summary.row_dimensions[card_row].height = 27
+        summary.row_dimensions[card_row + 1].height = 43
+        if index % 3 == 2 and index < len(summary_rows) - 1:
             summary.row_dimensions[card_row + 2].height = 10
 
-    footer_row = 20
+    footer_row = 17
     merge_styled(
-        footer_row, 1, 8, "Consulte as abas seguintes para os registros detalhados e a rastreabilidade operacional.",
+        footer_row, 1, 12, "Consulte as abas seguintes para os registros detalhados e a rastreabilidade operacional.",
         "ECFDF5", Font(name="Calibri", size=9, italic=True, color="4B5563"),
         Alignment(vertical="center", horizontal="left", indent=1), report_border,
     )
@@ -1490,7 +1492,7 @@ def export_executive_report(db: Session = Depends(get_db), current_user: User = 
     summary.page_margins.right = 0.25
     summary.page_margins.top = 0.4
     summary.page_margins.bottom = 0.4
-    summary.print_area = "A1:H20"
+    summary.print_area = "A1:L17"
     summary.print_options.horizontalCentered = True
 
     detail_sheets = [
