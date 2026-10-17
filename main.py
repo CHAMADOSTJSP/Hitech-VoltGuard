@@ -8,7 +8,7 @@ import socket
 import ipaddress
 from urllib.parse import urlparse
 import httpx
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, Request, Header
 from fastapi.security import OAuth2PasswordBearer
@@ -131,6 +131,10 @@ class WorkOrderModel(Base):
     assigned_technician = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     description = Column(String, nullable=True)
+    due_at = Column(DateTime, nullable=True)
+    started_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    resolution = Column(String, nullable=True)
 
 
 Index("uq_work_orders_tenant_alarm", WorkOrderModel.tenant_id, WorkOrderModel.alarm_id, unique=True)
@@ -254,7 +258,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.5.9",
+    version="0.6.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -339,6 +343,21 @@ def get_db():
     finally:
         db.close()
 
+def utc_iso(value: Optional[datetime]) -> Optional[str]:
+    if value is None:
+        return None
+    if value.tzinfo is not None:
+        value = value.astimezone(timezone.utc).replace(tzinfo=None)
+    return value.isoformat(timespec="seconds") + "Z"
+
+def utc_naive(value: Optional[datetime]) -> Optional[datetime]:
+    """Normalize API datetimes to naive UTC for the existing DateTime columns."""
+    if value is None:
+        return None
+    if value.tzinfo is not None:
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+    return value
+
 def init_db():
     db = SessionLocal()
     try:
@@ -358,8 +377,16 @@ def init_db():
                     connection.execute(text("ALTER TABLE panel_history ADD COLUMN voltage VARCHAR"))
             if "work_orders" in inspector.get_table_names():
                 columns = {col["name"] for col in inspector.get_columns("work_orders")}
-                if "alarm_id" not in columns:
-                    connection.execute(text("ALTER TABLE work_orders ADD COLUMN alarm_id INTEGER"))
+                compatibility_columns = {
+                    "alarm_id": "INTEGER",
+                    "due_at": "TIMESTAMP",
+                    "started_at": "TIMESTAMP",
+                    "completed_at": "TIMESTAMP",
+                    "resolution": "TEXT",
+                }
+                for column_name, column_type in compatibility_columns.items():
+                    if column_name not in columns:
+                        connection.execute(text(f"ALTER TABLE work_orders ADD COLUMN {column_name} {column_type}"))
                 connection.execute(text(
                     "CREATE UNIQUE INDEX IF NOT EXISTS uq_work_orders_tenant_alarm "
                     "ON work_orders (tenant_id, alarm_id)"
@@ -839,7 +866,7 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
             history_data[p.id] = [{"timestamp": h.timestamp, "temperature": h.temperature, "current": h.current, "voltage": h.voltage} for h in h_records]
 
         logs_data = [{"timestamp": str(l.timestamp), "user_name": l.user_name, "role": l.role, "action": l.action, "details": l.details} for l in logs]
-        wo_data = [{"id": w.id, "alarm_id": w.alarm_id, "panel_id": w.panel_id, "title": w.title, "priority": w.priority, "status": w.status, "assigned_technician": w.assigned_technician, "created_at": str(w.created_at), "description": w.description} for w in work_orders]
+        wo_data = [{"id": w.id, "alarm_id": w.alarm_id, "panel_id": w.panel_id, "title": w.title, "priority": w.priority, "status": w.status, "assigned_technician": w.assigned_technician, "created_at": utc_iso(w.created_at), "due_at": utc_iso(w.due_at), "started_at": utc_iso(w.started_at), "completed_at": utc_iso(w.completed_at), "description": w.description, "resolution": w.resolution} for w in work_orders]
         inv_data = [{"id": i.id, "part_name": i.part_name, "category": i.category, "quantity_in_stock": i.quantity_in_stock, "min_threshold": i.min_threshold, "unit_cost": i.unit_cost} for i in inventory]
         
         billing_info = {
@@ -959,7 +986,9 @@ def create_work_order_from_alarm(alarm_id: int, db: Session = Depends(get_db), c
         return JSONResponse(status_code=200, content={
             "status": "already_exists", "id": existing.id, "alarm_id": alarm.id,
             "panel_id": existing.panel_id, "title": existing.title, "priority": existing.priority,
-            "order_status": existing.status,
+            "order_status": existing.status, "due_at": utc_iso(existing.due_at),
+            "started_at": utc_iso(existing.started_at), "completed_at": utc_iso(existing.completed_at),
+            "resolution": existing.resolution,
         })
     if alarm.status == "CLEARED":
         raise HTTPException(status_code=409, detail="Não é possível abrir uma ordem a partir de um alarme encerrado.")
@@ -995,13 +1024,17 @@ def create_work_order_from_alarm(alarm_id: int, db: Session = Depends(get_db), c
             return JSONResponse(status_code=200, content={
                 "status": "already_exists", "id": existing.id, "alarm_id": alarm.id,
                 "panel_id": existing.panel_id, "title": existing.title, "priority": existing.priority,
-                "order_status": existing.status,
+                "order_status": existing.status, "due_at": utc_iso(existing.due_at),
+                "started_at": utc_iso(existing.started_at), "completed_at": utc_iso(existing.completed_at),
+                "resolution": existing.resolution,
             })
         raise
     db.refresh(order)
     return {"status": "created", "id": order.id, "alarm_id": alarm.id,
             "panel_id": order.panel_id, "title": order.title, "priority": order.priority,
-            "order_status": order.status}
+            "order_status": order.status, "due_at": utc_iso(order.due_at),
+            "started_at": utc_iso(order.started_at), "completed_at": utc_iso(order.completed_at),
+            "resolution": order.resolution}
 
 
 @app.post("/api/alarms/{alarm_id}/clear")
@@ -1131,12 +1164,15 @@ class WorkOrderCreate(BaseModel):
     priority: str = "ALTA"
     description: Optional[str] = None
     assigned_technician: Optional[str] = None
+    due_at: Optional[datetime] = None
 
 class WorkOrderUpdate(BaseModel):
     status: Optional[str] = None
     priority: Optional[str] = None
     assigned_technician: Optional[str] = None
     description: Optional[str] = None
+    due_at: Optional[datetime] = None
+    resolution: Optional[str] = None
 
 @app.post("/api/work-orders", status_code=201)
 def create_work_order(data: WorkOrderCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -1152,11 +1188,11 @@ def create_work_order(data: WorkOrderCreate, db: Session = Depends(get_db), curr
     panel = db.query(PanelModel).filter(PanelModel.id == panel_id, PanelModel.tenant_id == current_user.tenant_id).first()
     if not panel:
         raise HTTPException(status_code=404, detail="Painel não encontrado nesta organização.")
-    order = WorkOrderModel(tenant_id=current_user.tenant_id, panel_id=panel_id, title=title, priority=data.priority, status="ABERTA", assigned_technician=(data.assigned_technician or "").strip() or None, description=data.description)
+    order = WorkOrderModel(tenant_id=current_user.tenant_id, panel_id=panel_id, title=title, priority=data.priority, status="ABERTA", assigned_technician=(data.assigned_technician or "").strip() or None, description=data.description, due_at=utc_naive(data.due_at))
     db.add(order)
     db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="CRIAR_ORDEM_SERVICO", details=f"Ordem para painel {panel_id}: {title}"))
     db.commit(); db.refresh(order)
-    return {"id": order.id, "panel_id": order.panel_id, "title": order.title, "priority": order.priority, "status": order.status, "assigned_technician": order.assigned_technician, "created_at": order.created_at.isoformat(), "description": order.description}
+    return {"id": order.id, "panel_id": order.panel_id, "title": order.title, "priority": order.priority, "status": order.status, "assigned_technician": order.assigned_technician, "created_at": utc_iso(order.created_at), "due_at": utc_iso(order.due_at), "started_at": utc_iso(order.started_at), "completed_at": utc_iso(order.completed_at), "description": order.description, "resolution": order.resolution}
 
 @app.patch("/api/work-orders/{order_id}")
 def update_work_order(order_id: int, data: WorkOrderUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -1165,6 +1201,9 @@ def update_work_order(order_id: int, data: WorkOrderUpdate, db: Session = Depend
     order = db.query(WorkOrderModel).filter(WorkOrderModel.id == order_id, WorkOrderModel.tenant_id == current_user.tenant_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Ordem de serviço não encontrada.")
+    previous_status = order.status
+    if data.resolution is not None and len(data.resolution) > 4000:
+        raise HTTPException(status_code=422, detail="Resumo de execução demasiado longo.")
     allowed_status = {"ABERTA", "EM_ANDAMENTO", "AGUARDANDO_PECA", "CONCLUIDA", "CANCELADA"}
     if data.status is not None:
         if data.status not in allowed_status:
@@ -1178,6 +1217,14 @@ def update_work_order(order_id: int, data: WorkOrderUpdate, db: Session = Depend
         }
         if data.status not in allowed_transitions.get(order.status, set()):
             raise HTTPException(status_code=409, detail="Transição inválida para o estado atual da ordem.")
+        if data.status == "CONCLUIDA" and previous_status != "CONCLUIDA":
+            completion_note = (data.resolution or order.resolution or "").strip()
+            if len(completion_note) < 10:
+                raise HTTPException(status_code=422, detail="Descreva a solução executada (mínimo de 10 caracteres) antes de concluir a ordem.")
+            order.resolution = completion_note
+            order.completed_at = datetime.utcnow()
+        if data.status == "EM_ANDAMENTO" and order.started_at is None:
+            order.started_at = datetime.utcnow()
         order.status = data.status
     if data.priority is not None:
         if data.priority not in {"BAIXA", "MEDIA", "MÉDIA", "ALTA", "CRITICA", "CRÍTICA"}:
@@ -1191,9 +1238,17 @@ def update_work_order(order_id: int, data: WorkOrderUpdate, db: Session = Depend
         if len(data.description) > 4000:
             raise HTTPException(status_code=422, detail="Descrição demasiado longa.")
         order.description = data.description
-    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="ATUALIZAR_ORDEM_SERVICO", details=f"Ordem {order_id} atualizada; estado={order.status}."))
+    if data.due_at is not None:
+        order.due_at = utc_naive(data.due_at)
+    if data.resolution is not None:
+        order.resolution = data.resolution.strip() or None
+    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="ATUALIZAR_ORDEM_SERVICO", details=f"Ordem {order_id}: {previous_status} → {order.status}."))
     db.commit()
-    return {"status": "success", "id": order.id, "order_status": order.status}
+    return {"status": "success", "id": order.id, "order_status": order.status,
+            "due_at": utc_iso(order.due_at),
+            "started_at": utc_iso(order.started_at),
+            "completed_at": utc_iso(order.completed_at),
+            "resolution": order.resolution}
 
 class AssetCreate(BaseModel):
     asset_tag: str

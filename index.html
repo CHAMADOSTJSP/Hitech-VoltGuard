@@ -152,6 +152,13 @@
 
         function formatarNome(n) { return String(n || '').replace(/([a-z])([A-Z])/g, '$1 $2'); }
 
+        function formatarDataHora(valor) {
+            if (!valor) return '—';
+            const normalizado = /(?:Z|[+-]\d{2}:\d{2})$/.test(valor) ? valor : `${valor}Z`;
+            const data = new Date(normalizado);
+            return Number.isNaN(data.getTime()) ? String(valor) : data.toLocaleString('pt-BR', {dateStyle:'short', timeStyle:'short'});
+        }
+
         function escapeHtml(value) { return String(value ?? '').replace(/[&<>\"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[ch])); }
 
         function mostrarRegisto(mostrar) {
@@ -476,7 +483,8 @@
 
         async function criarOrdemServico(event) {
             event.preventDefault();
-            const payload = {panel_id: document.getElementById('os-panel').value, title: document.getElementById('os-title').value.trim(), priority: document.getElementById('os-priority').value, assigned_technician: document.getElementById('os-tech').value.trim() || null, description: document.getElementById('os-description').value.trim() || null};
+            const dueValue = document.getElementById('os-due-at').value;
+            const payload = {panel_id: document.getElementById('os-panel').value, title: document.getElementById('os-title').value.trim(), priority: document.getElementById('os-priority').value, assigned_technician: document.getElementById('os-tech').value.trim() || null, description: document.getElementById('os-description').value.trim() || null, due_at: dueValue ? new Date(dueValue).toISOString() : null};
             try {
                 const res = await fetch('/api/work-orders', {method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${tokenJwt}`}, body:JSON.stringify(payload)});
                 const data = await res.json();
@@ -489,7 +497,8 @@
             const select = document.getElementById(`os-status-${id}`);
             if (!select) return;
             try {
-                const res = await fetch(`/api/work-orders/${id}`, {method:'PATCH', headers:{'Content-Type':'application/json','Authorization':`Bearer ${tokenJwt}`}, body:JSON.stringify({status:select.value})});
+                const resolution = document.getElementById(`os-resolution-${id}`)?.value.trim() || null;
+                const res = await fetch(`/api/work-orders/${id}`, {method:'PATCH', headers:{'Content-Type':'application/json','Authorization':`Bearer ${tokenJwt}`}, body:JSON.stringify({status:select.value, resolution})});
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.detail || 'Não foi possível atualizar a ordem.');
                 alert('Ordem de serviço atualizada.'); buscarDadosPainéis();
@@ -855,11 +864,12 @@
                       <div class="input-group"><label>Título</label><input id="os-title" maxlength="200" required></div>
                       <div class="input-group"><label>Prioridade</label><select id="os-priority"><option>BAIXA</option><option>MEDIA</option><option selected>ALTA</option><option>CRITICA</option></select></div>
                       <div class="input-group"><label>Técnico atribuído</label><input id="os-tech" maxlength="120"></div>
+                      <div class="input-group"><label>Prazo (opcional)</label><input id="os-due-at" type="datetime-local"></div>
                       <div class="input-group" style="grid-column:1/-1"><label>Descrição</label><input id="os-description" maxlength="4000"></div>
                       <button class="btn-primary" type="submit">Criar ordem de serviço</button>
                     </form>
-                    <div style="overflow-x:auto;margin-top:20px"><table class="enterprise-table"><tr><th>ID</th><th>Painel</th><th>Título</th><th>Prioridade</th><th>Estado</th><th>Técnico</th><th>Ação</th></tr>
-                    ${workOrders.map(w => `<tr><td>${escapeHtml(w.id)}</td><td>${escapeHtml(w.panel_id)}</td><td>${escapeHtml(w.title)}</td><td>${escapeHtml(w.priority)}</td><td>${escapeHtml(w.status)}</td><td>${escapeHtml(w.assigned_technician || '—')}</td><td><select id="os-status-${Number(w.id)}"><option ${w.status==='ABERTA'?'selected':''}>ABERTA</option><option ${w.status==='EM_ANDAMENTO'?'selected':''}>EM_ANDAMENTO</option><option ${w.status==='AGUARDANDO_PECA'?'selected':''}>AGUARDANDO_PECA</option><option ${w.status==='CONCLUIDA'?'selected':''}>CONCLUIDA</option><option ${w.status==='CANCELADA'?'selected':''}>CANCELADA</option></select><button type="button" class="btn-action" onclick="atualizarOrdemServico(${Number(w.id)})">Guardar</button></td></tr>`).join('')}
+                    <div style="overflow-x:auto;margin-top:20px"><table class="enterprise-table"><tr><th>ID</th><th>Painel</th><th>Título</th><th>Prioridade</th><th>Estado</th><th>Técnico</th><th>Prazo</th><th>Início</th><th>Conclusão</th><th>Resumo de execução</th><th>Ação</th></tr>
+                    ${workOrders.map(w => `<tr><td>${escapeHtml(w.id)}</td><td>${escapeHtml(w.panel_id)}</td><td>${escapeHtml(w.title)}</td><td>${escapeHtml(w.priority)}</td><td>${escapeHtml(w.status)}</td><td>${escapeHtml(w.assigned_technician || '—')}</td><td>${escapeHtml(formatarDataHora(w.due_at))}</td><td>${escapeHtml(formatarDataHora(w.started_at))}</td><td>${escapeHtml(formatarDataHora(w.completed_at))}</td><td><input id="os-resolution-${Number(w.id)}" maxlength="4000" value="${escapeHtml(w.resolution || '')}" placeholder="Obrigatório para concluir" style="min-width:180px"></td><td><select id="os-status-${Number(w.id)}"><option ${w.status==='ABERTA'?'selected':''}>ABERTA</option><option ${w.status==='EM_ANDAMENTO'?'selected':''}>EM_ANDAMENTO</option><option ${w.status==='AGUARDANDO_PECA'?'selected':''}>AGUARDANDO_PECA</option><option ${w.status==='CONCLUIDA'?'selected':''}>CONCLUIDA</option><option ${w.status==='CANCELADA'?'selected':''}>CANCELADA</option></select><button type="button" class="btn-action" onclick="atualizarOrdemServico(${Number(w.id)})">Guardar</button></td></tr>`).join('')}
                     </table></div></div>`;
             } else if (currentTab === 'audit') {
                 container.innerHTML = `<div style="grid-column: 1/-1;">

@@ -1,3 +1,21 @@
+# Changelog
+
+## v0.6.0 — Ciclo de vida das ordens de serviço
+- Ordens de serviço aceitam prazo opcional e registram automaticamente a primeira entrada em andamento e a conclusão.
+- A conclusão exige um resumo da solução executada com pelo menos 10 caracteres, visível na listagem da OS.
+- A API e o dashboard expõem prazo, início, conclusão e resumo de execução.
+- Migração compatível acrescenta os campos opcionais em bancos existentes, preservando ordens atuais.
+- As datas são exibidas no horário local do navegador.
+
+## v0.5.9 — Fluxo operacional de alarmes e manutenção
+- Adicionada ação para criar uma ordem de serviço diretamente de um alarme aberto, preservando o vínculo para consulta posterior.
+- Um alarme pode originar no máximo uma ordem vinculada; requisições repetidas retornam a ordem existente.
+- A ordem herda o painel, prioridade por severidade e contexto temporal/mensagem do alarme.
+- Reconhecimento de alarme e alteração de tarefas exigem papel operacional autorizado.
+- Tarefas concluídas ou canceladas não podem ser reabertas por transições inválidas.
+- A conclusão de tarefa recorrente, auditoria e agendamento da próxima ocorrência agora são gravados na mesma transação.
+- Adicionada migração de compatibilidade para a coluna nullable `work_orders.alarm_id`.
+
 ## v0.5.8 — Preservação do painel selecionado nas regras
 - Corrigido o polling do dashboard para não reconstruir a aba Regras de Alarme a cada 3 segundos.
 - A seleção do painel e os valores editados permanecem na interface enquanto os dados em memória continuam atualizando.
@@ -7,8 +25,6 @@
 - Corrigida a verificação dos canvases de histórico: o polling agora procura os IDs reais `chart-temp-*` e `chart-current-*`.
 - Evita reconstruir toda a aba de tendências a cada ciclo de atualização, impedindo que os gráficos desapareçam intermitentemente.
 - Mantém a atualização dos datasets sem inventar amostras.
-
-# Changelog
 
 ## v0.5.4 — Histórico gráfico de telemetria
 - A aba Tendência Térmica passou a exibir gráficos separados de temperatura e corrente com base em amostras persistidas.
