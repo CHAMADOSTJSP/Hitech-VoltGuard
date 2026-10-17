@@ -179,6 +179,7 @@
         let alarmSearchText = '', alarmStatusFilter = 'TODAS', alarmSeverityFilter = 'TODAS';
         let auditPageLogs = [], auditActions = [], auditTotal = 0, auditHasMore = false, auditLoading = false, auditError = '';
         let auditOffset = 0, auditFilters = {search:'', user_name:'', action:'', date_from:'', date_to:''};
+        let inventoryPrefilledItemId = null;
         let chartInstances = {};
         let historyWindowHours = 168;
         let historyPageState = {};
@@ -914,6 +915,59 @@
             }
         }
 
+        function preencherCamposInventarioExistente() {
+            const nameInput = document.getElementById('inventory-name');
+            const match = inventoryData.find(item => item.part_name === (nameInput?.value || '').trim());
+            if (match) {
+                inventoryPrefilledItemId = match.id;
+                document.getElementById('inventory-category').value = match.category || 'Elétrica';
+                document.getElementById('inventory-minimum').value = match.min_threshold ?? 3;
+                document.getElementById('inventory-cost').value = match.unit_cost ?? 0;
+            } else if (inventoryPrefilledItemId !== null) {
+                inventoryPrefilledItemId = null;
+                document.getElementById('inventory-category').value = 'Elétrica';
+                document.getElementById('inventory-minimum').value = 3;
+                document.getElementById('inventory-cost').value = 0;
+            }
+        }
+
+        async function salvarItemInventario(event) {
+            event.preventDefault();
+            const form = event.currentTarget;
+            const payload = {
+                part_name: document.getElementById('inventory-name')?.value.trim(),
+                category: document.getElementById('inventory-category')?.value.trim() || 'Elétrica',
+                quantity_change: Number(document.getElementById('inventory-quantity')?.value),
+                min_threshold: Number(document.getElementById('inventory-minimum')?.value),
+                unit_cost: Number(document.getElementById('inventory-cost')?.value),
+            };
+            const button = form.querySelector('button[type="submit"]');
+            if (button) { button.disabled = true; button.textContent = 'Salvando…'; }
+            try {
+                const result = await apiJson('/api/inventory/update', {method:'POST', body:JSON.stringify(payload)});
+                form.reset();
+                inventoryPrefilledItemId = null;
+                await buscarDadosPainéis();
+                alert(result.message || 'Estoque atualizado.');
+            } catch (err) {
+                alert(err.message || 'Não foi possível atualizar o estoque.');
+            } finally {
+                if (button) { button.disabled = false; button.textContent = 'Registrar movimentação'; }
+            }
+        }
+
+        function filtrarInventario() {
+            const query = (document.getElementById('inventory-search')?.value || '').toLocaleLowerCase('pt-BR').trim();
+            let visible = 0;
+            document.querySelectorAll('[data-inventory-row]').forEach(row => {
+                const matches = !query || row.dataset.search.includes(query);
+                row.hidden = !matches;
+                if (matches) visible += 1;
+            });
+            const count = document.getElementById('inventory-filter-count');
+            if (count) count.textContent = `${visible} de ${inventoryData.length} item(ns)`;
+        }
+
         function filtrarAuditoria(event) {
             event?.preventDefault();
             auditFilters = {
@@ -1284,13 +1338,38 @@
             }
 
             if (currentTab === 'inventory') {
-                container.innerHTML = `<div style="grid-column: 1/-1;">
-                    <h3 style="color:#10b981; margin-bottom:15px;">📦 Gestão de Inventário e Almoxarifado</h3>
-                    <table class="enterprise-table">
-                        <tr><th>Nome</th><th>Categoria</th><th>Stock</th><th>Mínimo</th><th>Custo</th><th>Estado</th></tr>
-                        ${inventoryData.map(i => `<tr><td>${escapeHtml(i.part_name)}</td><td>${escapeHtml(i.category)}</td><td>${i.quantity_in_stock}</td><td>${i.min_threshold}</td><td>R$ ${i.unit_cost.toFixed(2)}</td><td>ESTÁVEL</td></tr>`).join('')}
-                    </table>
-                </div>`;
+                const belowMinimum = inventoryData.filter(i => Number(i.quantity_in_stock) < Number(i.min_threshold)).length;
+                const stockValue = inventoryData.reduce((sum, i) => sum + Number(i.quantity_in_stock || 0) * Number(i.unit_cost || 0), 0);
+                const money = value => Number(value || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+                container.innerHTML = `<section style="grid-column:1/-1;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:18px;border-radius:8px;">
+                    <h3 style="color:#10b981;margin:0 0 14px;">📦 Gestão de Inventário e Almoxarifado</h3>
+                    <div class="os-overview">
+                        <div class="os-overview-card"><span>Itens cadastrados</span><strong>${inventoryData.length}</strong></div>
+                        <div class="os-overview-card"><span>Abaixo do estoque mínimo</span><strong style="color:${belowMinimum ? '#ef4444' : '#10b981'}">${belowMinimum}</strong></div>
+                        <div class="os-overview-card"><span>Valor estimado em estoque</span><strong>${money(stockValue)}</strong></div>
+                    </div>
+                    <form onsubmit="salvarItemInventario(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:18px 0;align-items:end;">
+                        <div class="input-group" style="margin:0"><label for="inventory-name">Item</label><input id="inventory-name" maxlength="160" required placeholder="Ex.: Disjuntor 60 A" oninput="preencherCamposInventarioExistente()"></div>
+                        <div class="input-group" style="margin:0"><label for="inventory-category">Categoria</label><input id="inventory-category" maxlength="120" value="Elétrica"></div>
+                        <div class="input-group" style="margin:0"><label for="inventory-quantity">Ajuste de quantidade</label><input id="inventory-quantity" type="number" step="1" min="-100000" max="100000" required value="1" aria-describedby="inventory-quantity-help"></div>
+                        <div class="input-group" style="margin:0"><label for="inventory-minimum">Estoque mínimo</label><input id="inventory-minimum" type="number" step="1" min="0" max="100000" required value="3"></div>
+                        <div class="input-group" style="margin:0"><label for="inventory-cost">Custo unitário (R$)</label><input id="inventory-cost" type="number" step="0.01" min="0" max="100000000" required value="0"></div>
+                        <button type="submit" class="btn-primary" style="min-height:36px;">Registrar movimentação</button>
+                        <small id="inventory-quantity-help" style="grid-column:1/-1;color:#9ca3af;">Use quantidade positiva para entrada e negativa para saída. Para atualizar um item existente, informe o mesmo nome cadastrado.</small>
+                    </form>
+                    <div class="os-filters"><div class="input-group" style="margin:0"><label for="inventory-search">Buscar item</label><input id="inventory-search" oninput="filtrarInventario()" placeholder="Nome ou categoria"></div><span id="inventory-filter-count">${inventoryData.length} de ${inventoryData.length} item(ns)</span></div>
+                    <div style="overflow-x:auto;"><table class="enterprise-table"><thead><tr><th>Item</th><th>Categoria</th><th>Quantidade</th><th>Mínimo</th><th>Custo unitário</th><th>Valor em estoque</th><th>Estado</th></tr></thead>
+                        <tbody>${inventoryData.map(i => {
+                            const quantity = Number(i.quantity_in_stock || 0);
+                            const minimum = Number(i.min_threshold || 0);
+                            const unitCost = Number(i.unit_cost || 0);
+                            const low = quantity < minimum;
+                            const search = `${i.part_name || ''} ${i.category || ''}`.toLocaleLowerCase('pt-BR');
+                            return `<tr data-inventory-row data-search="${escapeHtml(search)}"><td>${escapeHtml(i.part_name)}</td><td>${escapeHtml(i.category)}</td><td>${quantity}</td><td>${minimum}</td><td>${money(unitCost)}</td><td>${money(quantity * unitCost)}</td><td style="color:${low ? '#fca5a5' : '#10b981'};font-weight:bold">${low ? 'ABAIXO DO MÍNIMO' : 'REGULAR'}</td></tr>`;
+                        }).join('') || '<tr><td colspan="7">Nenhum item cadastrado. Use o formulário para registrar o estoque inicial.</td></tr>'}</tbody>
+                    </table></div>
+                    <p style="font-size:11px;color:#9ca3af;margin-bottom:0;">O valor em estoque é uma estimativa calculada pela quantidade atual multiplicada pelo custo unitário informado.</p>
+                </section>`;
                 return;
             }
 

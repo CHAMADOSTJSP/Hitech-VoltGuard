@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.27.0 — Movimentação de estoque pela interface
+
+A aba Almoxarifado permite registrar itens e movimentações de entrada/saída pela API existente, mostra os itens abaixo do mínimo e calcula o valor estimado em estoque. Ao informar o nome exato de um item existente, categoria, mínimo e custo são preenchidos com os valores atuais antes do ajuste.
+
 ## v0.26.0 — Resumo ESG transparente
 
 A aba ESG consolida as estimativas informadas por painel e indica quantas estão disponíveis. A tela esclarece que os números são demonstrativos, não medições, cálculos de emissões ou indicadores auditados; painéis sem valor permanecem identificados como indisponíveis.

@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.27.0 — Movimentação de estoque pela interface
+- Ligado o formulário do Almoxarifado à API autenticada de movimentação de inventário.
+- Adicionados movimentos positivos para entrada e negativos para saída, com validação do backend.
+- Exibidos itens abaixo do mínimo, busca local e valor estimado do estoque.
+- Ao selecionar por nome um item existente, os campos de categoria, estoque mínimo e custo são carregados para evitar sobrescrever os dados por engano.
+
 ## v0.26.0 — Resumo ESG transparente
 - Adicionado resumo com quantidade de painéis, estimativas disponíveis e soma informativa em kWh/dia.
 - Criada tabela por painel com localização, estimativa e indicação de dado indisponível.
