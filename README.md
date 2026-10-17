@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.31.0 — Prévia do comportamento dos alarmes
+
+Na aba Regras de Alarme, a configuração por painel mostra os valores que abrem os alarmes de temperatura e corrente e os valores de normalização após histerese. A prévia atualiza durante a edição e indica que os parâmetros editados só entram em vigor após salvar.
+
 ## v0.30.0 — Guia de integração de telemetria
 
 A aba Dispositivos inclui um guia rápido expansível para enviar leituras ao endpoint de telemetria, com exemplo HTTP copiável e payload ajustado ao painel selecionado. O exemplo usa um marcador de token: o segredo continua guardado no gateway e nunca é inserido nem exibido novamente pela interface.

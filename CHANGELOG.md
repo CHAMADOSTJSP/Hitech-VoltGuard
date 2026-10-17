@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.31.0 — Prévia do comportamento dos alarmes
+- A configuração por painel mostra quando cada alarme abre e o valor de normalização definido pela histerese.
+- A prévia acompanha a edição dos limites e deixa claro que os valores só passam a valer após salvar.
+
 ## v0.30.0 — Guia de integração de telemetria
 - Adicionado guia rápido expansível na aba Dispositivos com endpoint, cabeçalhos e exemplo de payload para o painel selecionado.
 - Incluído botão para copiar a requisição de exemplo sem inserir nem revelar o token na interface.

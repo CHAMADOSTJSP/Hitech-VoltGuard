@@ -621,7 +621,24 @@
                 panelRuleCustom = data.custom;
                 document.getElementById('panel-rule-mode').innerText = data.custom ? 'Usando regras específicas deste painel.' : 'Usando regras padrão da organização até salvar regras específicas.';
                 document.getElementById('panel-rule-reset').disabled = !data.custom;
+                atualizarPreviaRegrasPainel();
             } catch (err) { alert(err.message); }
+        }
+
+        function atualizarPreviaRegrasPainel() {
+            const preview = document.getElementById('panel-rule-preview');
+            if (!preview) return;
+            const temperature = Number(document.getElementById('panel-rule-temp')?.value);
+            const current = Number(document.getElementById('panel-rule-current')?.value);
+            const tempHyst = Number(document.getElementById('panel-rule-temp-hyst')?.value);
+            const currentHyst = Number(document.getElementById('panel-rule-current-hyst')?.value);
+            if (![temperature, current, tempHyst, currentHyst].every(Number.isFinite)) {
+                preview.textContent = 'Informe valores numéricos válidos para visualizar quando os alarmes serão acionados e normalizados.';
+                return;
+            }
+            const tempReset = temperature - tempHyst;
+            const currentReset = current - currentHyst;
+            preview.innerHTML = `<strong>Comportamento para os valores exibidos</strong><ul style="margin:8px 0 0;padding-left:20px"><li>Temperatura: abre quando passar de <strong>${escapeHtml(temperature)} °C</strong>; se já estiver aberto, só normaliza ao cair para <strong>${escapeHtml(tempReset)} °C</strong> ou menos.</li><li>Corrente: abre quando passar de <strong>${escapeHtml(current)} A</strong>; se já estiver aberto, só normaliza ao cair para <strong>${escapeHtml(currentReset)} A</strong> ou menos.</li></ul><small>Esses valores passam a valer após salvar. A histerese evita abre e fecha repetidos perto do limite.</small>`;
         }
 
         async function salvarRegrasPainel(event) {
@@ -635,6 +652,7 @@
                 panelRuleCustom = true;
                 document.getElementById('panel-rule-mode').innerText = 'Regras específicas salvas para este painel.';
                 document.getElementById('panel-rule-reset').disabled = false;
+                atualizarPreviaRegrasPainel();
                 alert(data.message);
             } catch (err) { alert(err.message); }
         }
@@ -1447,11 +1465,12 @@
                         <p style="font-size:13px;color:#d1d5db;">Regras específicas substituem os limites padrão da organização. A histerese reduz abertura e fechamento repetidos quando as leituras oscilam perto do limite.</p>
                         <form onsubmit="salvarRegrasPainel(event)" style="margin-top:15px;">
                             <div class="input-group"><label for="panel-rule-select">Painel</label><select id="panel-rule-select" onchange="carregarRegrasPainel()" required>${Object.values(dadosGlobais).filter(p => p && p.id).map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name || p.id)} — ${escapeHtml(p.id)}</option>`).join('') || '<option value="" selected disabled>Nenhum painel disponível</option>'}</select></div>
-                            <div class="input-group"><label>Temperatura máxima (°C)</label><input type="number" step="0.1" min="0.1" max="250" id="panel-rule-temp" value="85" required></div>
-                            <div class="input-group"><label>Corrente máxima (A)</label><input type="number" step="0.1" min="0.1" max="100000" id="panel-rule-current" value="500" required></div>
-                            <div class="input-group"><label>Histerese de temperatura (°C)</label><input type="number" step="0.1" min="0" id="panel-rule-temp-hyst" value="3" required></div>
-                            <div class="input-group"><label>Histerese de corrente (A)</label><input type="number" step="0.1" min="0" id="panel-rule-current-hyst" value="10" required></div>
+                            <div class="input-group"><label>Temperatura máxima (°C)</label><input type="number" step="0.1" min="0.1" max="250" id="panel-rule-temp" value="85" oninput="atualizarPreviaRegrasPainel()" required></div>
+                            <div class="input-group"><label>Corrente máxima (A)</label><input type="number" step="0.1" min="0.1" max="100000" id="panel-rule-current" value="500" oninput="atualizarPreviaRegrasPainel()" required></div>
+                            <div class="input-group"><label>Histerese de temperatura (°C)</label><input type="number" step="0.1" min="0" id="panel-rule-temp-hyst" value="3" oninput="atualizarPreviaRegrasPainel()" required></div>
+                            <div class="input-group"><label>Histerese de corrente (A)</label><input type="number" step="0.1" min="0" id="panel-rule-current-hyst" value="10" oninput="atualizarPreviaRegrasPainel()" required></div>
                             <p id="panel-rule-mode" style="font-size:12px;color:#9ca3af;">Selecione um painel para carregar as regras.</p>
+                            <div id="panel-rule-preview" aria-live="polite" style="font-size:13px;line-height:1.6;color:#d1fae5;background:#06110b;border:1px solid #065f46;border-radius:6px;padding:12px;margin:10px 0;">Carregando os limites e a histerese efetivos deste painel…</div>
                             <button type="submit" class="btn-primary" style="margin-top:10px;">Salvar regras deste painel</button>
                             <button type="button" id="panel-rule-reset" class="btn-action" style="margin-top:10px;" onclick="restaurarRegrasPainel()" disabled>Restaurar padrões da organização</button>
                         </form>
