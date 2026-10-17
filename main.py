@@ -15,7 +15,7 @@ from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from pydantic import BaseModel
 import jwt
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Index, text
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Index, Text, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -90,6 +90,18 @@ class AuditLogModel(Base):
     role = Column(String, nullable=False)
     action = Column(String, nullable=False)
     details = Column(String, nullable=False)
+
+class WorkOrderHistoryModel(Base):
+    __tablename__ = "work_order_history"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    tenant_id = Column(String, nullable=False, index=True)
+    work_order_id = Column(Integer, nullable=False, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    user_name = Column(String, nullable=False)
+    role = Column(String, nullable=False)
+    action = Column(String, nullable=False)
+    details = Column(Text, nullable=False)
+    resolution = Column(Text, nullable=True)
 
 class TenantSubscriptionModel(Base):
     __tablename__ = "subscriptions"
@@ -258,7 +270,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.6.0",
+    version="0.7.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -852,6 +864,22 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
         sub = db.query(TenantSubscriptionModel).filter(TenantSubscriptionModel.tenant_id == current_user.tenant_id).first()
         rule = db.query(TenantRuleModel).filter(TenantRuleModel.tenant_id == current_user.tenant_id).first()
         work_orders = db.query(WorkOrderModel).filter(WorkOrderModel.tenant_id == current_user.tenant_id).all()
+        work_order_ids = [w.id for w in work_orders]
+        work_order_history = []
+        if work_order_ids:
+            work_order_history = db.query(WorkOrderHistoryModel).filter(
+                WorkOrderHistoryModel.tenant_id == current_user.tenant_id,
+                WorkOrderHistoryModel.work_order_id.in_(work_order_ids),
+            ).order_by(WorkOrderHistoryModel.timestamp.desc(), WorkOrderHistoryModel.id.desc()).limit(1000).all()
+        history_by_order = {}
+        for event in work_order_history:
+            history_by_order.setdefault(event.work_order_id, []).append({
+                "timestamp": utc_iso(event.timestamp), "user_name": event.user_name,
+                "role": event.role, "action": event.action, "details": event.details,
+                "resolution": event.resolution,
+            })
+        for events in history_by_order.values():
+            events.reverse()
         inventory = db.query(InventoryModel).filter(InventoryModel.tenant_id == current_user.tenant_id).all()
         alarms = db.query(AlarmModel).filter(AlarmModel.tenant_id == current_user.tenant_id).order_by(AlarmModel.first_triggered_at.desc()).limit(200).all()
         
@@ -866,7 +894,7 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
             history_data[p.id] = [{"timestamp": h.timestamp, "temperature": h.temperature, "current": h.current, "voltage": h.voltage} for h in h_records]
 
         logs_data = [{"timestamp": str(l.timestamp), "user_name": l.user_name, "role": l.role, "action": l.action, "details": l.details} for l in logs]
-        wo_data = [{"id": w.id, "alarm_id": w.alarm_id, "panel_id": w.panel_id, "title": w.title, "priority": w.priority, "status": w.status, "assigned_technician": w.assigned_technician, "created_at": utc_iso(w.created_at), "due_at": utc_iso(w.due_at), "started_at": utc_iso(w.started_at), "completed_at": utc_iso(w.completed_at), "description": w.description, "resolution": w.resolution} for w in work_orders]
+        wo_data = [{"id": w.id, "alarm_id": w.alarm_id, "panel_id": w.panel_id, "title": w.title, "priority": w.priority, "status": w.status, "assigned_technician": w.assigned_technician, "created_at": utc_iso(w.created_at), "due_at": utc_iso(w.due_at), "started_at": utc_iso(w.started_at), "completed_at": utc_iso(w.completed_at), "description": w.description, "resolution": w.resolution, "history": history_by_order.get(w.id, [])} for w in work_orders]
         inv_data = [{"id": i.id, "part_name": i.part_name, "category": i.category, "quantity_in_stock": i.quantity_in_stock, "min_threshold": i.min_threshold, "unit_cost": i.unit_cost} for i in inventory]
         
         billing_info = {
@@ -1014,6 +1042,12 @@ def create_work_order_from_alarm(alarm_id: int, db: Session = Depends(get_db), c
         details=f"Ordem de serviço criada para o alarme {alarm.id} no painel {panel.id}.",
     ))
     try:
+        db.flush()
+        db.add(WorkOrderHistoryModel(
+            tenant_id=current_user.tenant_id, work_order_id=order.id,
+            user_name=current_user.username, role=current_user.role, action="CRIADA",
+            details=f"Ordem criada a partir do alarme #{alarm.id} no painel {panel.id}. Título: {order.title}. Prioridade: {order.priority}. Estado inicial: ABERTA.",
+        ))
         db.commit()
     except Exception:
         db.rollback()
@@ -1190,6 +1224,12 @@ def create_work_order(data: WorkOrderCreate, db: Session = Depends(get_db), curr
         raise HTTPException(status_code=404, detail="Painel não encontrado nesta organização.")
     order = WorkOrderModel(tenant_id=current_user.tenant_id, panel_id=panel_id, title=title, priority=data.priority, status="ABERTA", assigned_technician=(data.assigned_technician or "").strip() or None, description=data.description, due_at=utc_naive(data.due_at))
     db.add(order)
+    db.flush()
+    db.add(WorkOrderHistoryModel(
+        tenant_id=current_user.tenant_id, work_order_id=order.id,
+        user_name=current_user.username, role=current_user.role, action="CRIADA",
+        details=f"Ordem criada para o painel {panel_id}. Título: {title}. Prioridade: {data.priority}. Técnico: {order.assigned_technician or 'não atribuído'}. Estado inicial: ABERTA.",
+    ))
     db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="CRIAR_ORDEM_SERVICO", details=f"Ordem para painel {panel_id}: {title}"))
     db.commit(); db.refresh(order)
     return {"id": order.id, "panel_id": order.panel_id, "title": order.title, "priority": order.priority, "status": order.status, "assigned_technician": order.assigned_technician, "created_at": utc_iso(order.created_at), "due_at": utc_iso(order.due_at), "started_at": utc_iso(order.started_at), "completed_at": utc_iso(order.completed_at), "description": order.description, "resolution": order.resolution}
@@ -1202,6 +1242,13 @@ def update_work_order(order_id: int, data: WorkOrderUpdate, db: Session = Depend
     if not order:
         raise HTTPException(status_code=404, detail="Ordem de serviço não encontrada.")
     previous_status = order.status
+    previous_values = {
+        "priority": order.priority,
+        "assigned_technician": order.assigned_technician,
+        "due_at": utc_iso(order.due_at),
+        "description": order.description,
+        "resolution": order.resolution,
+    }
     if data.resolution is not None and len(data.resolution) > 4000:
         raise HTTPException(status_code=422, detail="Resumo de execução demasiado longo.")
     allowed_status = {"ABERTA", "EM_ANDAMENTO", "AGUARDANDO_PECA", "CONCLUIDA", "CANCELADA"}
@@ -1242,7 +1289,29 @@ def update_work_order(order_id: int, data: WorkOrderUpdate, db: Session = Depend
         order.due_at = utc_naive(data.due_at)
     if data.resolution is not None:
         order.resolution = data.resolution.strip() or None
-    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="ATUALIZAR_ORDEM_SERVICO", details=f"Ordem {order_id}: {previous_status} → {order.status}."))
+    changes = []
+    if previous_status != order.status:
+        changes.append(f"Estado: {previous_status} → {order.status}")
+    if previous_values["priority"] != order.priority:
+        changes.append(f"Prioridade: {previous_values['priority']} → {order.priority}")
+    if previous_values["assigned_technician"] != order.assigned_technician:
+        changes.append(f"Técnico: {previous_values['assigned_technician'] or '—'} → {order.assigned_technician or '—'}")
+    if previous_values["due_at"] != utc_iso(order.due_at):
+        changes.append(f"Prazo: {previous_values['due_at'] or '—'} → {utc_iso(order.due_at) or '—'}")
+    if previous_values["description"] != order.description:
+        changes.append("Descrição atualizada")
+    resolution_changed = previous_values["resolution"] != order.resolution
+    if resolution_changed:
+        changes.append("Resumo de execução atualizado")
+    if changes:
+        event_details = "; ".join(changes)
+        db.add(WorkOrderHistoryModel(
+            tenant_id=current_user.tenant_id, work_order_id=order.id,
+            user_name=current_user.username, role=current_user.role,
+            action="ATUALIZADA", details=event_details,
+            resolution=order.resolution if resolution_changed or order.status == "CONCLUIDA" else None,
+        ))
+        db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="ATUALIZAR_ORDEM_SERVICO", details=f"Ordem {order_id}: {event_details}."))
     db.commit()
     return {"status": "success", "id": order.id, "order_status": order.status,
             "due_at": utc_iso(order.due_at),

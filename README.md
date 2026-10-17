@@ -2,6 +2,10 @@
 
 Versão revisada para **demonstração e homologação controlada**. Este pacote não é SCADA industrial certificado e não deve ser conectado a funções de proteção, intertravamento ou comando de equipamentos elétricos.
 
+## v0.7.0 — Histórico de alterações das ordens de serviço
+
+Cada OS registra criação e alterações de estado/campos com usuário, papel, horário e detalhes. O histórico fica disponível em uma seção expansível na lista de ordens. Ordens anteriores à atualização não têm eventos retroativos; alterações passam a ser registradas após a implantação.
+
 ## v0.6.0 — Ciclo de vida das ordens de serviço
 
 Ordens de serviço agora registram prazo, início e conclusão. A conclusão exige um resumo da solução executada com pelo menos 10 caracteres; datas e resultado aparecem na gestão de ordens. A inicialização adiciona os novos campos a bancos existentes sem apagar ordens anteriores.

@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.0 — Histórico de alterações das ordens de serviço
+- Criada trilha dedicada e multiempresa para eventos de OS, persistida na mesma transação que a criação ou atualização.
+- Cada evento registra usuário, papel, data/hora, campos alterados e o resumo de execução quando ele muda ou a OS é concluída.
+- O histórico de cada OS é exibido em seção expansível na tela de gestão.
+- Ordens existentes permanecem intactas; não há reconstrução de eventos anteriores, e a interface informa que o histórico começa nesta versão.
+
 ## v0.6.0 — Ciclo de vida das ordens de serviço
 - Ordens de serviço aceitam prazo opcional e registram automaticamente a primeira entrada em andamento e a conclusão.
 - A conclusão exige um resumo da solução executada com pelo menos 10 caracteres, visível na listagem da OS.
