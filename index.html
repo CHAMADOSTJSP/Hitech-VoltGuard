@@ -185,6 +185,7 @@
         let historyPageState = {};
         let html5QrCodeScanner = null;
         let qrScannerCleanup = Promise.resolve();
+        let qrScannerLocalizationObserver = null;
         let lastScannedQr = '', lastScannedQrAt = 0, qrLookupInProgress = false;
 
         function formatarNome(n) { return String(n || '').replace(/([a-z])([A-Z])/g, '$1 $2'); }
@@ -523,10 +524,27 @@
         function pararLeitorCamera() {
             const scanner = html5QrCodeScanner;
             html5QrCodeScanner = null;
+            if (qrScannerLocalizationObserver) {
+                qrScannerLocalizationObserver.disconnect();
+                qrScannerLocalizationObserver = null;
+            }
             if (scanner) {
                 qrScannerCleanup = Promise.resolve(qrScannerCleanup).catch(() => {}).then(() => scanner.clear()).catch(() => {});
             }
             return qrScannerCleanup;
+        }
+
+        function traduzirControlesLeitorQR(readerContainer) {
+            const traducoes = {
+                'request camera permissions': 'Ativar câmera',
+                'scan an image file': 'Ler QR de uma imagem',
+                'stop scanning': 'Parar leitura',
+                'scan': 'Iniciar leitura',
+            };
+            readerContainer.querySelectorAll('button, a').forEach((element) => {
+                const texto = (element.textContent || '').trim().toLowerCase();
+                if (traducoes[texto]) element.textContent = traducoes[texto];
+            });
         }
 
         async function iniciarLeitorCamera() {
@@ -545,6 +563,9 @@
                     if(qrInput) qrInput.value = decodedText;
                     consultarQR(decodedText);
                 }, (error) => {});
+                traduzirControlesLeitorQR(readerContainer);
+                qrScannerLocalizationObserver = new MutationObserver(() => traduzirControlesLeitorQR(readerContainer));
+                qrScannerLocalizationObserver.observe(readerContainer, {childList:true, characterData:true, subtree:true});
             } catch(e) {
                 readerContainer.innerHTML = `<p style="color:#f59e0b; padding:15px; font-size:12px;">⚠️ Câmara indisponível.</p>`;
             }
@@ -1418,8 +1439,8 @@
             if (currentTab === 'commission') {
                 container.innerHTML = `
                     <div style="grid-column: 1/-1; background: rgba(17, 42, 29, 0.95); border: 1px solid #10b981; padding: 25px; border-radius: 8px; max-width: 600px; margin: 0 auto;">
-                        <h3 style="color:#10b981; margin-top:0;">📷 Comissionamento e Leitura QR Code</h3>
-                        <p style="font-size:13px; color:#d1d5db;">Leia o QR do gateway ou consulte pelo código. A câmera funciona em conexão segura (HTTPS) e pode pedir autorização do navegador.</p>
+                        <h3 style="color:#10b981; margin-top:0;">📷 Consulta de painel por QR Code</h3>
+                        <p style="font-size:13px; color:#d1d5db;">Leia o QR do gateway usando a câmera ou selecione uma imagem com o código. Se preferir, informe o código ou ID do painel abaixo. A câmera é opcional e pode pedir autorização do navegador.</p>
                         <form onsubmit="event.preventDefault(); consultarQR(document.getElementById('qr-input-manual').value.trim())" style="margin-bottom:20px;">
                             <div class="input-group"><label for="qr-input-manual">Código QR / ID do painel</label><input type="text" id="qr-input-manual" maxlength="160" placeholder="Ex: QR-GW-0010" required></div>
                             <button type="submit" class="btn-primary">Consultar painel</button>
