@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.15.0 — Gestão de ativos
+- Adicionada edição de identificação, dados técnicos, painel associado e estado dos ativos.
+- Adicionados busca textual e filtro por estado na lista de ativos.
+- Alterações de ativos são registradas na auditoria; a exclusão foi evitada para preservar vínculos com manutenção e histórico.
+- Adicionado `PATCH /api/assets/{id}` com validação de organização, tag única e painel associado.
+
 ## v0.14.0 — Auditoria pesquisável e paginada
 - Adicionado endpoint de auditoria paginado, limitado à organização autenticada e acessível somente ao CEO.
 - Adicionados filtros por texto, usuário, ação e intervalo de datas.

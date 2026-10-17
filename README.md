@@ -2,6 +2,10 @@
 
 Versão revisada para **demonstração e homologação controlada**. Este pacote não é SCADA industrial certificado e não deve ser conectado a funções de proteção, intertravamento ou comando de equipamentos elétricos.
 
+## v0.15.0 — Gestão de ativos
+
+A aba Ativos agora permite buscar por tag, nome, tipo, localização, fabricante, modelo, série ou painel, filtrar por estado e editar os dados. Mudanças são registradas na auditoria e os ativos podem ser marcados como `ATIVO`, `MANUTENCAO` ou `INATIVO`, preservando seus vínculos com planos e tarefas.
+
 ## v0.14.0 — Auditoria pesquisável e paginada
 
 A aba Auditoria permite filtrar por texto, usuário, ação e intervalo de datas. Os registros são carregados em páginas de até 100 itens, com isolamento pela organização autenticada.
@@ -163,7 +167,7 @@ Leia `REVISAO_TECNICA.md` antes de usar dados reais.
 ### Gestão de ativos
 A aba **Ativos** permite cadastrar tag patrimonial, nome, tipo, localização, fabricante, modelo, número de série, painel associado e observações. A tag é validada como única por organização na aplicação.
 
-Endpoints autenticados: `GET /api/assets` e `POST /api/assets`.
+Endpoints autenticados: `GET /api/assets`, `POST /api/assets` e `PATCH /api/assets/{id}` (edição permitida a CEO e Gerente).
 
 ### Manutenção preventiva
 A aba **Manutenção** permite criar planos com periodicidade em dias e checklist, gera a primeira tarefa e agenda a próxima execução quando uma tarefa recorrente é concluída. Estados: `PENDENTE`, `EM_ANDAMENTO`, `CONCLUIDA`, `CANCELADA`. A recorrência é acionada na conclusão da tarefa, não por um scheduler externo.

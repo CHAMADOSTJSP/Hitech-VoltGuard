@@ -292,7 +292,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.14.0",
+    version="0.15.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -1569,6 +1569,18 @@ class AssetCreate(BaseModel):
     panel_id: Optional[str] = None
     notes: str = ""
 
+class AssetUpdate(BaseModel):
+    asset_tag: Optional[str] = None
+    name: Optional[str] = None
+    asset_type: Optional[str] = None
+    location: Optional[str] = None
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    serial_number: Optional[str] = None
+    panel_id: Optional[str] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+
 class MaintenancePlanCreate(BaseModel):
     asset_id: int
     title: str
@@ -1622,6 +1634,54 @@ def create_asset(data: AssetCreate, db: Session = Depends(get_db), current_user:
     db.add(row); db.flush()
     db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="CRIAR_ATIVO", details=f"Ativo {tag} cadastrado."))
     db.commit(); db.refresh(row)
+    return {"id": row.id, "asset_tag": row.asset_tag, "name": row.name, "asset_type": row.asset_type, "location": row.location, "manufacturer": row.manufacturer, "model": row.model, "serial_number": row.serial_number, "panel_id": row.panel_id, "status": row.status, "notes": row.notes, "created_at": row.created_at.isoformat()}
+
+@app.patch("/api/assets/{asset_id}")
+def update_asset(asset_id: int, data: AssetUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role not in {"CEO", "Gerente"}:
+        raise HTTPException(status_code=403, detail="Sem permissão para editar ativos.")
+    row = db.query(AssetModel).filter(AssetModel.id == asset_id, AssetModel.tenant_id == current_user.tenant_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Ativo não encontrado nesta organização.")
+    changes = data.dict(exclude_unset=True)
+    if not changes:
+        raise HTTPException(status_code=422, detail="Informe ao menos um campo para atualizar.")
+    if "asset_tag" in changes:
+        changes["asset_tag"] = (changes["asset_tag"] or "").strip()
+        if not changes["asset_tag"] or len(changes["asset_tag"]) > 80:
+            raise HTTPException(status_code=422, detail="Identificação do ativo inválida.")
+        duplicate = db.query(AssetModel).filter(AssetModel.tenant_id == current_user.tenant_id, AssetModel.asset_tag == changes["asset_tag"], AssetModel.id != row.id).first()
+        if duplicate:
+            raise HTTPException(status_code=409, detail="Já existe outro ativo com essa identificação.")
+    if "name" in changes:
+        changes["name"] = (changes["name"] or "").strip()
+        if not changes["name"] or len(changes["name"]) > 160:
+            raise HTTPException(status_code=422, detail="Nome do ativo inválido.")
+    if "asset_type" in changes:
+        changes["asset_type"] = (changes["asset_type"] or "").strip()
+        if not changes["asset_type"] or len(changes["asset_type"]) > 80:
+            raise HTTPException(status_code=422, detail="Tipo do ativo inválido.")
+    limits = {"location": (200, "Localização"), "manufacturer": (120, "Fabricante"), "model": (120, "Modelo"), "serial_number": (120, "Número de série"), "notes": (2000, "Observações")}
+    for field, (limit, label) in limits.items():
+        if field in changes:
+            changes[field] = (changes[field] or "").strip()
+            if len(changes[field]) > limit:
+                raise HTTPException(status_code=422, detail=f"{label} demasiado longo.")
+    if "panel_id" in changes and changes["panel_id"]:
+        changes["panel_id"] = changes["panel_id"].strip()
+        if not db.query(PanelModel).filter(PanelModel.id == changes["panel_id"], PanelModel.tenant_id == current_user.tenant_id).first():
+            raise HTTPException(status_code=404, detail="Painel não encontrado nesta organização.")
+    if "status" in changes and changes["status"] not in {"ATIVO", "MANUTENCAO", "INATIVO"}:
+        raise HTTPException(status_code=422, detail="Estado do ativo inválido.")
+    changed_fields = []
+    for field, value in changes.items():
+        if getattr(row, field) != value:
+            setattr(row, field, value)
+            changed_fields.append(field)
+    if changed_fields:
+        db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="ATUALIZAR_ATIVO", details=f"Ativo {row.asset_tag} atualizado; campos: {', '.join(changed_fields)}."))
+        db.commit()
+        db.refresh(row)
     return {"id": row.id, "asset_tag": row.asset_tag, "name": row.name, "asset_type": row.asset_type, "location": row.location, "manufacturer": row.manufacturer, "model": row.model, "serial_number": row.serial_number, "panel_id": row.panel_id, "status": row.status, "notes": row.notes, "created_at": row.created_at.isoformat()}
 
 @app.get("/api/maintenance/plans")
