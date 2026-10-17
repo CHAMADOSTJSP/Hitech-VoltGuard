@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.23.0 — Leitura de conectividade em português
+- Localizada a exibição de medidas e horário da última telemetria.
+- Traduzidos os estados de conectividade e mostrado o tempo desde a última leitura.
+- Diferenciados os painéis sem credencial e os que aguardam a primeira telemetria.
+
 ## v0.22.0 — Retorno de entrega do webhook
 - A simulação mostra se o webhook foi entregue, falhou ou não estava configurado.
 - Respostas HTTP de erro são identificadas como falha de entrega.

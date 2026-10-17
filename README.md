@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.23.0 — Leitura de conectividade em português
+
+A aba Tempo Real localiza valores numéricos e horários, apresenta estados de conectividade em português e calcula o tempo desde a última telemetria. Diferencia painel sem credencial ativa de painel que ainda aguarda a primeira leitura.
+
 ## v0.22.0 — Retorno de entrega do webhook
 
 A simulação de falha crítica informa se o endpoint respondeu com sucesso, falhou ou não estava configurado. Respostas HTTP de erro deixam de ser consideradas entrega válida; a gravação dos alarmes é mantida mesmo quando o endpoint externo falha.

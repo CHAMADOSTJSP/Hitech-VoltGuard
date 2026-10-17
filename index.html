@@ -192,6 +192,29 @@
             return Number.isNaN(data.getTime()) ? String(valor) : data.toLocaleString('pt-BR', {dateStyle:'short', timeStyle:'short'});
         }
 
+        function formatarMedida(valor, casas = 1) {
+            const numero = Number(valor);
+            return valor == null || valor === '' || !Number.isFinite(numero)
+                ? 'Sem dado'
+                : numero.toLocaleString('pt-BR', {minimumFractionDigits:casas, maximumFractionDigits:2});
+        }
+
+        function resumirConectividade(painel) {
+            const estado = painel.connectivity_status || 'INDEFINIDO';
+            const labels = {
+                ONLINE: 'Online', OFFLINE: 'Offline',
+                NOT_CONFIGURED: 'Sem credencial ativa',
+                NEVER_CONNECTED: 'Aguardando primeira telemetria',
+                INDEFINIDO: 'Indisponível'
+            };
+            if (!painel.last_seen_at) return labels[estado] || estado;
+            const timestamp = Date.parse(/(?:Z|[+-]\d{2}:\d{2})$/.test(painel.last_seen_at) ? painel.last_seen_at : `${painel.last_seen_at}Z`);
+            if (!Number.isFinite(timestamp)) return labels[estado] || estado;
+            const age = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+            const elapsed = age < 60 ? `há ${age} s` : age < 3600 ? `há ${Math.floor(age / 60)} min` : `há ${Math.floor(age / 3600)} h`;
+            return `${labels[estado] || estado} · última leitura ${elapsed} (${formatarDataHora(painel.last_seen_at)})`;
+        }
+
         function dataParaInputLocal(valor) {
             if (!valor) return '';
             const normalizado = /(?:Z|[+-]\d{2}:\d{2})$/.test(valor) ? valor : `${valor}Z`;
@@ -1198,11 +1221,10 @@
                         <h3>${escapeHtml(p.id)} - ${escapeHtml(p.name)}</h3>
                         <p><strong>Local:</strong> ${escapeHtml(p.location)}</p>
                         <p><strong>Gateway QR:</strong> ${escapeHtml(p.gateway_qr)}</p>
-                        <p><strong>Tensão:</strong> ${escapeHtml(p.voltage)} | <strong>Corrente:</strong> ${p.current} A</p>
-                        <p><strong>Temperatura:</strong> ${p.temperature} °C</p>
+                        <p><strong>Tensão:</strong> ${escapeHtml(p.voltage || 'Sem dado')} | <strong>Corrente:</strong> ${escapeHtml(formatarMedida(p.current))} A</p>
+                        <p><strong>Temperatura:</strong> ${escapeHtml(formatarMedida(p.temperature))} °C</p>
                         <p><strong>Status operacional:</strong> ${escapeHtml(p.status)}</p>
-                        <p><strong>Conectividade:</strong> ${escapeHtml(p.connectivity_status || 'INDEFINIDO')}</p>
-                        <p><strong>Último contato:</strong> ${escapeHtml(p.last_seen_at || 'Ainda não recebido')}</p>
+                        <p><strong>Conectividade:</strong> ${escapeHtml(resumirConectividade(p))}</p>
                     </div>`).join('');
             } else if (currentTab === 'predictive') {
                 container.innerHTML = `<div style="grid-column:1/-1;display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:12px;border-radius:8px;">
