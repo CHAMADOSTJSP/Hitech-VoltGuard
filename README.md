@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.36.1 — Zoom e cores de alerta condicionais
+
+A aba Resumo abre com zoom de 140% para aproveitar melhor a tela. Cartões de painéis críticos, alarmes ativos/reconhecidos e estoque abaixo do mínimo usam cores de alerta apenas quando a contagem é maior que zero.
+
 ## v0.36.0 — Resumo executivo em cartões
 
 A aba inicial do relatório apresenta os indicadores em cartões coloridos organizados em duas colunas, com maior destaque para itens críticos. O layout ocupa melhor a página, centraliza a impressão em uma folha horizontal e mantém as abas seguintes para consulta detalhada.

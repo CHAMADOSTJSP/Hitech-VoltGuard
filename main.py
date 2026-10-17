@@ -292,7 +292,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.36.0",
+    version="0.36.1",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -1448,18 +1448,18 @@ def export_executive_report(db: Session = Depends(get_db), current_user: User = 
     summary.row_dimensions[3].height = 28
     summary.row_dimensions[4].height = 12
 
-    card_colors = {
+    card_alert_colors = {
         "Painéis críticos": "B91C1C",
         "Alarmes ativos": "B91C1C",
         "Alarmes reconhecidos": "B45309",
         "Itens de estoque abaixo do mínimo": "B45309",
-        "Ordens de serviço abertas": "0F766E",
     }
     for index, (label, value) in enumerate(summary_rows):
         card_row = 5 + (index // 2) * 3
         start_col = 1 if index % 2 == 0 else 5
         end_col = start_col + 3
-        value_color = card_colors.get(label, dark_green)
+        alert_color = card_alert_colors.get(label)
+        value_color = alert_color if alert_color and value > 0 else dark_green
         merge_styled(
             card_row, start_col, end_col, label.upper(), value_color,
             Font(name="Calibri", size=10, bold=True, color=white),
@@ -1508,7 +1508,7 @@ def export_executive_report(db: Session = Depends(get_db), current_user: User = 
     workbook.active = 0
     for sheet in workbook.worksheets:
         sheet.print_title_rows = "1:5"
-        sheet.sheet_view.zoomScale = 90
+        sheet.sheet_view.zoomScale = 140 if sheet.title == "Resumo" else 90
     workbook.save(output)
     output.seek(0)
     return StreamingResponse(iter([output.getvalue()]), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": "attachment; filename=relatorio_executivo_voltguard.xlsx"})

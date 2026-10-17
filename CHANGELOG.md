@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.36.1 — Zoom e cores de alerta condicionais
+- Definido zoom inicial de 140% na aba Resumo para reduzir o espaço vazio na tela.
+- Alertas críticos e de estoque só recebem vermelho/âmbar quando a contagem é maior que zero.
+
 ## v0.36.0 — Resumo executivo em cartões
 - Substituído o resumo tabular por cartões de indicadores organizados em duas colunas.
 - Destacados em vermelho os indicadores críticos e em âmbar os pontos de atenção.
