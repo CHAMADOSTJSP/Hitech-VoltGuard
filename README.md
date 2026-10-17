@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.25.0 — Histórico térmico paginado na interface
+
+A aba Tendência Térmica carrega a primeira página de até 500 amostras por painel e oferece **Carregar registros anteriores** para consultar páginas adicionais. A consulta usa cursor por ID e mantém as amostras já carregadas durante o polling. A API continua limitada ao painel e à organização autenticada.
+
 ## v0.24.0 — Leitura de QR mais previsível
 
 A aba Comissionamento evita consultas repetidas do mesmo QR durante a leitura contínua, encerra a câmera ao sair da aba e mostra conectividade e horário da última telemetria no resultado. A consulta manual também pode ser enviada pelo teclado.

@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.25.0 — Histórico térmico paginado na interface
+- Ligada a aba Tendência Térmica ao endpoint paginado de histórico por painel.
+- Adicionado botão para carregar registros anteriores em páginas de até 500 amostras.
+- Preservadas amostras históricas carregadas durante as atualizações automáticas.
+- Mostrados estados de carregamento, disponibilidade do histórico e falha na consulta.
+
 ## v0.24.0 — Leitura de QR mais previsível
 - Evitadas consultas repetidas ao decodificar o mesmo QR em sequência.
 - Encerrada a câmera ao sair do Comissionamento e sincronizado o reinício do leitor.

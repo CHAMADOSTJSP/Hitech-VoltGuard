@@ -181,6 +181,7 @@
         let auditOffset = 0, auditFilters = {search:'', user_name:'', action:'', date_from:'', date_to:''};
         let chartInstances = {};
         let historyWindowHours = 168;
+        let historyPageState = {};
         let html5QrCodeScanner = null;
         let qrScannerCleanup = Promise.resolve();
         let lastScannedQr = '', lastScannedQrAt = 0, qrLookupInProgress = false;
@@ -371,7 +372,18 @@
                         inventoryData = data.inventory || [];
                         workOrders = data.work_orders || [];
                         alarmsData = data.alarms || [];
-                        historyData = data.history || {};
+                        const latestHistory = data.history || {};
+                        Object.keys(latestHistory).forEach(panelId => {
+                            const current = historyData[panelId] || [];
+                            const seen = new Set(current.map(r => `${r.timestamp}|${r.temperature}|${r.current}|${r.voltage}`));
+                            const merged = current.slice();
+                            latestHistory[panelId].forEach(r => {
+                                const key = `${r.timestamp}|${r.temperature}|${r.current}|${r.voltage}`;
+                                if (!seen.has(key)) { seen.add(key); merged.push(r); }
+                            });
+                            merged.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+                            historyData[panelId] = merged;
+                        });
                         dadosGlobais = {};
                         data.panels.forEach(p => { dadosGlobais[p.id] = p; });
                         
@@ -749,6 +761,48 @@
             renderizar();
         }
 
+        function chaveAmostraHistorico(record) {
+            return `${record.timestamp}|${record.temperature}|${record.current}|${record.voltage}`;
+        }
+
+        async function carregarHistoricoPainel(panelId, carregarMais = false) {
+            let state = historyPageState[panelId];
+            if (!state) state = historyPageState[panelId] = {beforeId: null, hasMore: true, loading: false, initialized: false, error: ''};
+            if (state.loading || (state.initialized && !carregarMais) || (carregarMais && !state.hasMore)) return;
+            state.loading = true;
+            state.error = '';
+            atualizarControlesHistorico(panelId);
+            try {
+                const params = new URLSearchParams({limit:'500'});
+                if (state.beforeId != null) params.set('before_id', state.beforeId);
+                const page = await apiJson(`/api/telemetry/history/${encodeURIComponent(panelId)}?${params}`);
+                const current = historyData[panelId] || [];
+                const known = new Set(current.map(chaveAmostraHistorico));
+                const added = (page.history || []).filter(record => !known.has(chaveAmostraHistorico(record)));
+                historyData[panelId] = [...current, ...added].sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
+                state.beforeId = page.next_before_id;
+                state.hasMore = Boolean(page.has_more);
+                state.initialized = true;
+            } catch (err) {
+                state.error = err.message || 'Falha ao carregar histórico.';
+            } finally {
+                state.loading = false;
+                atualizarControlesHistorico(panelId);
+                renderizarChart(panelId);
+            }
+        }
+
+        function atualizarControlesHistorico(panelId) {
+            const state = historyPageState[panelId];
+            const button = document.getElementById(`history-more-${panelId}`);
+            if (button && state) {
+                button.disabled = state.loading || !state.hasMore;
+                button.textContent = state.loading ? 'Carregando…' : state.hasMore ? 'Carregar registros anteriores' : 'Todo o histórico carregado';
+            }
+            const status = document.getElementById(`history-status-${panelId}`);
+            if (status && state?.error) status.textContent = `Não foi possível carregar mais histórico: ${state.error}`;
+        }
+
         function renderizarChart(panelId) {
             const records = (historyData[panelId] || []).filter(r => r && r.timestamp);
             const cutoff = historyWindowHours === 0 ? 0 : Date.now() - historyWindowHours * 60 * 60 * 1000;
@@ -764,9 +818,13 @@
             const currentCanvas = document.getElementById(`chart-current-${panelId}`);
             const statusEl = document.getElementById(`history-status-${panelId}`);
             if (statusEl) {
-                statusEl.textContent = filtered.length
-                    ? `${filtered.length} amostra(s) no período selecionado. A tensão é exibida como texto na última leitura.`
-                    : 'Sem amostras de telemetria no período selecionado. Nenhum valor foi inventado.';
+                const state = historyPageState[panelId];
+                const detail = state?.error ? ` Falha ao carregar página: ${state.error}` : '';
+                statusEl.textContent = (filtered.length
+                    ? `${filtered.length} amostra(s) no período selecionado.`
+                    : 'Sem amostras de telemetria no período selecionado. Nenhum valor foi inventado.')
+                    + (!state || state.loading && !state.initialized ? ' Consultando o histórico completo…' : state.hasMore ? ' Existem registros anteriores disponíveis.' : ' Todo o histórico foi carregado.')
+                    + ' A tensão é exibida como texto na última leitura.' + detail;
             }
             const createOrUpdate = (canvas, key, label, field, borderColor, fillColor, unit) => {
                 if (!canvas) return;
@@ -816,6 +874,7 @@
 
             // Atualiza somente os dados dos gráficos existentes; não recria o DOM.
             lista.forEach(p => renderizarChart(p.id));
+            lista.forEach(p => carregarHistoricoPainel(p.id));
         }
 
         async function apiJson(path, options = {}) {
@@ -1261,12 +1320,19 @@
                         <h3>📈 Histórico de telemetria — ${escapeHtml(p.id)}</h3>
                         <p><strong>Componente:</strong> ${escapeHtml(p.component)}</p>
                         <p id="history-status-${escapeHtml(p.id)}" style="font-size:11px;color:#9ca3af;">Carregando amostras...</p>
+                        <button type="button" id="history-more-${escapeHtml(p.id)}" onclick="carregarHistoricoPainel('${escapeHtml(p.id)}', true)" style="margin:6px 0;padding:7px 10px;">Carregar registros anteriores</button>
                         <div style="height:190px;margin-top:10px;"><canvas id="chart-temp-${escapeHtml(p.id)}" aria-label="Histórico de temperatura do painel ${escapeHtml(p.id)}"></canvas></div>
                         <div style="height:190px;margin-top:16px;"><canvas id="chart-current-${escapeHtml(p.id)}" aria-label="Histórico de corrente do painel ${escapeHtml(p.id)}"></canvas></div>
                         <p><strong>Última tensão recebida:</strong> ${escapeHtml(p.voltage ?? 'Sem dado')}</p>
                         <p style="margin-top:10px;font-size:11px;color:#9ca3af;">${escapeHtml(p.recommendation)}</p>
                     </div>`).join('');
-                setTimeout(() => { lista.forEach(p => renderizarChart(p.id)); }, 50);
+                setTimeout(() => {
+                    lista.forEach(p => {
+                        renderizarChart(p.id);
+                        carregarHistoricoPainel(p.id);
+                        atualizarControlesHistorico(p.id);
+                    });
+                }, 50);
             } else if (currentTab === 'esg') {
                 container.innerHTML = lista.map(p => `
                     <div class="panel-card">
