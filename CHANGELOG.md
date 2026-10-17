@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.32.0 — Duração e resumo da Central de Alarmes
+- Incluídos contadores de alarmes ativos, reconhecidos, encerrados e em aberto.
+- Exibidas a primeira e a última ocorrência e a duração do alarme.
+- Mostrados os horários de reconhecimento e encerramento quando disponíveis.
+
 ## v0.31.0 — Prévia do comportamento dos alarmes
 - A configuração por painel mostra quando cada alarme abre e o valor de normalização definido pela histerese.
 - A prévia acompanha a edição dos limites e deixa claro que os valores só passam a valer após salvar.

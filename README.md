@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.32.0 — Duração e resumo da Central de Alarmes
+
+A Central de Alarmes apresenta contagens por estado e mostra a primeira e a última ocorrência, a duração total e os horários de reconhecimento e encerramento quando disponíveis. A duração dos alarmes ainda abertos acompanha as atualizações periódicas da tela.
+
 ## v0.31.0 — Prévia do comportamento dos alarmes
 
 Na aba Regras de Alarme, a configuração por painel mostra os valores que abrem os alarmes de temperatura e corrente e os valores de normalização após histerese. A prévia atualiza durante a edição e indica que os parâmetros editados só entram em vigor após salvar.

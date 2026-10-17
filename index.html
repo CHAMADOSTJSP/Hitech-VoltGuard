@@ -452,6 +452,19 @@
             if (count) count.textContent = `${visibleCount} alarme(s) exibido(s)`;
         }
 
+        function duracaoAlarme(alarm, now = Date.now()) {
+            const started = Date.parse(alarm.first_triggered_at || '');
+            const ended = alarm.status === 'CLEARED' ? Date.parse(alarm.cleared_at || '') : now;
+            if (!Number.isFinite(started) || !Number.isFinite(ended)) return '—';
+            const minutes = Math.max(0, Math.floor((ended - started) / 60000));
+            const days = Math.floor(minutes / 1440);
+            const hours = Math.floor((minutes % 1440) / 60);
+            const remainder = minutes % 60;
+            if (days) return `${days}d ${hours}h`;
+            if (hours) return `${hours}h ${remainder}min`;
+            return `${remainder}min`;
+        }
+
         async function abrirOrdemDoAlarme(id) {
             try {
                 const res = await fetch(`/api/alarms/${id}/work-order`, {method:'POST', headers:{'Authorization':`Bearer ${tokenJwt}`}});
@@ -1481,6 +1494,9 @@
 
             if (currentTab === 'alarms') {
                 const openCount = alarmsData.filter(a => a.status !== 'CLEARED').length;
+                const activeCount = alarmsData.filter(a => a.status === 'ACTIVE').length;
+                const acknowledgedCount = alarmsData.filter(a => a.status === 'ACKNOWLEDGED').length;
+                const closedCount = alarmsData.filter(a => a.status === 'CLEARED').length;
                 const filteredAlarms = alarmsData.filter(a => {
                     const query = alarmSearchText.toLocaleLowerCase('pt-BR').trim();
                     const text = [a.panel_id, a.alarm_type, a.severity, a.message, a.acknowledged_by].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
@@ -1490,10 +1506,11 @@
                 });
                 container.innerHTML = `<div style="grid-column:1/-1;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:20px;border-radius:8px;">
                   <h3 style="color:#10b981;margin-top:0;">🚨 Central de Alarmes</h3>
-                  <p>${openCount} alarme(s) ativo(s) ou reconhecido(s). Alarmes são gerados a partir da telemetria recebida e dos limites configurados.</p>
+                  <p>Alarmes são gerados a partir da telemetria recebida e dos limites configurados. A duração conta desde a primeira ocorrência; alarmes abertos continuam contando até serem encerrados.</p>
+                  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0 18px">${[['ATIVOS',activeCount],['RECONHECIDOS',acknowledgedCount],['ENCERRADOS',closedCount],['EM ABERTO',openCount]].map(([label,count])=>`<div style="border:1px solid #075e48;border-radius:6px;padding:10px"><small>${label}</small><strong style="display:block;color:${label==='ATIVOS'&&count?'#ef4444':'#10b981'}">${count}</strong></div>`).join('')}</div>
                   <div class="os-filters"><div class="input-group"><label for="alarm-search">Buscar alarme</label><input id="alarm-search" value="${escapeHtml(alarmSearchText)}" oninput="filtrarAlarmes()" placeholder="Painel, tipo ou mensagem"></div><div class="input-group"><label for="alarm-status-filter">Estado</label><select id="alarm-status-filter" onchange="filtrarAlarmes()"><option value="TODAS" ${alarmStatusFilter==='TODAS'?'selected':''}>Todos os estados</option><option value="ACTIVE" ${alarmStatusFilter==='ACTIVE'?'selected':''}>Ativo</option><option value="ACKNOWLEDGED" ${alarmStatusFilter==='ACKNOWLEDGED'?'selected':''}>Reconhecido</option><option value="CLEARED" ${alarmStatusFilter==='CLEARED'?'selected':''}>Encerrado</option></select></div><div class="input-group"><label for="alarm-severity-filter">Severidade</label><select id="alarm-severity-filter" onchange="filtrarAlarmes()"><option value="TODAS" ${alarmSeverityFilter==='TODAS'?'selected':''}>Todas</option><option value="CRITICAL" ${alarmSeverityFilter==='CRITICAL'?'selected':''}>Crítica</option></select></div><span id="alarm-filter-count">${filteredAlarms.length} alarme(s) exibido(s)</span></div>
-                  <div style="overflow-x:auto;"><table class="enterprise-table"><tr><th>Data/hora</th><th>Painel</th><th>Tipo</th><th>Severidade</th><th>Mensagem</th><th>Estado</th><th>Ações</th></tr>
-                  ${filteredAlarms.map(a => `<tr data-alarm-row data-status="${escapeHtml(a.status)}" data-severity="${escapeHtml(a.severity)}" data-search="${escapeHtml([a.panel_id, a.alarm_type, a.severity, a.message, a.acknowledged_by].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR'))}"><td>${escapeHtml(formatarDataHora(a.first_triggered_at))}</td><td>${escapeHtml(a.panel_id)}</td><td>${escapeHtml(a.alarm_type)}</td><td>${escapeHtml(a.severity)}</td><td>${escapeHtml(a.message)}</td><td>${escapeHtml(a.status)}${a.acknowledged_by ? `<br><small>Por ${escapeHtml(a.acknowledged_by)}</small>` : ''}</td><td>${a.work_order_id ? `<span>OS #${Number(a.work_order_id)}</span>` : (a.status !== 'CLEARED' && ['CEO','Gerente','Técnico de Campo'].includes(currentCargo) ? `<button type="button" class="btn-primary" onclick="abrirOrdemDoAlarme(${Number(a.id)})">Abrir OS</button>` : '')} ${a.status === 'ACTIVE' && ['CEO','Gerente','Técnico de Campo'].includes(currentCargo) ? `<button type="button" class="btn-primary" onclick="acaoAlarme(${Number(a.id)},'acknowledge')">Reconhecer</button>` : ''} ${a.status !== 'CLEARED' && ['CEO','Gerente','Técnico de Campo'].includes(currentCargo) ? `<button type="button" class="btn-primary" onclick="acaoAlarme(${Number(a.id)},'clear')">Encerrar</button>` : ''}</td></tr>`).join('') || (alarmsData.length ? '' : '<tr><td colspan="7">Nenhum alarme registrado. Ao receber telemetria fora dos limites, os alarmes aparecerão aqui.</td></tr>')}
+                  <div style="overflow-x:auto;"><table class="enterprise-table"><tr><th>Primeira ocorrência</th><th>Última ocorrência</th><th>Duração</th><th>Painel</th><th>Tipo</th><th>Severidade</th><th>Mensagem</th><th>Estado</th><th>Ações</th></tr>
+                  ${filteredAlarms.map(a => `<tr data-alarm-row data-status="${escapeHtml(a.status)}" data-severity="${escapeHtml(a.severity)}" data-search="${escapeHtml([a.panel_id, a.alarm_type, a.severity, a.message, a.acknowledged_by].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR'))}"><td>${escapeHtml(formatarDataHora(a.first_triggered_at))}</td><td>${escapeHtml(formatarDataHora(a.last_triggered_at))}</td><td>${escapeHtml(duracaoAlarme(a))}</td><td>${escapeHtml(a.panel_id)}</td><td>${escapeHtml(a.alarm_type)}</td><td>${escapeHtml(a.severity)}</td><td>${escapeHtml(a.message)}</td><td>${escapeHtml(a.status)}${a.acknowledged_by ? `<br><small>Por ${escapeHtml(a.acknowledged_by)}</small>` : ''}${a.acknowledged_at ? `<br><small>Reconhecido em ${escapeHtml(formatarDataHora(a.acknowledged_at))}</small>` : ''}${a.cleared_at ? `<br><small>Encerrado em ${escapeHtml(formatarDataHora(a.cleared_at))}</small>` : ''}</td><td>${a.work_order_id ? `<span>OS #${Number(a.work_order_id)}</span>` : (a.status !== 'CLEARED' && ['CEO','Gerente','Técnico de Campo'].includes(currentCargo) ? `<button type="button" class="btn-primary" onclick="abrirOrdemDoAlarme(${Number(a.id)})">Abrir OS</button>` : '')} ${a.status === 'ACTIVE' && ['CEO','Gerente','Técnico de Campo'].includes(currentCargo) ? `<button type="button" class="btn-primary" onclick="acaoAlarme(${Number(a.id)},'acknowledge')">Reconhecer</button>` : ''} ${a.status !== 'CLEARED' && ['CEO','Gerente','Técnico de Campo'].includes(currentCargo) ? `<button type="button" class="btn-primary" onclick="acaoAlarme(${Number(a.id)},'clear')">Encerrar</button>` : ''}</td></tr>`).join('') || (alarmsData.length ? '' : '<tr><td colspan="9">Nenhum alarme registrado. Ao receber telemetria fora dos limites, os alarmes aparecerão aqui.</td></tr>')}
                   </table><p id="alarm-no-results" ${alarmsData.length && !filteredAlarms.length ? '' : 'hidden'}>Nenhum alarme corresponde aos filtros selecionados.</p></div></div>`;
                 return;
             }
