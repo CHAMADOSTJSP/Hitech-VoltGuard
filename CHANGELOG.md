@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.19.0 — Resumo de assinatura e uso
+- A aba Assinatura & Billing apresenta os painéis cadastrados, o limite e as vagas disponíveis.
+- Removida a data de expiração fictícia quando não há data registrada na assinatura.
+- Indicados os limites da tela de demonstração: sem processamento de pagamentos, mudança de plano ou cancelamento.
+
 ## v0.18.0 — Regras de alarme
 - Adicionada restauração das regras padrão da organização para um painel, removendo sua substituição específica.
 - A restauração é restrita ao tenant e registrada na auditoria.

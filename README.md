@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.19.0 — Resumo de assinatura e uso
+
+A aba Assinatura & Billing mostra o plano e estado retornados pela organização, a data de expiração quando cadastrada e o uso do limite de painéis. A tela informa quando a data não foi configurada e esclarece que não processa pagamentos nem alterações de plano.
+
 Versão revisada para **demonstração e homologação controlada**. Este pacote não é SCADA industrial certificado e não deve ser conectado a funções de proteção, intertravamento ou comando de equipamentos elétricos.
 
 ## v0.18.0 — Regras de alarme

@@ -292,7 +292,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.18.0",
+    version="0.19.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -949,7 +949,7 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
         billing_info = {
             "plan_name": sub.plan_name if sub else "Enterprise",
             "status": sub.status if sub else "ACTIVE",
-            "expires_at": str(sub.expires_at) if sub else "2027-10-15",
+            "expires_at": str(sub.expires_at) if sub and sub.expires_at else None,
             "max_panels": sub.max_panels if sub else 25,
             "webhook_url": sub.webhook_url if sub else "",
             "max_temperature": rule.max_temperature if rule else 85.0,

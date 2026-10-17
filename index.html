@@ -1077,16 +1077,24 @@
             }
 
             if (currentTab === 'billing') {
+                const maxPanels = Number(billingData.max_panels);
+                const currentPanels = Object.values(dadosGlobais).filter(panel => panel && panel.id).length;
+                const hasPanelLimit = Number.isFinite(maxPanels) && maxPanels >= 0;
+                const remainingPanels = hasPanelLimit ? Math.max(0, maxPanels - currentPanels) : null;
+                const panelUsagePercent = hasPanelLimit && maxPanels > 0 ? Math.min(100, Math.round(currentPanels / maxPanels * 100)) : 0;
+                const expiresAt = billingData.expires_at ? formatarDataHora(billingData.expires_at) : 'Não informada';
                 container.innerHTML = `
                     <div style="grid-column: 1/-1; background: rgba(17, 42, 29, 0.95); border: 1px solid #10b981; padding: 25px; border-radius: 8px; max-width: 600px;">
                         <h3 style="color:#10b981; margin-top:0;">💳 Assinatura e Dados de Faturação (Billing)</h3>
-                        <p style="font-size:13px; color:#d1d5db;">Detalhes do plano ativo da sua organização no ecossistema SaaS:</p>
+                        <p style="font-size:13px; color:#d1d5db;">Resumo do plano e da utilização atual da organização.</p>
                         <div style="background: rgba(6, 17, 11, 0.8); padding: 15px; border-radius: 6px; border: 1px solid #065f46; margin-top: 15px; font-size: 13px;">
-                            <p><strong>Plano Ativo:</strong> ${escapeHtml(billingData.plan_name || 'Enterprise')}</p>
-                            <p><strong>Estado da Assinatura:</strong> <span style="color:#10b981;">${escapeHtml(billingData.status || 'ACTIVE')}</span></p>
-                            <p><strong>Limite de Painéis:</strong> ${billingData.max_panels || 25} cubículos</p>
-                            <p><strong>Expiração:</strong> ${escapeHtml(billingData.expires_at || '2027-10-15')}</p>
+                            <p><strong>Plano:</strong> ${escapeHtml(billingData.plan_name || 'Não informado')}</p>
+                            <p><strong>Estado:</strong> <span style="color:#10b981;">${escapeHtml(billingData.status || 'Não informado')}</span></p>
+                            <p><strong>Renovação/expiração:</strong> ${escapeHtml(expiresAt)}</p>
+                            <p><strong>Painéis cadastrados:</strong> ${currentPanels}${hasPanelLimit ? ` de ${maxPanels}` : ''}</p>
+                            ${hasPanelLimit ? `<div role="progressbar" aria-label="Uso do limite de painéis" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${panelUsagePercent}" style="height:8px;background:#064e3b;border-radius:5px;overflow:hidden;margin:8px 0 4px"><div style="height:100%;width:${panelUsagePercent}%;background:#10b981"></div></div><p>${remainingPanels} ${remainingPanels === 1 ? 'painel disponível' : 'painéis disponíveis'} no limite atual.</p>` : '<p>Limite de painéis não informado.</p>'}
                         </div>
+                        <p style="font-size:12px;color:#9ca3af;margin-bottom:0">Ambiente de demonstração: pagamentos, alteração de plano e cancelamento não são processados nesta tela.</p>
                     </div>`;
                 return;
             }
