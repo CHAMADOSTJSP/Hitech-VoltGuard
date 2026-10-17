@@ -9,14 +9,14 @@ import socket
 import ipaddress
 from urllib.parse import urlparse
 import httpx
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, Request, Header
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from pydantic import BaseModel
 import jwt
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Index, Text, text
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Index, Text, text, or_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -292,7 +292,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.13.0",
+    version="0.14.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -951,6 +951,58 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
         }
     except Exception:
         raise HTTPException(status_code=500, detail="Não foi possível carregar os dados do painel.")
+
+@app.get("/api/audit-logs")
+def list_audit_logs(
+    limit: int = 100,
+    offset: int = 0,
+    search: Optional[str] = None,
+    user_name: Optional[str] = None,
+    action: Optional[str] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != "CEO":
+        raise HTTPException(status_code=403, detail="Somente CEO pode consultar o registro de auditoria.")
+    if limit < 1 or limit > 200 or offset < 0:
+        raise HTTPException(status_code=422, detail="Paginação inválida. O limite deve ser de 1 a 200 e o deslocamento não pode ser negativo.")
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(status_code=422, detail="A data inicial deve ser anterior ou igual à data final.")
+
+    query = db.query(AuditLogModel).filter(AuditLogModel.tenant_id == current_user.tenant_id)
+    term = (search or "").strip()
+    actor = (user_name or "").strip()
+    action_name = (action or "").strip()
+    if len(term) > 200 or len(actor) > 120 or len(action_name) > 100:
+        raise HTTPException(status_code=422, detail="Um dos filtros excede o tamanho permitido.")
+    if term:
+        pattern = f"%{term}%"
+        query = query.filter(or_(
+            AuditLogModel.user_name.ilike(pattern), AuditLogModel.role.ilike(pattern),
+            AuditLogModel.action.ilike(pattern), AuditLogModel.details.ilike(pattern),
+        ))
+    if actor:
+        query = query.filter(AuditLogModel.user_name.ilike(f"%{actor}%"))
+    if action_name:
+        query = query.filter(AuditLogModel.action == action_name)
+    if date_from:
+        query = query.filter(AuditLogModel.timestamp >= datetime.combine(date_from, datetime.min.time()))
+    if date_to:
+        query = query.filter(AuditLogModel.timestamp < datetime.combine(date_to + timedelta(days=1), datetime.min.time()))
+
+    total = query.count()
+    rows = query.order_by(AuditLogModel.timestamp.desc(), AuditLogModel.id.desc()).offset(offset).limit(limit).all()
+    actions = [row[0] for row in db.query(AuditLogModel.action).filter(
+        AuditLogModel.tenant_id == current_user.tenant_id
+    ).distinct().order_by(AuditLogModel.action.asc()).all()]
+    return {
+        "items": [{"id": row.id, "timestamp": utc_iso(row.timestamp), "user_name": row.user_name,
+                   "role": row.role, "action": row.action, "details": row.details} for row in rows],
+        "total": total, "limit": limit, "offset": offset, "has_more": offset + len(rows) < total,
+        "actions": actions,
+    }
 
 @app.get("/api/telemetry/history/{panel_id}", tags=["Industrial Ingestion"])
 def get_telemetry_history(

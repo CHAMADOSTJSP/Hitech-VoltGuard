@@ -2,6 +2,10 @@
 
 Versão revisada para **demonstração e homologação controlada**. Este pacote não é SCADA industrial certificado e não deve ser conectado a funções de proteção, intertravamento ou comando de equipamentos elétricos.
 
+## v0.14.0 — Auditoria pesquisável e paginada
+
+A aba Auditoria permite filtrar por texto, usuário, ação e intervalo de datas. Os registros são carregados em páginas de até 100 itens, com isolamento pela organização autenticada.
+
 ## v0.13.0 — Busca e filtros na Central de Alarmes
 
 A lista de alarmes agora pode ser pesquisada por painel, tipo ou mensagem e filtrada por estado e severidade. Alarmes reconhecidos mostram o usuário responsável.

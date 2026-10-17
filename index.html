@@ -172,6 +172,8 @@
         const workOrderEditOpen = new Set();
         let workOrderSearchText = '', workOrderStatusFilter = 'TODAS', workOrderOnlyOverdue = false;
         let alarmSearchText = '', alarmStatusFilter = 'TODAS', alarmSeverityFilter = 'TODAS';
+        let auditPageLogs = [], auditActions = [], auditTotal = 0, auditHasMore = false, auditLoading = false, auditError = '';
+        let auditOffset = 0, auditFilters = {search:'', user_name:'', action:'', date_from:'', date_to:''};
         let chartInstances = {};
         let historyWindowHours = 168;
         let html5QrCodeScanner = null;
@@ -354,6 +356,8 @@
                         } else if (currentTab === 'orders') {
                             // Preserve unsaved OS form values and open history panels.
                             // The list is re-rendered after an explicit create/update or tab navigation.
+                        } else if (currentTab === 'audit') {
+                            // Auditoria tem carregamento paginado próprio; o polling geral não deve resetar filtros nem a página atual.
                         } else if (currentTab !== 'commission') {
                             // Não substituir formulários enquanto o usuário digita.
                             const container = document.getElementById('main-container');
@@ -417,7 +421,8 @@
                 const el = document.getElementById(`t-${t}`);
                 if(el) el.className = t === aba ? 'tab-btn active' : 'tab-btn';
             });
-            if (aba === 'assets') carregarAtivos();
+            if (aba === 'audit') carregarAuditoria(true);
+            else if (aba === 'assets') carregarAtivos();
             else if (aba === 'maintenance') carregarManutencao();
             else if (aba === 'devices') carregarDispositivos();
             else if (aba === 'orders') { renderizar(); carregarModelosChecklistOS(); }
@@ -724,6 +729,53 @@
             if (!response.ok) throw new Error(data.detail || `Erro HTTP ${response.status}`);
             return data;
         }
+
+        async function carregarAuditoria(reset = false) {
+            if (auditLoading) return;
+            if (reset) {
+                auditPageLogs = [];
+                auditOffset = 0;
+                auditTotal = 0;
+                auditHasMore = false;
+                auditError = '';
+            }
+            auditLoading = true;
+            auditError = '';
+            renderizar();
+            const params = new URLSearchParams({limit:'100', offset:String(auditOffset)});
+            Object.entries(auditFilters).forEach(([key, value]) => { if (value) params.set(key, value); });
+            try {
+                const data = await apiJson(`/api/audit-logs?${params.toString()}`);
+                auditPageLogs = reset ? data.items : auditPageLogs.concat(data.items);
+                auditActions = data.actions || auditActions;
+                auditTotal = data.total || 0;
+                auditOffset = auditPageLogs.length;
+                auditHasMore = Boolean(data.has_more);
+            } catch (err) {
+                auditError = err.message || 'Não foi possível carregar a auditoria.';
+            } finally {
+                auditLoading = false;
+                renderizar();
+            }
+        }
+
+        function filtrarAuditoria(event) {
+            event?.preventDefault();
+            auditFilters = {
+                search:document.getElementById('audit-search')?.value.trim() || '',
+                user_name:document.getElementById('audit-user')?.value.trim() || '',
+                action:document.getElementById('audit-action')?.value || '',
+                date_from:document.getElementById('audit-date-from')?.value || '',
+                date_to:document.getElementById('audit-date-to')?.value || '',
+            };
+            carregarAuditoria(true);
+        }
+
+        function limparFiltrosAuditoria() {
+            auditFilters = {search:'', user_name:'', action:'', date_from:'', date_to:''};
+            carregarAuditoria(true);
+        }
+
         function atualizarSeletorModelosChecklistOS(selectedId = '') {
             const select = document.getElementById('os-checklist-template');
             if (!select) return;
@@ -1109,10 +1161,21 @@
             } else if (currentTab === 'audit') {
                 container.innerHTML = `<div style="grid-column: 1/-1;">
                     <h3 style="color:#10b981; margin-bottom:15px;">Registro de Auditoria</h3>
+                    <form class="os-filters" onsubmit="filtrarAuditoria(event)">
+                        <div class="input-group"><label for="audit-search">Buscar nos detalhes</label><input id="audit-search" value="${escapeHtml(auditFilters.search)}" maxlength="200" placeholder="Ação, detalhes ou papel"></div>
+                        <div class="input-group"><label for="audit-user">Usuário</label><input id="audit-user" value="${escapeHtml(auditFilters.user_name)}" maxlength="120" placeholder="Nome do usuário"></div>
+                        <div class="input-group"><label for="audit-action">Ação</label><select id="audit-action"><option value="">Todas as ações</option>${auditActions.map(action => `<option value="${escapeHtml(action)}" ${auditFilters.action===action?'selected':''}>${escapeHtml(action)}</option>`).join('')}</select></div>
+                        <div class="input-group"><label for="audit-date-from">De</label><input id="audit-date-from" type="date" value="${escapeHtml(auditFilters.date_from)}"></div>
+                        <div class="input-group"><label for="audit-date-to">Até</label><input id="audit-date-to" type="date" value="${escapeHtml(auditFilters.date_to)}"></div>
+                        <button class="btn-primary" type="submit">Filtrar</button><button class="btn-action" type="button" onclick="limparFiltrosAuditoria()">Limpar</button>
+                    </form>
+                    <p>${auditLoading ? 'Carregando registros…' : `${auditPageLogs.length} de ${auditTotal} registro(s)`}</p>
+                    ${auditError ? `<p style="color:#fca5a5">${escapeHtml(auditError)} <button type="button" class="btn-action" onclick="carregarAuditoria(true)">Tentar novamente</button></p>` : ''}
                     <table class="enterprise-table">
                         <tr><th>Data/Hora</th><th>Usuário</th><th>Ação</th><th>Detalhes</th></tr>
-                        ${auditLogs.map(l => `<tr><td>${escapeHtml(l.timestamp.split('.')[0])}</td><td>${escapeHtml(l.user_name)}</td><td>${escapeHtml(l.action)}</td><td>${escapeHtml(l.details)}</td></tr>`).join('')}
+                        ${auditPageLogs.map(l => `<tr><td>${escapeHtml(formatarDataHora(l.timestamp))}</td><td>${escapeHtml(l.user_name)}<br><small>${escapeHtml(l.role)}</small></td><td>${escapeHtml(l.action)}</td><td>${escapeHtml(l.details)}</td></tr>`).join('') || `<tr><td colspan="4">${auditError ? 'Não foi possível carregar os registros.' : auditLoading ? 'Carregando…' : 'Nenhum registro corresponde aos filtros.'}</td></tr>`}
                     </table>
+                    ${auditHasMore ? `<button type="button" class="btn-primary" onclick="carregarAuditoria(false)" ${auditLoading?'disabled':''}>${auditLoading?'Carregando…':'Carregar mais registros'}</button>` : ''}
                 </div>`;
             }
         }

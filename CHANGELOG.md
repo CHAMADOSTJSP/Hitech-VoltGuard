@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.14.0 — Auditoria pesquisável e paginada
+- Adicionado endpoint de auditoria paginado, limitado à organização autenticada e acessível somente ao CEO.
+- Adicionados filtros por texto, usuário, ação e intervalo de datas.
+- A interface carrega até 100 registros por página e permite carregar os próximos.
+- A aba deixa de depender do recorte de 50 registros enviado pelo endpoint geral do painel.
+
 ## v0.13.0 — Busca e filtros na Central de Alarmes
 - Adicionada busca por painel, tipo, severidade, mensagem e usuário que reconheceu o alarme.
 - Adicionados filtros de estado (ativo, reconhecido e encerrado) e severidade.
