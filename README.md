@@ -2,13 +2,17 @@
 
 Versão revisada para **demonstração e homologação controlada**. Este pacote não é SCADA industrial certificado e não deve ser conectado a funções de proteção, intertravamento ou comando de equipamentos elétricos.
 
-## v0.10.0 — Modelos reutilizáveis de checklist
+## v0.10.2 — Preservação dos modelos ao redesenhar a tela
 
-Modelos de checklist são guardados por organização. CEO e Gerente podem salvar o checklist atual como modelo e remover modelos; qualquer usuário autenticado com acesso às OS pode aplicar um modelo ao formulário. As OS existentes permanecem independentes dos modelos.
+As opções de modelos são repostas no seletor após criar uma OS ou redesenhar a aba, mantendo os modelos disponíveis enquanto o formulário é reconstruído.
 
 ## v0.10.1 — Aplicação direta dos modelos
 
 Selecionar um modelo agora preenche automaticamente os itens no formulário da nova OS; a aplicação confirma antes de substituir itens já digitados. O botão **Usar modelo** permanece disponível.
+
+## v0.10.0 — Modelos reutilizáveis de checklist
+
+Modelos de checklist são guardados por organização. CEO e Gerente podem salvar o checklist atual como modelo e remover modelos; qualquer usuário autenticado com acesso às OS pode aplicar um modelo ao formulário. As OS existentes permanecem independentes dos modelos.
 
 ## v0.9.0 — Checklist de execução para ordens de serviço
 

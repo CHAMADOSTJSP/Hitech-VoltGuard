@@ -1025,6 +1025,8 @@
                     }).join('')}
                     </tbody></table><p id="os-no-results" hidden>Nenhuma ordem corresponde aos filtros selecionados.</p></div></div>`;
                 filtrarOrdensServico();
+                // Rebuild the model options after the form HTML is replaced.
+                atualizarSeletorModelosChecklistOS();
             } else if (currentTab === 'audit') {
                 container.innerHTML = `<div style="grid-column: 1/-1;">
                     <h3 style="color:#10b981; margin-bottom:15px;">Registro de Auditoria</h3>

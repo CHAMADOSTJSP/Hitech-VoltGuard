@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.10.2 — Preservação dos modelos ao redesenhar a tela
+- Corrigido o seletor que voltava ao estado vazio quando a tela de ordens era redesenhada após criar uma OS.
+- As opções existentes são reaplicadas ao formulário usando os modelos carregados da organização.
+
 ## v0.10.1 — Aplicação direta dos modelos
 - Selecionar um modelo de checklist preenche automaticamente o campo da OS.
 - Se já houver itens digitados, a interface pede confirmação antes de substituí-los.
