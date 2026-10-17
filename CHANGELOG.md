@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.24.0 — Leitura de QR mais previsível
+- Evitadas consultas repetidas ao decodificar o mesmo QR em sequência.
+- Encerrada a câmera ao sair do Comissionamento e sincronizado o reinício do leitor.
+- Incluídos estado de conectividade e horário da última telemetria no resultado da consulta.
+- Consulta manual pode ser enviada pelo teclado e mostra estado de carregamento.
+
 ## v0.23.0 — Leitura de conectividade em português
 - Localizada a exibição de medidas e horário da última telemetria.
 - Traduzidos os estados de conectividade e mostrado o tempo desde a última leitura.

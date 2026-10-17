@@ -292,7 +292,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.23.0",
+    version="0.24.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -1210,11 +1210,26 @@ def get_panel_by_qr(qr_code: str, db: Session = Depends(get_db), current_user: U
         panel = db.query(PanelModel).filter(PanelModel.id == qr_code, PanelModel.tenant_id == current_user.tenant_id).first()
     if not panel:
         raise HTTPException(status_code=404, detail="Nenhum cubículo encontrado para este código QR ou ID.")
+    device_rows = db.query(DeviceCredentialModel).filter(
+        DeviceCredentialModel.tenant_id == current_user.tenant_id,
+        DeviceCredentialModel.panel_id == panel.id,
+        DeviceCredentialModel.revoked_at.is_(None),
+    ).all()
+    last_seen = max((item.last_used_at for item in device_rows if item.last_used_at), default=None)
+    offline_after_seconds = max(30, min(int(os.getenv("DEVICE_OFFLINE_AFTER_SECONDS", "300")), 86400))
+    if not device_rows:
+        connectivity_status = "NOT_CONFIGURED"
+    elif last_seen is None:
+        connectivity_status = "NEVER_CONNECTED"
+    else:
+        age_seconds = max(0, (datetime.utcnow() - last_seen).total_seconds())
+        connectivity_status = "ONLINE" if age_seconds <= offline_after_seconds else "OFFLINE"
     return {
         "id": panel.id, "name": panel.name, "location": panel.location, "voltage": panel.voltage,
         "current": panel.current, "temperature": panel.temperature, "gateway_qr": panel.gateway_qr,
         "status": panel.status, "component": panel.component, "predictive_failure_hours": panel.predictive_failure_hours,
-        "recommendation": panel.recommendation, "esg_waste_kwh": panel.esg_waste_kwh, "assigned_to": panel.assigned_to
+        "recommendation": panel.recommendation, "esg_waste_kwh": panel.esg_waste_kwh, "assigned_to": panel.assigned_to,
+        "connectivity_status": connectivity_status, "last_seen_at": last_seen.isoformat() + "Z" if last_seen else None,
     }
 
 @app.post("/api/inventory/update")

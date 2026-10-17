@@ -182,6 +182,8 @@
         let chartInstances = {};
         let historyWindowHours = 168;
         let html5QrCodeScanner = null;
+        let qrScannerCleanup = Promise.resolve();
+        let lastScannedQr = '', lastScannedQrAt = 0, qrLookupInProgress = false;
 
         function formatarNome(n) { return String(n || '').replace(/([a-z])([A-Z])/g, '$1 $2'); }
 
@@ -448,6 +450,7 @@
         }
 
         function mudarAba(aba) {
+            if (currentTab === 'commission' && aba !== 'commission') pararLeitorCamera();
             currentTab = aba;
             ['realtime', 'commission', 'predictive', 'esg', 'inventory', 'assets', 'maintenance', 'devices', 'rules', 'alarms', 'orders', 'audit', 'billing', 'executive', 'webhooks', 'demo'].forEach(t => {
                 const el = document.getElementById(`t-${t}`);
@@ -463,7 +466,9 @@
 
         async function consultarQR(qrCode) {
             const resultBox = document.getElementById('qr-result-box');
-            if(!resultBox || !qrCode) return;
+            if(!resultBox || !qrCode || qrLookupInProgress) return;
+            qrLookupInProgress = true;
+            resultBox.innerHTML = '<p role="status" style="margin-top:15px;">Consultando código…</p>';
             try {
                 const res = await fetch(`/api/panels/qr/${encodeURIComponent(qrCode)}`, {
                     headers: {'Authorization': `Bearer ${tokenJwt}`}
@@ -476,25 +481,40 @@
                         <h3>Cubículo Encontrado: ${escapeHtml(p.id)} - ${escapeHtml(p.name)}</h3>
                         <p><strong>Local:</strong> ${escapeHtml(p.location)}</p>
                         <p><strong>Gateway QR:</strong> ${escapeHtml(p.gateway_qr)}</p>
-                        <p><strong>Tensão:</strong> ${escapeHtml(p.voltage)} | <strong>Corrente:</strong> ${p.current} A</p>
-                        <p><strong>Temperatura:</strong> ${p.temperature} °C</p>
+                        <p><strong>Tensão:</strong> ${escapeHtml(p.voltage || 'Sem dado')} | <strong>Corrente:</strong> ${escapeHtml(formatarMedida(p.current))} A</p>
+                        <p><strong>Temperatura:</strong> ${escapeHtml(formatarMedida(p.temperature))} °C</p>
                         <p><strong>Status operacional:</strong> ${escapeHtml(p.status)}</p>
-                        <p><strong>Conectividade do dispositivo:</strong> ${escapeHtml(p.connectivity_status || 'INDEFINIDO')}</p>
-                        <p><strong>Último contato:</strong> ${escapeHtml(p.last_seen_at || 'Ainda não recebido')}</p>
+                        <p><strong>Conectividade:</strong> ${escapeHtml(resumirConectividade(p))}</p>
                         <p><strong>Diagnóstico:</strong> ${escapeHtml(p.recommendation)}</p>
                     </div>`;
             } catch (err) {
                 resultBox.innerHTML = `<p style="color:#ef4444; margin-top:15px; font-weight:bold;">${escapeHtml(err.message)}</p>`;
+            } finally {
+                qrLookupInProgress = false;
             }
         }
 
-        function iniciarLeitorCamera() {
+        function pararLeitorCamera() {
+            const scanner = html5QrCodeScanner;
+            html5QrCodeScanner = null;
+            if (scanner) {
+                qrScannerCleanup = Promise.resolve(qrScannerCleanup).catch(() => {}).then(() => scanner.clear()).catch(() => {});
+            }
+            return qrScannerCleanup;
+        }
+
+        async function iniciarLeitorCamera() {
+            await pararLeitorCamera();
+            await qrScannerCleanup;
             const readerContainer = document.getElementById('reader');
-            if(!readerContainer) return;
-            if (html5QrCodeScanner) { try { html5QrCodeScanner.clear(); } catch(e) {} }
+            if(!readerContainer || currentTab !== 'commission') return;
             try {
                 html5QrCodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 }, false);
                 html5QrCodeScanner.render((decodedText) => {
+                    const now = Date.now();
+                    if (decodedText === lastScannedQr && now - lastScannedQrAt < 5000) return;
+                    lastScannedQr = decodedText;
+                    lastScannedQrAt = now;
                     const qrInput = document.getElementById('qr-input-manual');
                     if(qrInput) qrInput.value = decodedText;
                     consultarQR(decodedText);
@@ -1077,11 +1097,11 @@
                 container.innerHTML = `
                     <div style="grid-column: 1/-1; background: rgba(17, 42, 29, 0.95); border: 1px solid #10b981; padding: 25px; border-radius: 8px; max-width: 600px; margin: 0 auto;">
                         <h3 style="color:#10b981; margin-top:0;">📷 Comissionamento e Leitura QR Code</h3>
-                        <p style="font-size:13px; color:#d1d5db;">Aponte a câmara para o código do gateway ou digite o código de fábrica:</p>
-                        <div style="margin-bottom: 20px;">
-                            <div class="input-group"><label>Código QR / ID Manual</label><input type="text" id="qr-input-manual" placeholder="Ex: QR-GW-0010"></div>
-                            <button type="button" class="btn-primary" onclick="consultarQR(document.getElementById('qr-input-manual').value.trim())">Consultar Cubículo</button>
-                        </div>
+                        <p style="font-size:13px; color:#d1d5db;">Leia o QR do gateway ou consulte pelo código. A câmera funciona em conexão segura (HTTPS) e pode pedir autorização do navegador.</p>
+                        <form onsubmit="event.preventDefault(); consultarQR(document.getElementById('qr-input-manual').value.trim())" style="margin-bottom:20px;">
+                            <div class="input-group"><label for="qr-input-manual">Código QR / ID do painel</label><input type="text" id="qr-input-manual" maxlength="160" placeholder="Ex: QR-GW-0010" required></div>
+                            <button type="submit" class="btn-primary">Consultar painel</button>
+                        </form>
                         <div id="reader" style="width: 100%; background: #06110b; border-radius: 6px; overflow: hidden; min-height: 250px;"></div>
                         <div id="qr-result-box"></div>
                     </div>`;

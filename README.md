@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.24.0 — Leitura de QR mais previsível
+
+A aba Comissionamento evita consultas repetidas do mesmo QR durante a leitura contínua, encerra a câmera ao sair da aba e mostra conectividade e horário da última telemetria no resultado. A consulta manual também pode ser enviada pelo teclado.
+
 ## v0.23.0 — Leitura de conectividade em português
 
 A aba Tempo Real localiza valores numéricos e horários, apresenta estados de conectividade em português e calcula o tempo desde a última telemetria. Diferencia painel sem credencial ativa de painel que ainda aguarda a primeira leitura.
