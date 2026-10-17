@@ -2,9 +2,14 @@
 
 Versão revisada para **demonstração e homologação controlada**. Este pacote não é SCADA industrial certificado e não deve ser conectado a funções de proteção, intertravamento ou comando de equipamentos elétricos.
 
+## v0.11.0 — Relatório individual de ordem de serviço
+
+Cada OS pode abrir um relatório imprimível com seus dados, checklist, resumo de execução e histórico. Use a opção de impressão do navegador e escolha “Salvar como PDF” para exportar o documento.
+
 ## v0.10.2 — Preservação dos modelos ao redesenhar a tela
 
 As opções de modelos são repostas no seletor após criar uma OS ou redesenhar a aba, mantendo os modelos disponíveis enquanto o formulário é reconstruído.
+
 
 ## v0.10.1 — Aplicação direta dos modelos
 
