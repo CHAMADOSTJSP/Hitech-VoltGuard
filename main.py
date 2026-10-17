@@ -622,10 +622,53 @@ def save_panel_alarm_rules(panel_id: str, data: dict, db: Session = Depends(get_
         db.add(rule)
     for key, value in values.items(): setattr(rule, key, value)
     rule.updated_at = datetime.utcnow()
+    # Recalcula imediatamente o estado do painel e os alarmes abertos usando a regra
+    # recém-salva. Assim a Central de Alarmes não mantém a mensagem do limite antigo.
+    now = datetime.utcnow()
+    open_alarms = db.query(AlarmModel).filter(
+        AlarmModel.tenant_id == current_user.tenant_id,
+        AlarmModel.panel_id == panel.id,
+        AlarmModel.status.in_(["ACTIVE", "ACKNOWLEDGED"]),
+    ).all()
+    open_by_type = {alarm.alarm_type: alarm for alarm in open_alarms}
+    conditions = {
+        "HIGH_TEMPERATURE": (float(panel.temperature or 0), values["max_temperature"], values["temperature_hysteresis"], "Temperatura", "°C"),
+        "HIGH_CURRENT": (float(panel.current or 0), values["max_current"], values["current_hysteresis"], "Corrente", "A"),
+    }
+    active_types = set()
+    for alarm_type, (reading, limit, hysteresis, label, unit) in conditions.items():
+        existing_alarm = open_by_type.get(alarm_type)
+        threshold = limit - hysteresis if existing_alarm else limit
+        is_active = reading > threshold
+        if is_active:
+            active_types.add(alarm_type)
+            message = f"{label} {reading:g} {unit} acima do limite configurado de {limit:g} {unit}."
+            if existing_alarm:
+                existing_alarm.message = message
+                existing_alarm.severity = "CRITICAL"
+                existing_alarm.last_triggered_at = now
+            else:
+                db.add(AlarmModel(tenant_id=current_user.tenant_id, panel_id=panel.id,
+                    alarm_type=alarm_type, severity="CRITICAL", message=message, status="ACTIVE",
+                    first_triggered_at=now, last_triggered_at=now))
+        elif existing_alarm:
+            existing_alarm.status = "CLEARED"
+            existing_alarm.cleared_at = now
+
+    if active_types:
+        panel.status = "CRITICO"
+        panel.recommendation = "ALERTA: " + " e ".join(
+            f"{label.lower()} acima de {values['max_temperature'] if alarm_type == 'HIGH_TEMPERATURE' else values['max_current']} {unit}"
+            for alarm_type, (_, _, _, label, unit) in conditions.items() if alarm_type in active_types
+        ) + "."
+    else:
+        panel.status = "NORMAL"
+        panel.recommendation = "Sistema a operar dentro dos parâmetros configurados."
+
     db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role,
         action="CONFIGURAR_REGRAS_PAINEL", details=f"Regras atualizadas para {panel_id}: temperatura={values['max_temperature']}°C, corrente={values['max_current']}A."))
     db.commit()
-    return {"status": "success", "message": "Regras específicas do painel atualizadas.", "panel_id": panel_id, **values}
+    return {"status": "success", "message": "Regras específicas do painel atualizadas e alarmes recalculados.", "panel_id": panel_id, "active_conditions": sorted(active_types), **values}
 
 
 @app.post("/api/telemetry", tags=["Industrial Ingestion"])
@@ -707,9 +750,10 @@ async def force_failure(data: dict, db: Session = Depends(get_db), current_user:
     
     # Simulação explícita: atualiza telemetria e cria/atualiza alarmes persistentes.
     # Não depende de PLC, Modbus ou equipamento físico.
-    rule = db.query(TenantRuleModel).filter(TenantRuleModel.tenant_id == current_user.tenant_id).first()
-    temp_limit = rule.max_temperature if rule else 85.0
-    current_limit = rule.max_current if rule else 500.0
+    # Respeita a regra específica do painel; usa a regra da organização apenas como fallback.
+    rule = get_effective_alarm_rule(db, current_user.tenant_id, panel.id)
+    temp_limit = rule.max_temperature
+    current_limit = rule.max_current
     panel.status = "CRITICO"
     panel.temperature = max(94.5, temp_limit + 5.0)
     panel.current = max(float(panel.current or 0), current_limit + 25.0)
