@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.34.0 — Rastreabilidade no relatório executivo
+- O CSV inclui datas da ocorrência, reconhecimento e encerramento dos alarmes e o ID da OS vinculada.
+- Incluídos no resumo os alarmes ativos/reconhecidos e as ordens geradas por alarmes.
+- As ordens exportadas identificam o alarme de origem e trazem o progresso do checklist.
+
 ## v0.33.0 — Rastreamento da origem das ordens
 - Adicionado filtro para separar ordens abertas por alarmes das ordens criadas manualmente.
 - Ordens geradas por alarme identificam a origem na linha e podem ser encontradas pela busca usando o número do alarme.

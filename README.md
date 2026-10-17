@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.34.0 — Rastreabilidade no relatório executivo
+
+O CSV executivo inclui datas de ocorrência, reconhecimento e encerramento dos alarmes e mostra a OS vinculada. As OS exportadas incluem o alarme de origem e o progresso do checklist; o resumo também conta alarmes ativos/reconhecidos e OS originadas de alarmes.
+
 ## v0.33.0 — Rastreamento da origem das ordens
 
 A aba Ordens de Serviço identifica ordens criadas a partir de alarmes, permite filtrar por origem e localizar uma ordem pelo número do alarme. O resumo inclui a quantidade de ordens vinculadas a alarmes.

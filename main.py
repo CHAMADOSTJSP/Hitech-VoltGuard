@@ -292,7 +292,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.33.0",
+    version="0.34.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -1332,6 +1332,15 @@ def export_executive_report(db: Session = Depends(get_db), current_user: User = 
     assets = db.query(AssetModel).filter(AssetModel.tenant_id == current_user.tenant_id).order_by(AssetModel.id).all()
     tasks = db.query(MaintenanceTaskModel).filter(MaintenanceTaskModel.tenant_id == current_user.tenant_id).order_by(MaintenanceTaskModel.due_at).all()
     inventory = db.query(InventoryModel).filter(InventoryModel.tenant_id == current_user.tenant_id).order_by(InventoryModel.id).all()
+    work_order_ids = [item.id for item in work_orders]
+    checklist_items = db.query(WorkOrderChecklistItemModel).filter(
+        WorkOrderChecklistItemModel.tenant_id == current_user.tenant_id,
+        WorkOrderChecklistItemModel.work_order_id.in_(work_order_ids),
+    ).order_by(WorkOrderChecklistItemModel.work_order_id, WorkOrderChecklistItemModel.id).all() if work_order_ids else []
+    checklist_by_order = {}
+    for item in checklist_items:
+        checklist_by_order.setdefault(item.work_order_id, []).append(item)
+    work_order_by_alarm = {item.alarm_id: item.id for item in work_orders if item.alarm_id is not None}
 
     writer.writerow(["Relatório Executivo Operacional - HITECH VoltGuard"])
     writer.writerow(["Organização", safe_text(current_user.tenant_id)])
@@ -1343,7 +1352,10 @@ def export_executive_report(db: Session = Depends(get_db), current_user: User = 
     writer.writerow(["Painéis", len(panels)])
     writer.writerow(["Painéis críticos", sum(1 for p in panels if p.status == "CRITICO")])
     writer.writerow(["Alarmes", len(alarms)])
+    writer.writerow(["Alarmes ativos", sum(1 for a in alarms if a.status == "ACTIVE")])
+    writer.writerow(["Alarmes reconhecidos", sum(1 for a in alarms if a.status == "ACKNOWLEDGED")])
     writer.writerow(["Ordens de serviço abertas", sum(1 for w in work_orders if w.status not in ("CONCLUIDA", "CANCELADA"))])
+    writer.writerow(["Ordens originadas de alarmes", sum(1 for w in work_orders if w.alarm_id is not None)])
     writer.writerow(["Ativos cadastrados", len(assets)])
     writer.writerow(["Tarefas de manutenção", len(tasks)])
     writer.writerow(["Itens de estoque abaixo do mínimo", sum(1 for i in inventory if i.quantity_in_stock < i.min_threshold)])
@@ -1362,14 +1374,17 @@ def export_executive_report(db: Session = Depends(get_db), current_user: User = 
         writer.writerow([p.id, safe_text(p.name), safe_text(p.location), p.voltage, p.current, p.temperature, safe_text(p.status), safe_text(p.component), safe_text(p.recommendation)])
     writer.writerow([])
     writer.writerow(["ALARMES"])
-    writer.writerow(["ID", "Data inicial", "Painel", "Tipo", "Severidade", "Estado", "Mensagem", "Reconhecido por"])
+    writer.writerow(["ID", "Data inicial", "Última ocorrência", "Reconhecido em", "Reconhecido por", "Encerrado em", "Painel", "Tipo", "Severidade", "Estado", "Mensagem", "OS vinculada"])
     for a in alarms:
-        writer.writerow([a.id, a.first_triggered_at.isoformat() if a.first_triggered_at else "", safe_text(a.panel_id), safe_text(a.alarm_type), safe_text(a.severity), safe_text(a.status), safe_text(a.message), safe_text(a.acknowledged_by)])
+        linked_order = work_order_by_alarm.get(a.id, "")
+        writer.writerow([a.id, a.first_triggered_at.isoformat() if a.first_triggered_at else "", a.last_triggered_at.isoformat() if a.last_triggered_at else "", a.acknowledged_at.isoformat() if a.acknowledged_at else "", safe_text(a.acknowledged_by), a.cleared_at.isoformat() if a.cleared_at else "", safe_text(a.panel_id), safe_text(a.alarm_type), safe_text(a.severity), safe_text(a.status), safe_text(a.message), linked_order])
     writer.writerow([])
     writer.writerow(["ORDENS DE SERVIÇO"])
-    writer.writerow(["ID", "Painel", "Título", "Prioridade", "Estado", "Técnico", "Criada em", "Prazo", "Início", "Conclusão", "Resumo de execução"])
+    writer.writerow(["ID", "Alarme de origem", "Painel", "Título", "Prioridade", "Estado", "Técnico", "Criada em", "Prazo", "Início", "Conclusão", "Checklist concluído", "Itens no checklist", "Resumo de execução"])
     for w in work_orders:
-        writer.writerow([w.id, safe_text(w.panel_id), safe_text(w.title), safe_text(w.priority), safe_text(w.status), safe_text(w.assigned_technician), w.created_at.isoformat() if w.created_at else "", w.due_at.isoformat() if w.due_at else "", w.started_at.isoformat() if w.started_at else "", w.completed_at.isoformat() if w.completed_at else "", safe_text(w.resolution)])
+        checklist = checklist_by_order.get(w.id, [])
+        checklist_done = sum(1 for item in checklist if item.is_completed)
+        writer.writerow([w.id, w.alarm_id or "", safe_text(w.panel_id), safe_text(w.title), safe_text(w.priority), safe_text(w.status), safe_text(w.assigned_technician), w.created_at.isoformat() if w.created_at else "", w.due_at.isoformat() if w.due_at else "", w.started_at.isoformat() if w.started_at else "", w.completed_at.isoformat() if w.completed_at else "", checklist_done, len(checklist), safe_text(w.resolution)])
     writer.writerow([])
     writer.writerow(["ATIVOS"])
     writer.writerow(["ID", "Tag", "Nome", "Tipo", "Local", "Fabricante", "Modelo", "Série", "Painel", "Estado"])
