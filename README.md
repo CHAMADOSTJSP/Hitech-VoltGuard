@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.33.0 — Rastreamento da origem das ordens
+
+A aba Ordens de Serviço identifica ordens criadas a partir de alarmes, permite filtrar por origem e localizar uma ordem pelo número do alarme. O resumo inclui a quantidade de ordens vinculadas a alarmes.
+
 ## v0.32.0 — Duração e resumo da Central de Alarmes
 
 A Central de Alarmes apresenta contagens por estado e mostra a primeira e a última ocorrência, a duração total e os horários de reconhecimento e encerramento quando disponíveis. A duração dos alarmes ainda abertos acompanha as atualizações periódicas da tela.

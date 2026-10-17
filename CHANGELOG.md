@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.33.0 — Rastreamento da origem das ordens
+- Adicionado filtro para separar ordens abertas por alarmes das ordens criadas manualmente.
+- Ordens geradas por alarme identificam a origem na linha e podem ser encontradas pela busca usando o número do alarme.
+- Incluído contador de ordens originadas de alarmes no resumo.
+
 ## v0.32.0 — Duração e resumo da Central de Alarmes
 - Incluídos contadores de alarmes ativos, reconhecidos, encerrados e em aberto.
 - Exibidas a primeira e a última ocorrência e a duração do alarme.
