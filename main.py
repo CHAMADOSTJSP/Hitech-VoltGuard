@@ -292,7 +292,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.35.1",
+    version="0.35.2",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -1385,8 +1385,8 @@ def export_executive_report(db: Session = Depends(get_db), current_user: User = 
             sheet.column_dimensions[get_column_letter(column)].width = width
         if sheet.title == "Resumo":
             # O título e as notas ocupam células mescladas; considere esses textos na largura.
-            sheet.column_dimensions["A"].width = 44
-            sheet.column_dimensions["B"].width = 22
+            sheet.column_dimensions["A"].width = 56
+            sheet.column_dimensions["B"].width = 34
         sheet.sheet_properties.pageSetUpPr.fitToPage = True
         sheet.page_setup.fitToWidth = 1
         sheet.page_setup.fitToHeight = 0

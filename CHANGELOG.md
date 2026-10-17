@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.35.2 — Mais espaço no título do resumo
+- Ampliadas as colunas da aba Resumo para dar margem visual ao título e às notas no Excel.
+
 ## v0.35.1 — Ajuste visual do resumo do relatório
 - Aumentada a largura das colunas do resumo para exibir o título e as notas por completo no Excel.
 
