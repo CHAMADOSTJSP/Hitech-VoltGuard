@@ -79,6 +79,13 @@
         .os-history summary { cursor: pointer; color: #10b981; font-weight: 700; }
         .os-history-event { padding: 9px 0; border-bottom: 1px solid #065f46; line-height: 1.5; }
         .os-history-event:last-child { border-bottom: 0; }
+        .os-overview { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:14px 0; }
+        .os-overview-card { background:#0b2419; border:1px solid #065f46; border-radius:6px; padding:12px; }
+        .os-overview-card span { display:block; color:#9ca3af; font-size:10px; text-transform:uppercase; }
+        .os-overview-card strong { display:block; margin-top:5px; color:#10b981; font-size:18px; }
+        .os-overdue { color:#fca5a5; font-weight:bold; }
+        .os-filters { display:flex; flex-wrap:wrap; align-items:end; gap:12px; margin:14px 0; }
+        .os-filters .input-group { margin:0; }
 
         table.enterprise-table { width: 100%; border-collapse: collapse; background: rgba(17, 42, 29, 0.95); border: 1px solid #065f46; border-radius: 8px; overflow: hidden; }
         table.enterprise-table th, table.enterprise-table td { padding: 10px 15px; font-size: 11px; text-align: left; border-bottom: 1px solid #065f46; }
@@ -151,6 +158,7 @@
         let currentUser = '', currentCargo = '', tokenJwt = '';
         let dadosGlobais = {}, auditLogs = [], billingData = {}, inventoryData = {}, historyData = {}, workOrders = [], alarmsData = [], assetsData = [], maintenancePlans = [], maintenanceTasks = [], deviceCredentials = [], pollingInterval = null;
         const workOrderHistoryOpen = new Set();
+        let workOrderSearchText = '', workOrderStatusFilter = 'TODAS', workOrderOnlyOverdue = false;
         let chartInstances = {};
         let historyWindowHours = 168;
         let html5QrCodeScanner = null;
@@ -684,6 +692,29 @@
         }
         async function revogarDispositivo(id) { if(!confirm('Revogar esta credencial? O dispositivo deixará de enviar telemetria.')) return; try { await apiJson(`/api/devices/credentials/${Number(id)}/revoke`,{method:'POST'}); await carregarDispositivos(); } catch(e) { alert(e.message); } }
 
+        function ordemServicoAtrasada(order, agora = Date.now()) {
+            if (!order.due_at || ['CONCLUIDA', 'CANCELADA'].includes(order.status)) return false;
+            const prazo = Date.parse(order.due_at);
+            return Number.isFinite(prazo) && prazo < agora;
+        }
+
+        function filtrarOrdensServico() {
+            const busca = (document.getElementById('os-search')?.value || '').trim().toLocaleLowerCase('pt-BR');
+            const estado = document.getElementById('os-filter-status')?.value || 'TODAS';
+            const somenteAtrasadas = Boolean(document.getElementById('os-filter-overdue')?.checked);
+            workOrderSearchText = document.getElementById('os-search')?.value || '';
+            workOrderStatusFilter = estado;
+            workOrderOnlyOverdue = somenteAtrasadas;
+            document.querySelectorAll('#os-table-body [data-os-row]').forEach(row => {
+                const correspondeBusca = !busca || row.dataset.search.includes(busca);
+                const correspondeEstado = estado === 'TODAS' || row.dataset.status === estado;
+                const correspondePrazo = !somenteAtrasadas || row.dataset.overdue === 'true';
+                row.hidden = !(correspondeBusca && correspondeEstado && correspondePrazo);
+            });
+            const noResults = document.getElementById('os-no-results');
+            if (noResults) noResults.hidden = document.querySelectorAll('#os-table-body [data-os-row]:not([hidden])').length > 0;
+        }
+
         function renderizar() {
             const container = document.getElementById('main-container');
             if(!container) return;
@@ -865,8 +896,13 @@
                         <p><strong>Perdas:</strong> ${escapeHtml(p.esg_waste_kwh)} kWh/dia</p>
                     </div>`).join('');
             } else if (currentTab === 'orders') {
+                const overdueCount = workOrders.filter(w => ordemServicoAtrasada(w)).length;
+                const openCount = workOrders.filter(w => !['CONCLUIDA', 'CANCELADA'].includes(w.status)).length;
+                const inProgressCount = workOrders.filter(w => w.status === 'EM_ANDAMENTO').length;
+                const completedCount = workOrders.filter(w => w.status === 'CONCLUIDA').length;
                 container.innerHTML = `
                     <div style="grid-column:1/-1; background:rgba(17,42,29,.95); border:1px solid #10b981; padding:20px; border-radius:8px;"><h3 style="color:#10b981;margin-top:0;">📋 Gestão de Ordens de Serviço</h3>
+                    <div class="os-overview"><div class="os-overview-card"><span>Ordens em aberto</span><strong>${openCount}</strong></div><div class="os-overview-card"><span>Em andamento</span><strong>${inProgressCount}</strong></div><div class="os-overview-card"><span>Atrasadas</span><strong style="color:${overdueCount ? '#ef4444' : '#10b981'}">${overdueCount}</strong></div><div class="os-overview-card"><span>Concluídas</span><strong>${completedCount}</strong></div></div>
                     <form onsubmit="criarOrdemServico(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
                       <div class="input-group"><label>Painel</label><select id="os-panel" required>${lista.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.id)} — ${escapeHtml(p.name)}</option>`).join('')}</select></div>
                       <div class="input-group"><label>Título</label><input id="os-title" maxlength="200" required></div>
@@ -876,9 +912,11 @@
                       <div class="input-group" style="grid-column:1/-1"><label>Descrição</label><input id="os-description" maxlength="4000"></div>
                       <button class="btn-primary" type="submit">Criar ordem de serviço</button>
                     </form>
-                    <div style="overflow-x:auto;margin-top:20px"><table class="enterprise-table"><tr><th>ID</th><th>Painel</th><th>Título</th><th>Prioridade</th><th>Estado</th><th>Técnico</th><th>Prazo</th><th>Início</th><th>Conclusão</th><th>Resumo de execução</th><th>Ação</th><th>Histórico</th></tr>
-                    ${workOrders.map(w => { const events = Array.isArray(w.history) ? w.history : []; const orderId = String(Number(w.id)); return `<tr><td>${escapeHtml(w.id)}</td><td>${escapeHtml(w.panel_id)}</td><td>${escapeHtml(w.title)}</td><td>${escapeHtml(w.priority)}</td><td>${escapeHtml(w.status)}</td><td>${escapeHtml(w.assigned_technician || '—')}</td><td>${escapeHtml(formatarDataHora(w.due_at))}</td><td>${escapeHtml(formatarDataHora(w.started_at))}</td><td>${escapeHtml(formatarDataHora(w.completed_at))}</td><td><input id="os-resolution-${Number(w.id)}" maxlength="4000" value="${escapeHtml(w.resolution || '')}" placeholder="Obrigatório para concluir" style="min-width:180px"></td><td><select id="os-status-${Number(w.id)}"><option ${w.status==='ABERTA'?'selected':''}>ABERTA</option><option ${w.status==='EM_ANDAMENTO'?'selected':''}>EM_ANDAMENTO</option><option ${w.status==='AGUARDANDO_PECA'?'selected':''}>AGUARDANDO_PECA</option><option ${w.status==='CONCLUIDA'?'selected':''}>CONCLUIDA</option><option ${w.status==='CANCELADA'?'selected':''}>CANCELADA</option></select><button type="button" class="btn-action" onclick="atualizarOrdemServico(${Number(w.id)})">Guardar</button></td><td class="os-history"><details data-os-history="${orderId}" ${workOrderHistoryOpen.has(orderId) ? 'open' : ''}><summary>Ver histórico (${events.length})</summary>${events.length ? events.map(event => `<div class="os-history-event"><strong>${escapeHtml(formatarDataHora(event.timestamp))}</strong><br>${escapeHtml(event.user_name)} (${escapeHtml(event.role)}) · ${escapeHtml(event.action)}<br>${escapeHtml(event.details)}${event.resolution ? `<br><strong>Resumo registrado:</strong> ${escapeHtml(event.resolution)}` : ''}</div>`).join('') : '<div class="os-history-event">Sem eventos anteriores. O histórico começa a ser registrado a partir desta versão.</div>'}</details></td></tr>`; }).join('')}
-                    </table></div></div>`;
+                    <div class="os-filters"><div class="input-group"><label for="os-search">Buscar OS</label><input id="os-search" value="${escapeHtml(workOrderSearchText)}" oninput="filtrarOrdensServico()" placeholder="Painel, título ou técnico"></div><div class="input-group"><label for="os-filter-status">Estado</label><select id="os-filter-status" onchange="filtrarOrdensServico()"><option value="TODAS" ${workOrderStatusFilter==='TODAS'?'selected':''}>Todos os estados</option><option value="ABERTA" ${workOrderStatusFilter==='ABERTA'?'selected':''}>Aberta</option><option value="EM_ANDAMENTO" ${workOrderStatusFilter==='EM_ANDAMENTO'?'selected':''}>Em andamento</option><option value="AGUARDANDO_PECA" ${workOrderStatusFilter==='AGUARDANDO_PECA'?'selected':''}>Aguardando peça</option><option value="CONCLUIDA" ${workOrderStatusFilter==='CONCLUIDA'?'selected':''}>Concluída</option><option value="CANCELADA" ${workOrderStatusFilter==='CANCELADA'?'selected':''}>Cancelada</option></select></div><label><input id="os-filter-overdue" type="checkbox" ${workOrderOnlyOverdue?'checked':''} onchange="filtrarOrdensServico()"> Somente atrasadas</label></div>
+                    <div style="overflow-x:auto;margin-top:12px"><table class="enterprise-table"><thead><tr><th>ID</th><th>Painel</th><th>Título</th><th>Prioridade</th><th>Estado</th><th>Técnico</th><th>Prazo</th><th>Início</th><th>Conclusão</th><th>Resumo de execução</th><th>Ação</th><th>Histórico</th></tr></thead><tbody id="os-table-body">
+                    ${workOrders.map(w => { const events = Array.isArray(w.history) ? w.history : []; const orderId = String(Number(w.id)); const overdue = ordemServicoAtrasada(w); const search = [w.panel_id, w.title, w.assigned_technician].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR'); return `<tr data-os-row data-status="${escapeHtml(w.status)}" data-overdue="${overdue}" data-search="${escapeHtml(search)}"><td>${escapeHtml(w.id)}</td><td>${escapeHtml(w.panel_id)}</td><td>${escapeHtml(w.title)}</td><td>${escapeHtml(w.priority)}</td><td>${escapeHtml(w.status)}</td><td>${escapeHtml(w.assigned_technician || '—')}</td><td>${overdue ? '<span class="os-overdue">ATRASADA · </span>' : ''}${escapeHtml(formatarDataHora(w.due_at))}</td><td>${escapeHtml(formatarDataHora(w.started_at))}</td><td>${escapeHtml(formatarDataHora(w.completed_at))}</td><td><input id="os-resolution-${Number(w.id)}" maxlength="4000" value="${escapeHtml(w.resolution || '')}" placeholder="Obrigatório para concluir" style="min-width:180px"></td><td><select id="os-status-${Number(w.id)}"><option ${w.status==='ABERTA'?'selected':''}>ABERTA</option><option ${w.status==='EM_ANDAMENTO'?'selected':''}>EM_ANDAMENTO</option><option ${w.status==='AGUARDANDO_PECA'?'selected':''}>AGUARDANDO_PECA</option><option ${w.status==='CONCLUIDA'?'selected':''}>CONCLUIDA</option><option ${w.status==='CANCELADA'?'selected':''}>CANCELADA</option></select><button type="button" class="btn-action" onclick="atualizarOrdemServico(${Number(w.id)})">Guardar</button></td><td class="os-history"><details data-os-history="${orderId}" ${workOrderHistoryOpen.has(orderId) ? 'open' : ''}><summary>Ver histórico (${events.length})</summary>${events.length ? events.map(event => `<div class="os-history-event"><strong>${escapeHtml(formatarDataHora(event.timestamp))}</strong><br>${escapeHtml(event.user_name)} (${escapeHtml(event.role)}) · ${escapeHtml(event.action)}<br>${escapeHtml(event.details)}${event.resolution ? `<br><strong>Resumo registrado:</strong> ${escapeHtml(event.resolution)}` : ''}</div>`).join('') : '<div class="os-history-event">Sem eventos anteriores. O histórico começa a ser registrado a partir desta versão.</div>'}</details></td></tr>`; }).join('')}
+                    </tbody></table><p id="os-no-results" hidden>Nenhuma ordem corresponde aos filtros selecionados.</p></div></div>`;
+                filtrarOrdensServico();
             } else if (currentTab === 'audit') {
                 container.innerHTML = `<div style="grid-column: 1/-1;">
                     <h3 style="color:#10b981; margin-bottom:15px;">Registro de Auditoria</h3>

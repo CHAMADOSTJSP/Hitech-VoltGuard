@@ -1,4 +1,11 @@
 # Changelog
+
+## v0.8.0 — Busca e prioridade operacional para ordens
+- Adicionados indicadores de ordens abertas, em andamento, atrasadas e concluídas.
+- Busca local por painel, título ou técnico e filtros por estado e prazo vencido.
+- Ordens ativas com prazo vencido recebem destaque; ordens concluídas/canceladas não são consideradas atrasadas.
+- Estado dos filtros permanece ao redesenhar a tela após ações, e o polling continua sem limpar formulários.
+
 ## v0.7.2 — Preservação de rascunhos de ordem de serviço
 - O polling deixa de reconstruir a aba de OS e, portanto, não apaga formulários parcialmente preenchidos ao perder o foco.
 - A lista atualiza depois de criar ou atualizar uma OS; as consultas periódicas continuam atualizando os dados em memória.

@@ -2,6 +2,10 @@
 
 Versão revisada para **demonstração e homologação controlada**. Este pacote não é SCADA industrial certificado e não deve ser conectado a funções de proteção, intertravamento ou comando de equipamentos elétricos.
 
+## v0.8.0 — Busca e prioridade operacional para ordens
+
+A gestão de OS mostra contagens por situação, permite buscar por painel/título/técnico e filtrar por estado ou apenas prazos vencidos. Ordens ativas com prazo expirado recebem destaque visual.
+
 ## v0.7.2 — Preservação de rascunhos de ordem de serviço
 
 O polling atualiza os dados em memória sem reconstruir a aba de OS, preservando campos preenchidos e histórico expandido. A lista é redesenhada após criar/atualizar uma OS ou navegar novamente para a aba.
