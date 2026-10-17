@@ -1334,11 +1334,33 @@
                     });
                 }, 50);
             } else if (currentTab === 'esg') {
-                container.innerHTML = lista.map(p => `
-                    <div class="panel-card">
-                        <h3>🌱 Sustentabilidade - ${escapeHtml(p.id)}</h3>
-                        <p><strong>Perdas:</strong> ${escapeHtml(p.esg_waste_kwh)} kWh/dia</p>
-                    </div>`).join('');
+                const estimates = lista.map(p => ({
+                    panel: p,
+                    value: p.esg_waste_kwh == null || p.esg_waste_kwh === '' || !Number.isFinite(Number(p.esg_waste_kwh))
+                        ? null : Number(p.esg_waste_kwh)
+                }));
+                const availableEstimates = estimates.filter(item => item.value !== null);
+                const totalEstimate = availableEstimates.reduce((sum, item) => sum + item.value, 0);
+                container.innerHTML = `<section style="grid-column:1/-1;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:18px;border-radius:8px;">
+                    <h3 style="color:#10b981;margin:0 0 8px;">🌱 Indicadores ESG demonstrativos</h3>
+                    <p style="font-size:12px;color:#9ca3af;margin:0 0 16px;">Estimativas informativas cadastradas por painel. Não são medições de consumo, cálculo de emissões ou indicadores auditados.</p>
+                    <div class="os-overview">
+                        <div class="os-overview-card"><span>Painéis na organização</span><strong>${lista.length}</strong></div>
+                        <div class="os-overview-card"><span>Estimativas disponíveis</span><strong>${availableEstimates.length} de ${lista.length}</strong></div>
+                        <div class="os-overview-card"><span>Soma das estimativas</span><strong>${formatarMedida(totalEstimate)} kWh/dia</strong></div>
+                    </div>
+                    <div style="overflow-x:auto;margin-top:16px;">
+                        <table class="enterprise-table">
+                            <thead><tr><th>Painel</th><th>Local</th><th>Estimativa informada</th><th>Observação</th></tr></thead>
+                            <tbody>${estimates.map(({panel, value}) => `<tr>
+                                <td>${escapeHtml(panel.id)} — ${escapeHtml(panel.name)}</td>
+                                <td>${escapeHtml(panel.location || '—')}</td>
+                                <td>${value === null ? 'Sem estimativa cadastrada' : `${escapeHtml(formatarMedida(value))} kWh/dia`}</td>
+                                <td>${value === null ? 'Dado indisponível' : 'Valor demonstrativo; confirmar origem antes de uso operacional'}</td>
+                            </tr>`).join('') || '<tr><td colspan="4">Nenhum painel cadastrado.</td></tr>'}</tbody>
+                        </table>
+                    </div>
+                </section>`;
             } else if (currentTab === 'orders') {
                 const overdueCount = workOrders.filter(w => ordemServicoAtrasada(w)).length;
                 const openCount = workOrders.filter(w => !['CONCLUIDA', 'CANCELADA'].includes(w.status)).length;

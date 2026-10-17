@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.26.0 — Resumo ESG transparente
+- Adicionado resumo com quantidade de painéis, estimativas disponíveis e soma informativa em kWh/dia.
+- Criada tabela por painel com localização, estimativa e indicação de dado indisponível.
+- Explicitado que os valores são demonstrativos, não medições nem indicadores auditados.
+
 ## v0.25.0 — Histórico térmico paginado na interface
 - Ligada a aba Tendência Térmica ao endpoint paginado de histórico por painel.
 - Adicionado botão para carregar registros anteriores em páginas de até 500 amostras.

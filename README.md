@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.26.0 — Resumo ESG transparente
+
+A aba ESG consolida as estimativas informadas por painel e indica quantas estão disponíveis. A tela esclarece que os números são demonstrativos, não medições, cálculos de emissões ou indicadores auditados; painéis sem valor permanecem identificados como indisponíveis.
+
 ## v0.25.0 — Histórico térmico paginado na interface
 
 A aba Tendência Térmica carrega a primeira página de até 500 amostras por painel e oferece **Carregar registros anteriores** para consultar páginas adicionais. A consulta usa cursor por ID e mantém as amostras já carregadas durante o polling. A API continua limitada ao painel e à organização autenticada.
