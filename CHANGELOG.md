@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.21.0 — Configuração de webhook mais clara
+- A aba informa o estado configurado/desativado e quando o envio é disparado no comportamento atual.
+- Adicionados validação básica de URL no navegador e mensagens de sucesso/erro no salvamento.
+- Campo vazio permite remover e desativar o endpoint.
+
 ## v0.20.0 — Relatório executivo ampliado
 - Ampliado o CSV com resumos de estado e registros de painéis, alarmes, OS, ativos, manutenção e estoque.
 - Adicionada marca UTF-8 para melhorar a abertura de acentos no Excel.

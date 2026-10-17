@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.21.0 — Configuração de webhook mais clara
+
+A aba Webhooks informa que o envio atual é acionado pela simulação de falha crítica, valida a URL como HTTPS no navegador e mostra retorno de sucesso ou erro ao salvar. Um campo vazio remove a configuração.
+
 ## v0.20.0 — Relatório executivo ampliado
 
 O CSV executivo inclui indicadores e registros da organização para painéis, alarmes, ordens de serviço, ativos, tarefas de manutenção e estoque. A exportação é isolada por organização, inclui marca UTF-8 para compatibilidade com Excel e protege campos textuais contra execução acidental como fórmulas.

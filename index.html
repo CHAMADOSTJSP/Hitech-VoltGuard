@@ -500,14 +500,30 @@
 
         async function salvarWebhook(event) {
             event.preventDefault();
-            const url = document.getElementById('webhook-url-input').value.trim();
-            const res = await fetch('/api/tenant/webhook', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${tokenJwt}`},
-                body: JSON.stringify({webhook_url: url})
-            });
-            const d = await res.json();
-            if(res.ok) { alert(d.message); }
+            const input = document.getElementById('webhook-url-input');
+            const button = document.getElementById('webhook-save-button');
+            const status = document.getElementById('webhook-save-status');
+            const url = input.value.trim();
+            button.disabled = true;
+            status.textContent = 'Salvando configuração…';
+            status.style.color = '#9ca3af';
+            try {
+                const res = await fetch('/api/tenant/webhook', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${tokenJwt}`},
+                    body: JSON.stringify({webhook_url: url})
+                });
+                const d = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(d.detail || 'Não foi possível salvar o webhook.');
+                billingData.webhook_url = url;
+                status.textContent = url ? 'Webhook salvo e ativo.' : 'Webhook removido e desativado.';
+                status.style.color = '#10b981';
+            } catch (err) {
+                status.textContent = err.message || 'Falha ao salvar o webhook.';
+                status.style.color = '#ef4444';
+            } finally {
+                button.disabled = false;
+            }
         }
 
         async function salvarRegrasTenant(event) {
@@ -1064,13 +1080,16 @@
             }
 
             if (currentTab === 'webhooks') {
+                const webhookConfigured = Boolean(billingData.webhook_url);
                 container.innerHTML = `
                     <div style="grid-column: 1/-1; background: rgba(17, 42, 29, 0.95); border: 1px solid #10b981; padding: 25px; border-radius: 8px; max-width: 600px;">
-                        <h3 style="color:#10b981; margin-top:0;">🔔 Webhook Automático para Alertas Críticos</h3>
-                        <p style="font-size:13px; color:#d1d5db;">Insira o endpoint para envio imediato de picos térmicos.</p>
+                        <h3 style="color:#10b981; margin-top:0;">🔔 Webhook para alertas críticos</h3>
+                        <p style="font-size:13px; color:#d1d5db;">Estado: <strong style="color:${webhookConfigured ? '#10b981' : '#9ca3af'}">${webhookConfigured ? 'Configurado' : 'Desativado'}</strong></p>
+                        <p style="font-size:13px; color:#d1d5db;">No momento, o envio acontece quando a ação de simular falha crítica é executada. O endpoint deve ser HTTPS público. Deixe o campo vazio e salve para desativar.</p>
                         <form onsubmit="salvarWebhook(event)" style="margin-top: 15px;">
-                            <div class="input-group"><label>Endpoint URL</label><input type="text" id="webhook-url-input" value="${escapeHtml(billingData.webhook_url || '')}"></div>
-                            <button type="submit" class="btn-primary" style="margin-top: 10px;">Guardar Webhook</button>
+                            <div class="input-group"><label for="webhook-url-input">Endpoint URL</label><input type="url" id="webhook-url-input" maxlength="2048" placeholder="https://exemplo.com/webhook" value="${escapeHtml(billingData.webhook_url || '')}"></div>
+                            <button id="webhook-save-button" type="submit" class="btn-primary" style="margin-top: 10px;">Salvar configuração</button>
+                            <p id="webhook-save-status" role="status" aria-live="polite" style="font-size:13px;min-height:1em"></p>
                         </form>
                     </div>`;
                 return;
