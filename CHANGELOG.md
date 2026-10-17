@@ -1,3 +1,10 @@
+## v0.5.3 — Telemetria confiável e conectividade
+- Status de conectividade baseado em atividade real de credenciais de dispositivo ativas.
+- Endpoint autenticado de histórico de telemetria com paginação e isolamento multiempresa.
+- Payload do dashboard limita o histórico aos 500 pontos mais recentes por painel.
+- UI de monitoramento exibe conectividade e último contato.
+- Configuração `DEVICE_OFFLINE_AFTER_SECONDS` documentada.
+
 # Histórico de alterações
 
 ## v0.5.1 — Histórico completo de telemetria

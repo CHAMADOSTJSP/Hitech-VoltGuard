@@ -174,6 +174,34 @@ class VoltGuardSmokeTests(unittest.TestCase):
         invalid = self.client.post("/api/device/telemetry", headers={"Authorization":f"Bearer {token}"}, json={**payload,"current":-1})
         self.assertEqual(invalid.status_code, 422)
 
+    def test_telemetry_history_pagination_tenant_isolation_and_device_status(self):
+        _, headers = self.create_tenant("HISTORY")
+        _, other_headers = self.create_tenant("HISTORYOTHER")
+        panel = self.client.get("/api/panels", headers=headers).json()["panels"][0]
+        initial_status = next(x for x in self.client.get("/api/panels", headers=headers).json()["panels"] if x["id"] == panel["id"])
+        self.assertEqual(initial_status["connectivity_status"], "NOT_CONFIGURED")
+        credential = self.client.post("/api/devices/credentials", headers=headers, json={"panel_id":panel["id"],"name":"Gateway histórico"})
+        self.assertEqual(credential.status_code, 201, credential.text)
+        after_create = next(x for x in self.client.get("/api/panels", headers=headers).json()["panels"] if x["id"] == panel["id"])
+        self.assertEqual(after_create["connectivity_status"], "NEVER_CONNECTED")
+        token = credential.json()["device_token"]
+        for temp in (31, 32, 33):
+            response = self.client.post("/api/device/telemetry", headers={"Authorization":f"Bearer {token}"}, json={"panel_id":panel["id"],"temperature":temp,"current":12,"voltage":"380V AC"})
+            self.assertEqual(response.status_code, 200, response.text)
+        online_panel = next(x for x in self.client.get("/api/panels", headers=headers).json()["panels"] if x["id"] == panel["id"])
+        self.assertEqual(online_panel["connectivity_status"], "ONLINE")
+        page1 = self.client.get(f"/api/telemetry/history/{panel['id']}?limit=2", headers=headers)
+        self.assertEqual(page1.status_code, 200, page1.text)
+        self.assertEqual(page1.json()["count"], 2)
+        self.assertTrue(page1.json()["has_more"])
+        page2 = self.client.get(f"/api/telemetry/history/{panel['id']}?limit=2&before_id={page1.json()['next_before_id']}", headers=headers)
+        self.assertEqual(page2.status_code, 200, page2.text)
+        self.assertTrue(all(a["id"] < b["id"] for a, b in zip(page2.json()["history"], page2.json()["history"][1:])))
+        foreign = self.client.get(f"/api/telemetry/history/{panel['id']}", headers=other_headers)
+        self.assertEqual(foreign.status_code, 404)
+        invalid_limit = self.client.get(f"/api/telemetry/history/{panel['id']}?limit=1001", headers=headers)
+        self.assertEqual(invalid_limit.status_code, 422)
+
     def test_report_requires_authentication(self):
         response = self.client.get("/api/export/executive-report")
         self.assertEqual(response.status_code, 401)

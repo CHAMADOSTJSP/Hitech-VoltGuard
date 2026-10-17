@@ -362,7 +362,9 @@
                         <p><strong>Gateway QR:</strong> ${escapeHtml(p.gateway_qr)}</p>
                         <p><strong>Tensão:</strong> ${escapeHtml(p.voltage)} | <strong>Corrente:</strong> ${p.current} A</p>
                         <p><strong>Temperatura:</strong> ${p.temperature} °C</p>
-                        <p><strong>Status:</strong> ${escapeHtml(p.status)}</p>
+                        <p><strong>Status operacional:</strong> ${escapeHtml(p.status)}</p>
+                        <p><strong>Conectividade do dispositivo:</strong> ${escapeHtml(p.connectivity_status || 'INDEFINIDO')}</p>
+                        <p><strong>Último contato:</strong> ${escapeHtml(p.last_seen_at || 'Ainda não recebido')}</p>
                         <p><strong>Diagnóstico:</strong> ${escapeHtml(p.recommendation)}</p>
                     </div>`;
             } catch (err) {
@@ -729,7 +731,9 @@
                         <p><strong>Gateway QR:</strong> ${escapeHtml(p.gateway_qr)}</p>
                         <p><strong>Tensão:</strong> ${escapeHtml(p.voltage)} | <strong>Corrente:</strong> ${p.current} A</p>
                         <p><strong>Temperatura:</strong> ${p.temperature} °C</p>
-                        <p><strong>Status:</strong> ${escapeHtml(p.status)}</p>
+                        <p><strong>Status operacional:</strong> ${escapeHtml(p.status)}</p>
+                        <p><strong>Conectividade:</strong> ${escapeHtml(p.connectivity_status || 'INDEFINIDO')}</p>
+                        <p><strong>Último contato:</strong> ${escapeHtml(p.last_seen_at || 'Ainda não recebido')}</p>
                     </div>`).join('');
             } else if (currentTab === 'predictive') {
                 container.innerHTML = lista.map(p => `

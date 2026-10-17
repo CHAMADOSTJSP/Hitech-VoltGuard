@@ -2,6 +2,15 @@
 
 Versão revisada para **demonstração e homologação controlada**. Este pacote não é SCADA industrial certificado e não deve ser conectado a funções de proteção, intertravamento ou comando de equipamentos elétricos.
 
+## v0.5.3 — Telemetria confiável e conectividade
+
+- Estado do dispositivo: `NOT_CONFIGURED`, `NEVER_CONNECTED`, `ONLINE` ou `OFFLINE`, com base no último uso de credencial ativa.
+- `DEVICE_OFFLINE_AFTER_SECONDS` define o limiar de inatividade (padrão 300 segundos; faixa de 30 a 86400 segundos).
+- `GET /api/telemetry/history/{panel_id}` retorna histórico paginado, protegido por autenticação e isolamento de organização. Parâmetros: `limit` (1–1000) e `before_id`.
+- O endpoint de dashboard mantém no máximo 500 amostras por painel para reduzir payloads grandes.
+- Os cartões de monitoramento exibem conectividade e último contato.
+- O estado `ONLINE` significa que uma credencial ativa enviou telemetria recentemente; não comprova por si só que um PLC ou equipamento físico esteja íntegro.
+
 ## Conteúdo do pacote
 
 - `main.py`: API FastAPI, autenticação JWT, SQLAlchemy, cadastro de organização, painéis, telemetria via API autenticada, alarmes, inventário, ordens de serviço, auditoria e exportação CSV.

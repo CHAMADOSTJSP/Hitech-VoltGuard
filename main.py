@@ -704,18 +704,39 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
         panels = db.query(PanelModel).filter(PanelModel.tenant_id == current_user.tenant_id).all()
         
         panels_data = []
+        offline_after_seconds = int(os.getenv("DEVICE_OFFLINE_AFTER_SECONDS", "300"))
+        offline_after_seconds = max(30, min(offline_after_seconds, 86400))
         for p in panels:
             curr = p.current
             temp = p.temperature
             if os.getenv("SIMULATE_TELEMETRY", "0").lower() in {"1", "true", "yes"} and p.status != "CRITICO":
                 curr = round(max(0.0, p.current + random.uniform(-1.2, 1.2)), 2)
                 temp = round(max(-50.0, p.temperature + random.uniform(-0.3, 0.3)), 2)
-            
+
+            # Connectivity is based on real device-token activity, not seeded/demo history.
+            # A panel without an active device credential is reported as NOT_CONFIGURED.
+            device_rows = db.query(DeviceCredentialModel).filter(
+                DeviceCredentialModel.tenant_id == current_user.tenant_id,
+                DeviceCredentialModel.panel_id == p.id,
+                DeviceCredentialModel.revoked_at.is_(None),
+            ).all()
+            last_seen = max((x.last_used_at for x in device_rows if x.last_used_at), default=None)
+            if not device_rows:
+                connectivity_status = "NOT_CONFIGURED"
+            elif last_seen is None:
+                connectivity_status = "NEVER_CONNECTED"
+            else:
+                age_seconds = max(0, (datetime.utcnow() - last_seen).total_seconds())
+                connectivity_status = "ONLINE" if age_seconds <= offline_after_seconds else "OFFLINE"
+
             panels_data.append({
                 "id": p.id, "name": p.name, "location": p.location, "voltage": p.voltage,
                 "current": curr, "temperature": temp, "gateway_qr": p.gateway_qr,
                 "status": p.status, "component": p.component, "predictive_failure_hours": p.predictive_failure_hours,
-                "recommendation": p.recommendation, "esg_waste_kwh": p.esg_waste_kwh, "assigned_to": p.assigned_to
+                "recommendation": p.recommendation, "esg_waste_kwh": p.esg_waste_kwh, "assigned_to": p.assigned_to,
+                "connectivity_status": connectivity_status,
+                "last_seen_at": last_seen.isoformat() + "Z" if last_seen else None,
+                "offline_after_seconds": offline_after_seconds,
             })
 
         logs = db.query(AuditLogModel).filter(AuditLogModel.tenant_id == current_user.tenant_id).order_by(AuditLogModel.timestamp.desc()).limit(50).all()
@@ -727,7 +748,12 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
         
         history_data = {}
         for p in panels:
-            h_records = db.query(PanelHistoryModel).filter(PanelHistoryModel.panel_id == p.id, PanelHistoryModel.tenant_id == current_user.tenant_id).order_by(PanelHistoryModel.id.asc()).all()
+            # Bound dashboard payload size; dedicated endpoint exposes paginated history.
+            h_records = db.query(PanelHistoryModel).filter(
+                PanelHistoryModel.panel_id == p.id,
+                PanelHistoryModel.tenant_id == current_user.tenant_id,
+            ).order_by(PanelHistoryModel.id.desc()).limit(500).all()
+            h_records.reverse()
             history_data[p.id] = [{"timestamp": h.timestamp, "temperature": h.temperature, "current": h.current, "voltage": h.voltage} for h in h_records]
 
         logs_data = [{"timestamp": str(l.timestamp), "user_name": l.user_name, "role": l.role, "action": l.action, "details": l.details} for l in logs]
@@ -754,6 +780,48 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
         }
     except Exception:
         raise HTTPException(status_code=500, detail="Não foi possível carregar os dados do painel.")
+
+@app.get("/api/telemetry/history/{panel_id}", tags=["Industrial Ingestion"])
+def get_telemetry_history(
+    panel_id: str,
+    limit: int = 100,
+    before_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retorna histórico paginado, sempre limitado ao tenant autenticado."""
+    if limit < 1 or limit > 1000:
+        raise HTTPException(status_code=422, detail="O limite deve estar entre 1 e 1000 registros.")
+    panel = db.query(PanelModel).filter(
+        PanelModel.id == panel_id,
+        PanelModel.tenant_id == current_user.tenant_id,
+    ).first()
+    if not panel:
+        raise HTTPException(status_code=404, detail="Painel não encontrado nesta organização.")
+    query = db.query(PanelHistoryModel).filter(
+        PanelHistoryModel.panel_id == panel_id,
+        PanelHistoryModel.tenant_id == current_user.tenant_id,
+    )
+    if before_id is not None:
+        query = query.filter(PanelHistoryModel.id < before_id)
+    rows = query.order_by(PanelHistoryModel.id.desc()).limit(limit + 1).all()
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+    next_before_id = rows[-1].id if has_more and rows else None
+    rows.reverse()
+    return {
+        "panel_id": panel_id,
+        "count": len(rows),
+        "limit": limit,
+        "has_more": has_more,
+        "next_before_id": next_before_id,
+        "history": [
+            {"id": row.id, "timestamp": row.timestamp, "temperature": row.temperature,
+             "current": row.current, "voltage": row.voltage}
+            for row in rows
+        ],
+    }
+
 
 @app.get("/api/alarms")
 def list_alarms(status_filter: Optional[str] = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
