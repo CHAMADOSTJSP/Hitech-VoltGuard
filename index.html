@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>HITECH VoltGuard - SCADA Enterprise SaaS</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js" type="text/javascript"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -80,7 +81,19 @@
         table.enterprise-table th { background: #065f46; color: #10b981; text-transform: uppercase; }
 
         #modal-inventory, #modal-panel { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-box { background: #0f2319; border: 1px solid #10b981; padding: 25px; border-radius: 10px; width: 440px; max-height: 90vh; overflow-y: auto; }
+        .modal-box { background: #0f2319; border: 1px solid #10b981; padding: 25px; border-radius: 10px; width: min(440px, calc(100vw - 32px)); max-height: 90vh; overflow-y: auto; }
+        @media (max-width: 760px) {
+            body { min-height: 100vh; height: auto; display: block; }
+            #login-screen, #register-screen { width: auto; max-width: 420px; margin: 8vh 16px; padding: 24px; }
+            #dashboard-screen { width: 100%; min-height: 100vh; height: auto; padding: 16px; }
+            .dash-header { align-items: flex-start; flex-direction: column; gap: 14px; }
+            .user-info { flex-wrap: wrap; gap: 8px; }
+            .panels-grid { grid-template-columns: minmax(0, 1fr); }
+            .kpi-container { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+            .nav-tabs { gap: 6px; }
+            .tab-btn { padding: 8px 10px; }
+            table.enterprise-table { display: block; overflow-x: auto; white-space: nowrap; }
+        }
     </style>
 </head>
 <body>
@@ -102,7 +115,7 @@
         <p class="sub">Self-Service Onboarding SaaS</p>
         <div class="input-group"><label>ID da Organização (Tenant)</label><input type="text" id="reg-tenant" placeholder="Ex: INDUSTRIA-ABC"></div>
         <div class="input-group"><label>Usuário CEO</label><input type="text" id="reg-user" placeholder="Ex: DiretorJoao"></div>
-        <div class="input-group"><label>Senha</label><input type="password" id="reg-pass" autocomplete="new-password" minlength="10" placeholder="Mínimo de 10 caracteres" required></div>
+        <div class="input-group"><label>Senha</label><input type="password" id="reg-pass" autocomplete="new-password" minlength="12" placeholder="Mínimo de 12 caracteres" required></div>
         <button type="button" class="btn-primary" onclick="registarTenant()">Criar Conta SaaS</button>
         <span class="link-toggle" onclick="mostrarRegisto(false)">← Voltar ao Login</span>
         <div id="reg-error-msg"></div>
@@ -487,7 +500,7 @@
                                 <div style="background:rgba(15,35,25,0.9); border:1px solid #065f46; padding:15px; border-radius:6px;">
                                     <h4 style="color:#10b981; margin:0 0 10px 0;">${escapeHtml(p.id)} -${escapeHtml(p.name)}</h4>
                                     <p style="font-size:11px; color:#9ca3af;">Status: ${escapeHtml(p.status)}</p>
-                                    <button type="button" class="btn-action" style="background:#ef4444; color:#fff; width:100%; margin-top:10px;" onclick="simularFalhaComercial('${escapeHtml(p.id)}')">⚡ Disparar Alarme Crítico</button>
+                                    <button type="button" class="btn-action" style="background:#ef4444; color:#fff; width:100%; margin-top:10px;" data-action="force-failure" data-panel-id="${escapeHtml(p.id)}">⚡ Disparar Alarme Crítico</button>
                                 </div>
                             `).join('')}
                         </div>
@@ -527,7 +540,7 @@
                 container.innerHTML = `
                     <div style="grid-column: 1/-1; background: rgba(17, 42, 29, 0.95); border: 1px solid #10b981; padding: 25px; border-radius: 8px; max-width: 600px;">
                         <h3 style="color:#10b981; margin-top:0;">📈 Relatório Executivo Operacional</h3>
-                        <p style="font-size:13px; color:#d1d5db;">Descarregue o relatório consolidado de desempenho e conformidade NR-10:</p>
+                        <p style="font-size:13px; color:#d1d5db;">Descarregue um relatório operacional. Este documento não certifica conformidade com NR-10 ou outras normas:</p>
                         <button type="button" class="btn-primary" style="margin-top:15px;" onclick="baixarRelatorio()">📥 Descarregar Relatório Executivo (.csv)</button>
                     </div>`;
                 return;
@@ -607,6 +620,14 @@
                 </div>`;
             }
         }
+        // Delegação de eventos para evitar interpolar identificadores de painéis em código JavaScript inline.
+        document.addEventListener('click', (event) => {
+            const target = event.target.closest('[data-action]');
+            if (!target) return;
+            if (target.dataset.action === 'force-failure') {
+                simularFalhaComercial(target.dataset.panelId || '');
+            }
+        });
     </script>
 </body>
 </html>

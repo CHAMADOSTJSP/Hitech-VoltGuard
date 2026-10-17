@@ -1,70 +1,76 @@
-# HITECH VoltGuard SCADA Enterprise — pacote Render
+# HITECH VoltGuard SCADA Enterprise — pacote para Render
 
-Este pacote prepara o protótipo existente para **demonstração/homologação na nuvem**. Ainda não deve ser tratado como SCADA industrial validado ou como plataforma pronta para receber dados críticos de clientes.
+Versão revisada para **demonstração e homologação controlada**. Este pacote não é SCADA industrial certificado e não deve ser conectado a funções de proteção, intertravamento ou comando de equipamentos elétricos.
 
-## O que foi preparado
+## Conteúdo do pacote
 
-- `render.yaml`: Blueprint do Render para criar o serviço web e um PostgreSQL.
-- `main.py`: FastAPI, suporte a PostgreSQL/psycopg, verificação de saúde com banco e criação de dados demonstrativos por organização.
-- `index.html`: remove usuário/senha predefinidos e usa autenticação no download do CSV.
-- `requirements.txt`: dependências, incluindo driver PostgreSQL.
-- `Dockerfile`: alternativa de execução em contêiner.
-- `tests/test_render_smoke.py`: testes básicos de saúde, cadastro/login, separação dos dados de duas organizações e autenticação do relatório.
+- `main.py`: API FastAPI, autenticação JWT, SQLAlchemy, cadastro de organização, painéis, telemetria via API autenticada, alarmes, inventário, ordens de serviço, auditoria e exportação CSV.
+- `index.html`: painel web responsivo em português, login/cadastro, abas de monitoramento, QR Code e gestão.
+- `requirements.txt`: dependências de execução, incluindo o driver PostgreSQL.
+- `render.yaml`: Blueprint para serviço web e PostgreSQL no Render.
+- `Dockerfile`: alternativa de execução por contêiner.
+- `tests/test_render_smoke.py`: testes básicos de saúde, autenticação, isolamento entre organizações, relatório e integridade do estoque.
+- `.env.example`: exemplo de configuração local sem segredos reais.
+- `REVISAO_TECNICA.md`: limitações conhecidas e checklist antes de produção.
 
-## Implantação pelo GitHub + Render
+## Publicação recomendada no Render
 
-1. Extraia o ZIP.
-2. Crie um repositório **privado** no GitHub e envie todos os arquivos e pastas do pacote para a raiz do repositório.
+1. Extraia o ZIP e confirme que `main.py`, `index.html`, `requirements.txt`, `Dockerfile` e `render.yaml` estão na raiz do repositório.
+2. Crie um repositório **privado** no GitHub e envie o conteúdo da pasta do projeto. Não envie `.env`, bancos locais ou segredos.
 3. No Render, escolha **New + → Blueprint** e conecte o repositório.
-4. Confira os recursos que o `render.yaml` vai criar e aplique o Blueprint.
-5. Aguarde o deploy. O Render gera `SECRET_KEY` e conecta o serviço ao PostgreSQL declarado no Blueprint.
-6. Abra o domínio `onrender.com` gerado pelo Render e confirme que `/health` retorna `{"status":"ok", ...}`.
-7. Na tela inicial, use **Registar Nova Empresa**. Cadastre um ID de organização, um usuário e uma senha com pelo menos 10 caracteres; depois faça login.
-8. Os três painéis iniciais são explicitamente demonstrativos. Não são leituras de medidores reais.
+4. Revise os recursos e variáveis definidos pelo `render.yaml` antes de aplicar.
+5. Aguarde o deploy e verifique `https://SEU-SERVICO.onrender.com/health`. A resposta esperada contém `"status":"ok"`.
+6. Abra a página inicial, selecione **Registar Nova Empresa**, crie uma organização, um usuário e uma senha com pelo menos 12 caracteres; depois faça login.
+7. Confira que os três painéis criados para a organização estão identificados como demonstração. Não são leituras de medidores físicos.
+8. Teste o acesso às abas, a criação de ordens de serviço, a exportação CSV, as regras e o inventário.
 
-## Atenção ao plano gratuito
+## Configuração do serviço
 
-O `render.yaml` usa o plano gratuito para reduzir custo de avaliação. Conforme a documentação atual do Render, o PostgreSQL gratuito expira após 30 dias e tem limite de 1 GB. **Não armazene dados reais nem aceite clientes pagantes com esse banco.** Antes de piloto comercial, altere o banco para um plano persistente pago no painel Render e confirme backups/restauração. O serviço web gratuito também pode entrar em suspensão após inatividade.
+O Blueprint configura:
 
-Se não quiser usar o Blueprint, crie um Web Service Python manualmente:
+- `SECRET_KEY`: gerada pelo Render; mantenha-a secreta e estável entre reinicializações.
+- `DATABASE_URL`: conexão fornecida pelo banco PostgreSQL do Blueprint.
+- `SIMULATE_TELEMETRY=0`: não simula variações contínuas das leituras.
+- `PYTHON_VERSION=3.12.8`.
 
-- Build Command: `pip install -r requirements.txt`
-- Start Command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-- Health Check Path: `/health`
-- `SECRET_KEY`: chave aleatória com pelo menos 32 caracteres, salva como secret no Render.
-- `DATABASE_URL`: URL interna do PostgreSQL Render; nunca a publique no repositório.
-- `ENABLE_DEMO_USERS=0`
-- `SIMULATE_TELEMETRY=0`
+Se configurar o serviço manualmente, use:
 
-## Testar localmente antes de publicar
+- Build command: `pip install -r requirements.txt`
+- Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+- Health check path: `/health`
+- Configure `SECRET_KEY` com pelo menos 32 caracteres aleatórios e `DATABASE_URL` com a URL interna do PostgreSQL. Não existe usuário/senha predefinido; cadastre a primeira organização pela interface.
 
-Requer Python 3.12.
+Não comite valores reais de `SECRET_KEY` nem URLs de banco com credenciais.
+
+## Testes locais
+
+Requer Python 3.12 ou superior compatível com as dependências listadas.
 
 ```bash
 python -m venv .venv
-# Windows: .venv\\Scripts\\activate
-# Linux/macOS: source .venv/bin/activate
+# Windows PowerShell:
+.venv\Scripts\Activate.ps1
+# Linux/macOS:
+source .venv/bin/activate
 python -m pip install -r requirements.txt
 python -m unittest discover -s tests -v
 uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
-Abra `http://127.0.0.1:8000`.
+Abra `http://127.0.0.1:8000`. Para ambiente local, o padrão é SQLite. Para Render, use PostgreSQL.
 
-## Limitações importantes antes de uso comercial
+## Persistência e custo
 
-Este pacote é um **candidato a demonstração**, não uma aprovação de produção. Antes de colocar dados de clientes reais:
+O Blueprint está configurado para avaliação econômica. Serviços e bancos gratuitos podem ter limites de uso, suspensão por inatividade e políticas de expiração que mudam com o tempo. Antes de guardar dados reais, confirme no painel e na documentação atual do Render o plano, a persistência, os backups e a política de expiração do PostgreSQL. Faça upgrade quando necessário e teste restauração antes de um piloto comercial.
 
-- Faça revisão de segurança independente e teste de penetração.
-- Adicione migrações de banco formais (Alembic); `create_all()` não migra automaticamente tabelas antigas. Use banco novo para esta primeira implantação.
-- Valide a autorização multiempresa em todas as rotas e teste de regressão após cada mudança.
-- Planeje recuperação de senha, MFA para administradores, gestão de sessões, auditoria e retenção de dados.
-- Teste backup e restauração do PostgreSQL e configure monitoramento/alertas.
-- O limitador de tentativas de login/cadastro deste pacote usa armazenamento em memória por processo; não substitui limitação distribuída/WAF em escala.
-- A telemetria ainda não é uma integração industrial real. Antes de conectar medidores, implemente identidade individual por dispositivo, autenticação, proteção contra repetição, fila/reconexão, mapeamento de registradores documentado e rede de aquisição isolada.
-- Não conecte o sistema a funções de comando, proteção ou intertravamento elétrico. O escopo atual é demonstração/monitoramento.
-- Valores de tendência preditiva, ESG e outros campos demonstrativos não devem ser anunciados como análises validadas.
+## Limites funcionais importantes
 
-## Referência
+- A telemetria da API é autenticada com token de usuário; **ainda não existe uma identidade/credencial dedicada por dispositivo industrial**.
+- Não há driver pronto de PLC/medidor (Modbus/OPC UA), gateway de aquisição ou garantia de tempo real industrial.
+- O WebSocket autentica o token via query string, o que pode expor tokens em logs; reavaliar antes de produção.
+- Alguns KPIs, previsão de falhas e valores ESG são demonstrativos/estimativas e não constituem predição validada ou medição real.
+- A assinatura representa metadados; não há integração de cobrança, pagamentos, inadimplência ou cancelamento.
+- IDs de painéis permanecem globalmente únicos no modelo atual. A coluna `tenant_id` e os filtros de acesso protegem as consultas, mas permitir IDs iguais entre organizações requer migração de chave e revisão dos relacionamentos.
+- O limitador de requisições usa armazenamento em memória por processo; não é proteção distribuída para uma implantação escalada.
 
-A configuração segue a documentação do Render para Blueprints, serviços web e variáveis de ambiente: https://render.com/docs/blueprint-spec, https://render.com/docs/web-services e https://render.com/docs/configure-environment-variables.
+Leia `REVISAO_TECNICA.md` antes de usar dados reais.

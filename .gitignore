@@ -6,3 +6,9 @@ __pycache__/
 .pytest_cache/
 .coverage
 .DS_Store
+.env.*
+!.env.example
+*.sqlite
+*.log
+dist/
+build/

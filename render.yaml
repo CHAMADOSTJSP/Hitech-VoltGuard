@@ -1,6 +1,5 @@
-# Blueprint para demonstração/homologação econômica.
-# ATENÇÃO: Render Postgres Free expira após 30 dias. Faça upgrade do banco
-# antes de armazenar dados reais ou aceitar clientes pagantes.
+# Blueprint para demonstração/homologação econômica. Revise planos e preços
+# no painel/documentação do Render antes de uma implantação comercial.
 services:
   - type: web
     name: hitech-voltguard
@@ -19,8 +18,6 @@ services:
         fromDatabase:
           name: voltguard-db
           property: connectionString
-      - key: ENABLE_DEMO_USERS
-        value: "0"
       - key: SIMULATE_TELEMETRY
         value: "0"
 

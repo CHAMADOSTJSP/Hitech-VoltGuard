@@ -74,6 +74,7 @@ class PanelHistoryModel(Base):
     __tablename__ = "panel_history"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     panel_id = Column(String, index=True, nullable=False)
+    tenant_id = Column(String, index=True, nullable=False, default="HITECH-DEFAULT")
     timestamp = Column(String, nullable=False)
     temperature = Column(Float, nullable=False)
 
@@ -139,14 +140,18 @@ def validate_webhook_url(value: str) -> str:
         return ""
     if len(value) > 2048:
         raise HTTPException(status_code=422, detail="URL de webhook demasiado longa.")
-    parsed = urlparse(value)
+    try:
+        parsed = urlparse(value)
+        port = parsed.port or 443
+    except ValueError:
+        raise HTTPException(status_code=422, detail="URL de webhook inválida.")
     if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
         raise HTTPException(status_code=422, detail="O webhook deve ser uma URL HTTPS pública válida.")
     host = parsed.hostname.rstrip(".").lower()
     if host in {"localhost", "localhost.localdomain"} or host.endswith((".local", ".internal", ".localhost")):
         raise HTTPException(status_code=422, detail="Host local não permitido para webhook.")
     try:
-        addresses = {item[4][0] for item in socket.getaddrinfo(host, parsed.port or 443, type=socket.SOCK_STREAM)}
+        addresses = {item[4][0] for item in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)}
     except OSError:
         raise HTTPException(status_code=422, detail="Não foi possível resolver o host do webhook.")
     if not addresses:
@@ -174,6 +179,9 @@ async def security_headers(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=()"
+    if request.url.path.startswith("/api/") or request.url.path == "/health":
+        response.headers["Cache-Control"] = "no-store"
+    response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
     if request.url.scheme == "https":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
@@ -246,40 +254,22 @@ def get_db():
 def init_db():
     db = SessionLocal()
     try:
+        # Compatibility migration for deployments created before panel_history.tenant_id existed.
+        # This is deliberately narrow; structural changes beyond this must use a formal migration.
+        with engine.begin() as connection:
+            inspector = __import__("sqlalchemy").inspect(connection)
+            if "panel_history" in inspector.get_table_names():
+                columns = {col["name"] for col in inspector.get_columns("panel_history")}
+                if "tenant_id" not in columns:
+                    connection.execute(text("ALTER TABLE panel_history ADD COLUMN tenant_id VARCHAR"))
+                    connection.execute(text("UPDATE panel_history SET tenant_id = COALESCE((SELECT panels.tenant_id FROM panels WHERE panels.id = panel_history.panel_id), 'ORPHANED') WHERE tenant_id IS NULL"))
         Base.metadata.create_all(bind=engine)
         
-        if os.getenv("ENABLE_DEMO_USERS", "0").lower() in {"1", "true", "yes"}:
-            default_users = [
-                UserModel(username="RafaelFelipe", password=hash_password("123456"), role="CEO", tenant_id="HITECH-DEFAULT", plan="Enterprise"),
-                UserModel(username="GerenteCarlos", password=hash_password("123456"), role="Gerente", tenant_id="HITECH-DEFAULT", plan="Enterprise"),
-                UserModel(username="TecnicoMarcos", password=hash_password("123456"), role="Técnico de Campo", tenant_id="HITECH-DEFAULT", plan="Enterprise")
-            ]
-            for u in default_users:
-                db.merge(u)
+        # Não criar contas de demonstração com senhas conhecidas. Todas as contas
+        # devem ser criadas explicitamente pelo fluxo de cadastro da organização.
 
-        if db.query(TenantRuleModel).filter(TenantRuleModel.tenant_id == "HITECH-DEFAULT").count() == 0:
-            db.add(TenantRuleModel(tenant_id="HITECH-DEFAULT", max_temperature=85.0, max_current=500.0))
-
-        if db.query(PanelModel).count() == 0:
-            p1 = PanelModel(id="PANEL-01", tenant_id="HITECH-DEFAULT", name="Cubículo Geral de Média Tensão (MT)", location="Subestação Principal - Ribeirão Preto", voltage="13.8 kV", current=454.23, temperature=70.58, gateway_qr="QR-GW-0010", status="NORMAL", component="Barramento de Cobre", predictive_failure_hours=145, recommendation="Inspeção termográfica de rotina em 60 dias.", esg_waste_kwh=0.8)
-            p2 = PanelModel(id="PANEL-02", tenant_id="HITECH-DEFAULT", name="QGBT - Alimentação de Baixa Tensão", location="Fábrica 01 - Setor de Utilidades", voltage="380V AC", current=215.5, temperature=91.19, gateway_qr="QR-GW-0070", status="CRITICO", component="Contator Geral 400A", predictive_failure_hours=18, recommendation="Substituição imediata do contator devido a desgaste.", esg_waste_kwh=4.5)
-            p3 = PanelModel(id="PANEL-03", tenant_id="HITECH-DEFAULT", name="Painel de Bombeamento / Incessor", location="Fábrica 02 - Saneamento", voltage="380V AC", current=530.94, temperature=65.12, gateway_qr="QR-GW-1104", status="NORMAL", component="Inversores de Frequência", predictive_failure_hours=210, recommendation="Filtros operacionais.", esg_waste_kwh=1.1)
-            
-            initial_panels = [p1, p2, p3]
-            db.add_all(initial_panels)
-            
-            now = datetime.utcnow()
-            for p in initial_panels:
-                base_temp = p.temperature
-                for i in range(5):
-                    t_point = (now - timedelta(minutes=(5 - i) * 10)).strftime("%H:%M")
-                    db.add(PanelHistoryModel(panel_id=p.id, timestamp=t_point, temperature=round(base_temp + random.uniform(-1.5, 1.0), 2)))
-
-            db.add(TenantSubscriptionModel(tenant_id="HITECH-DEFAULT", plan_name="Enterprise", status="ACTIVE", max_panels=25, webhook_url=None))
-            db.add(WorkOrderModel(tenant_id="HITECH-DEFAULT", panel_id="PANEL-02", title="Substituição de Contator QGBT", priority="CRITICA", status="EM_ANDAMENTO", assigned_technician="TecnicoMarcos", description="Sobreaquecimento detetado."))
-            db.add(InventoryModel(tenant_id="HITECH-DEFAULT", part_name="Contator Geral 400A", category="Comutação", quantity_in_stock=4, min_threshold=2, unit_cost=450.0))
-            db.add(AuditLogModel(tenant_id="HITECH-DEFAULT", user_name="RafaelFelipe", role="CEO", action="INICIALIZACAO", details="Sistema verificado e inicializado com sucesso."))
-            
+        # Fresh installations start empty. The registration flow creates each tenant's
+        # subscription, rules, and clearly marked demonstration panels.
         db.commit()
     except Exception:
         db.rollback()
@@ -331,9 +321,10 @@ def get_logo():
 @app.post("/api/token")
 @limiter.limit("10/minute")
 def login(request: Request, credentials: dict, db: Session = Depends(get_db)):
-    username = str(credentials.get("username", "")).strip()
+    raw_username = credentials.get("username", "")
+    username = raw_username.strip() if isinstance(raw_username, str) else ""
     password = credentials.get("password", "")
-    if not isinstance(password, str) or not username:
+    if not isinstance(password, str) or not username or len(username) > 120 or len(password) > 256:
         raise HTTPException(status_code=401, detail="Utilizador ou senha incorretos.")
     
     db_user = db.query(UserModel).filter(UserModel.username == username).first()
@@ -349,14 +340,18 @@ def login(request: Request, credentials: dict, db: Session = Depends(get_db)):
 @app.post("/api/tenant/register")
 @limiter.limit("5/hour")
 def register_tenant(request: Request, data: dict, db: Session = Depends(get_db)):
-    tenant_id = data.get("tenant_id", "").upper().strip()
-    admin_user = data.get("username", "").strip()
+    raw_tenant = data.get("tenant_id", "")
+    raw_user = data.get("username", "")
+    tenant_id = raw_tenant.upper().strip() if isinstance(raw_tenant, str) else ""
+    admin_user = raw_user.strip() if isinstance(raw_user, str) else ""
     password = data.get("password", "")
     
     if not tenant_id or not admin_user or not isinstance(password, str) or not password.strip():
         raise HTTPException(status_code=400, detail="Dados de registo incompletos.")
-    if len(password) < 10:
-        raise HTTPException(status_code=400, detail="A senha deve ter pelo menos 10 caracteres.")
+    if len(password) < 12:
+        raise HTTPException(status_code=400, detail="A senha deve ter pelo menos 12 caracteres.")
+    if len(password) > 256:
+        raise HTTPException(status_code=422, detail="A senha excede o tamanho permitido.")
     if len(tenant_id) > 80 or len(admin_user) > 120:
         raise HTTPException(status_code=400, detail="Identificador ou utilizador demasiado longo.")
     import re
@@ -392,7 +387,7 @@ def register_tenant(request: Request, data: dict, db: Session = Depends(get_db))
             recommendation=recommendation, esg_waste_kwh=0.0,
         )
         db.add(panel)
-        db.add(PanelHistoryModel(panel_id=panel_id, timestamp=datetime.utcnow().strftime("%H:%M"), temperature=temperature))
+        db.add(PanelHistoryModel(panel_id=panel_id, tenant_id=tenant_id, timestamp=datetime.utcnow().isoformat(timespec="seconds") + "Z", temperature=temperature))
 
     db.add(AuditLogModel(tenant_id=tenant_id, user_name=admin_user, role="CEO", action="REGISTO_TENANT", details=f"Organização {tenant_id} registada com três painéis demonstrativos."))
     db.commit()
@@ -442,12 +437,20 @@ def add_panel(data: dict, db: Session = Depends(get_db), current_user: User = De
     if current_user.role not in ["CEO", "Gerente"]:
         raise HTTPException(status_code=403, detail="Acesso restrito para adicionar painéis.")
     
-    panel_id = data.get("id", "").strip().upper()
-    name = data.get("name", "").strip()
-    location = data.get("location", "").strip()
-    voltage = data.get("voltage", "380V AC").strip()
-    component = data.get("component", "Disjuntor Principal").strip()
-    gateway_qr = data.get("gateway_qr", f"QR-GW-{random.randint(2000,9999)}").strip()
+    raw_id = data.get("id", "")
+    raw_name = data.get("name", "")
+    raw_location = data.get("location", "")
+    raw_voltage = data.get("voltage", "380V AC")
+    raw_component = data.get("component", "Disjuntor Principal")
+    raw_qr = data.get("gateway_qr", f"QR-GW-{random.randint(2000,9999)}")
+    if not all(isinstance(value, str) for value in (raw_id, raw_name, raw_location, raw_voltage, raw_component, raw_qr)):
+        raise HTTPException(status_code=422, detail="Os campos do painel devem ser textos.")
+    panel_id = raw_id.strip().upper()
+    name = raw_name.strip()
+    location = raw_location.strip()
+    voltage = raw_voltage.strip()
+    component = raw_component.strip()
+    gateway_qr = raw_qr.strip()
 
     if not panel_id or not name or not location:
         raise HTTPException(status_code=400, detail="Preencha os campos obrigatórios do painel.")
@@ -455,7 +458,7 @@ def add_panel(data: dict, db: Session = Depends(get_db), current_user: User = De
     if not re.fullmatch(r"[A-Z0-9_-]{1,100}", panel_id):
         raise HTTPException(status_code=422, detail="ID deve conter apenas letras, números, hífen e sublinhado.")
 
-    if len(panel_id) > 100 or len(name) > 200 or len(location) > 200 or len(voltage) > 80 or len(component) > 160:
+    if len(panel_id) > 100 or len(name) > 200 or len(location) > 200 or len(voltage) > 80 or len(component) > 160 or len(gateway_qr) > 160:
         raise HTTPException(status_code=422, detail="Um ou mais campos excedem o tamanho permitido.")
     existing = db.query(PanelModel).filter(PanelModel.id == panel_id).first()
     if existing:
@@ -473,7 +476,7 @@ def add_panel(data: dict, db: Session = Depends(get_db), current_user: User = De
         recommendation="Painel recém-comissionado. Operação estável.", esg_waste_kwh=1.0
     )
     db.add(new_panel)
-    db.add(PanelHistoryModel(panel_id=panel_id, timestamp=datetime.utcnow().strftime("%H:%M"), temperature=new_panel.temperature))
+    db.add(PanelHistoryModel(panel_id=panel_id, tenant_id=current_user.tenant_id, timestamp=datetime.utcnow().isoformat(timespec="seconds") + "Z", temperature=new_panel.temperature))
     db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="ADICIONAR_PAINEL", details=f"Painel {panel_id} adicionado."))
     db.commit()
     return {"status": "success", "message": f"Painel {panel_id} adicionado com sucesso!"}
@@ -489,6 +492,8 @@ def ingest_telemetry(data: TelemetryData, current_user: User = Depends(get_curre
         raise HTTPException(status_code=422, detail="Corrente fora do intervalo permitido (0 a 100000 A).")
     if data.voltage is not None and len(data.voltage) > 80:
         raise HTTPException(status_code=422, detail="Tensão demasiado longa.")
+    if data.gateway_qr is not None and len(data.gateway_qr) > 160:
+        raise HTTPException(status_code=422, detail="Identificador do gateway demasiado longo.")
     panel = db.query(PanelModel).filter(PanelModel.id == data.panel_id, PanelModel.tenant_id == current_user.tenant_id).first()
     if not panel:
         raise HTTPException(status_code=404, detail=f"Painel {data.panel_id} não encontrado.")
@@ -514,7 +519,7 @@ def ingest_telemetry(data: TelemetryData, current_user: User = Depends(get_curre
         panel.status = "NORMAL"
         panel.recommendation = "Sistema a operar dentro dos parâmetros configurados."
         
-    db.add(PanelHistoryModel(panel_id=panel.id, timestamp=datetime.utcnow().strftime("%H:%M"), temperature=panel.temperature))
+    db.add(PanelHistoryModel(panel_id=panel.id, tenant_id=current_user.tenant_id, timestamp=datetime.utcnow().isoformat(timespec="seconds") + "Z", temperature=panel.temperature))
     db.commit()
     return {"status": "success", "message": f"Telemetria de {data.panel_id} atualizada com base no limite de {temp_limit}°C."}
 
@@ -522,7 +527,8 @@ def ingest_telemetry(data: TelemetryData, current_user: User = Depends(get_curre
 async def force_failure(data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role not in ["CEO", "Gerente"]:
         raise HTTPException(status_code=403, detail="Apenas CEO ou Gerente pode executar simulações.")
-    panel_id = str(data.get("panel_id", "")).strip()
+    raw_panel_id = data.get("panel_id", "")
+    panel_id = raw_panel_id.strip() if isinstance(raw_panel_id, str) else ""
     panel = db.query(PanelModel).filter(PanelModel.id == panel_id, PanelModel.tenant_id == current_user.tenant_id).first()
     if not panel:
         raise HTTPException(status_code=404, detail="Painel não encontrado.")
@@ -532,7 +538,7 @@ async def force_failure(data: dict, db: Session = Depends(get_db), current_user:
     panel.predictive_failure_hours = 2
     panel.recommendation = "ALERTA CRÍTICO: Sobreaquecimento extremo detetado!"
     
-    db.add(PanelHistoryModel(panel_id=panel.id, timestamp=datetime.utcnow().strftime("%H:%M"), temperature=panel.temperature))
+    db.add(PanelHistoryModel(panel_id=panel.id, tenant_id=current_user.tenant_id, timestamp=datetime.utcnow().isoformat(timespec="seconds") + "Z", temperature=panel.temperature))
     db.add(AuditLogModel(
         tenant_id=current_user.tenant_id,
         user_name=current_user.username,
@@ -583,7 +589,7 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
         
         history_data = {}
         for p in panels:
-            h_records = db.query(PanelHistoryModel).filter(PanelHistoryModel.panel_id == p.id).order_by(PanelHistoryModel.id.asc()).all()
+            h_records = db.query(PanelHistoryModel).filter(PanelHistoryModel.panel_id == p.id, PanelHistoryModel.tenant_id == current_user.tenant_id).order_by(PanelHistoryModel.id.asc()).all()
             history_data[p.id] = [{"timestamp": h.timestamp, "temperature": h.temperature} for h in h_records]
 
         logs_data = [{"timestamp": str(l.timestamp), "user_name": l.user_name, "role": l.role, "action": l.action, "details": l.details} for l in logs]
@@ -628,11 +634,26 @@ def update_inventory_item(data: dict, db: Session = Depends(get_db), current_use
     
     part_name = data.get("part_name")
     category = data.get("category", "Elétrica")
-    qty_change = int(data.get("quantity_change", 0))
-    unit_cost = float(data.get("unit_cost", 150.0))
-    min_threshold = int(data.get("min_threshold", 3))
-    if not isinstance(part_name, str) or not part_name.strip() or len(part_name) > 160:
+    raw_qty = data.get("quantity_change", 0)
+    raw_min = data.get("min_threshold", 3)
+    try:
+        qty_change = int(raw_qty)
+        unit_cost = float(data.get("unit_cost", 150.0))
+        min_threshold = int(raw_min)
+    except (TypeError, ValueError, OverflowError):
+        raise HTTPException(status_code=422, detail="Quantidade, custo e estoque mínimo devem ser numéricos.")
+    if isinstance(raw_qty, float) and not raw_qty.is_integer():
+        raise HTTPException(status_code=422, detail="A quantidade deve ser um número inteiro.")
+    if isinstance(raw_min, float) and not raw_min.is_integer():
+        raise HTTPException(status_code=422, detail="O estoque mínimo deve ser um número inteiro.")
+    import math
+    if not isinstance(part_name, str) or not part_name.strip() or len(part_name.strip()) > 160:
         raise HTTPException(status_code=422, detail="Nome da peça inválido.")
+    if not isinstance(category, str) or len(category.strip()) > 120:
+        raise HTTPException(status_code=422, detail="Categoria inválida.")
+    part_name = part_name.strip()
+    if not math.isfinite(unit_cost):
+        raise HTTPException(status_code=422, detail="Custo unitário inválido.")
     if qty_change < 0 and not db.query(InventoryModel).filter(InventoryModel.part_name == part_name, InventoryModel.tenant_id == current_user.tenant_id).first():
         raise HTTPException(status_code=422, detail="Não é possível criar um item com ajuste negativo.")
     if qty_change < -100000 or qty_change > 100000 or min_threshold < 0 or not (0 <= unit_cost <= 100000000):
@@ -640,10 +661,17 @@ def update_inventory_item(data: dict, db: Session = Depends(get_db), current_use
 
     item = db.query(InventoryModel).filter(InventoryModel.part_name == part_name, InventoryModel.tenant_id == current_user.tenant_id).first()
     if item:
-        item.quantity_in_stock += qty_change
+        new_quantity = item.quantity_in_stock + qty_change
+        if new_quantity < 0:
+            raise HTTPException(status_code=422, detail="O ajuste não pode deixar o estoque negativo.")
+        item.quantity_in_stock = new_quantity
         item.unit_cost = unit_cost
+        item.min_threshold = min_threshold
+        item.category = category.strip()
     else:
-        db.add(InventoryModel(tenant_id=current_user.tenant_id, part_name=part_name, category=category, quantity_in_stock=qty_change, min_threshold=min_threshold, unit_cost=unit_cost))
+        if qty_change < 0:
+            raise HTTPException(status_code=422, detail="Não é possível criar item com estoque inicial negativo.")
+        db.add(InventoryModel(tenant_id=current_user.tenant_id, part_name=part_name, category=category.strip(), quantity_in_stock=qty_change, min_threshold=min_threshold, unit_cost=unit_cost))
     
     db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="ATUALIZAR_INVENTARIO", details=f"Item {part_name}; ajuste de quantidade {qty_change}."))
     db.commit()
