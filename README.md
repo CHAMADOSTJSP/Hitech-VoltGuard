@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.22.0 — Retorno de entrega do webhook
+
+A simulação de falha crítica informa se o endpoint respondeu com sucesso, falhou ou não estava configurado. Respostas HTTP de erro deixam de ser consideradas entrega válida; a gravação dos alarmes é mantida mesmo quando o endpoint externo falha.
+
 ## v0.21.0 — Configuração de webhook mais clara
 
 A aba Webhooks informa que o envio atual é acionado pela simulação de falha crítica, valida a URL como HTTPS no navegador e mostra retorno de sucesso ou erro ao salvar. Um campo vazio remove a configuração.

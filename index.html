@@ -491,7 +491,12 @@
                 const d = await res.json();
                 if (!res.ok) throw new Error(d.detail || 'Não foi possível gerar o alarme simulado.');
                 await buscarDadosPainéis();
-                alert(`${d.message} A Central de Alarmes será aberta.`);
+                const webhookMessage = d.webhook_delivery === 'DELIVERED'
+                    ? `Webhook entregue (HTTP ${Number(d.webhook_http_status)}).`
+                    : d.webhook_delivery === 'FAILED'
+                        ? `A tentativa de webhook falhou${d.webhook_http_status ? ` (HTTP ${Number(d.webhook_http_status)})` : ''}. O alarme foi registrado mesmo assim.`
+                        : 'Webhook não configurado; nenhum envio externo foi feito.';
+                alert(`${d.message}\n${webhookMessage}\nA Central de Alarmes será aberta.`);
                 mudarAba('alarms');
             } catch (err) {
                 alert(err.message || 'Falha ao executar a simulação.');
@@ -1064,8 +1069,8 @@
             if (currentTab === 'demo') {
                 container.innerHTML = `
                     <div style="grid-column: 1/-1; background: rgba(42, 17, 17, 0.95); border: 1px solid #ef4444; padding: 25px; border-radius: 8px;">
-                        <h3 style="color:#ef4444; margin-top:0;">🎬 Simulação de Falha Crítica com Webhook Automático</h3>
-                        <p style="font-size:13px; color:#d1d5db;">Forçar falha gera notificação instantânea no endpoint configurado:</p>
+                        <h3 style="color:#ef4444; margin-top:0;">🎬 Simulação de falha crítica</h3>
+                        <p style="font-size:13px; color:#d1d5db;">Registra alarmes demonstrativos e tenta enviar um webhook se houver endpoint configurado. O resultado da entrega será informado após a ação; uma falha externa não desfaz o alarme:</p>
                         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:15px; margin-top:20px;">
                             ${lista.map(p => `
                                 <div style="background:rgba(15,35,25,0.9); border:1px solid #065f46; padding:15px; border-radius:6px;">

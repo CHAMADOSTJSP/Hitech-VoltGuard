@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.22.0 — Retorno de entrega do webhook
+- A simulação mostra se o webhook foi entregue, falhou ou não estava configurado.
+- Respostas HTTP de erro são identificadas como falha de entrega.
+- A falha de integração não impede que os alarmes simulados sejam gravados.
+
 ## v0.21.0 — Configuração de webhook mais clara
 - A aba informa o estado configurado/desativado e quando o envio é disparado no comportamento atual.
 - Adicionados validação básica de URL no navegador e mensagens de sucesso/erro no salvamento.

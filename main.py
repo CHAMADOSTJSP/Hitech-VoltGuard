@@ -292,7 +292,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.21.0",
+    version="0.22.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -839,15 +839,21 @@ async def force_failure(data: dict, db: Session = Depends(get_db), current_user:
     ))
     db.commit()
 
+    webhook_delivery = "NOT_CONFIGURED"
+    webhook_http_status = None
     sub = db.query(TenantSubscriptionModel).filter(TenantSubscriptionModel.tenant_id == current_user.tenant_id).first()
     if sub and sub.webhook_url:
         try:
             safe_url = validate_webhook_url(sub.webhook_url)
             async with httpx.AsyncClient(follow_redirects=False, timeout=5.0) as client:
-                await client.post(safe_url, json={"event": "CRITICAL_ALERT", "panel_id": panel.id, "temperature": panel.temperature, "tenant_id": current_user.tenant_id})
+                webhook_response = await client.post(safe_url, json={"event": "CRITICAL_ALERT", "panel_id": panel.id, "temperature": panel.temperature, "tenant_id": current_user.tenant_id})
+                webhook_http_status = webhook_response.status_code
+                if not 200 <= webhook_response.status_code < 300:
+                    raise RuntimeError("Webhook retornou um status HTTP sem confirmação de sucesso.")
+            webhook_delivery = "DELIVERED"
         except Exception:
-            # A falha de webhook não deve impedir a gravação do alarme; em produção, registrar em fila/log.
-            pass
+            # Uma falha externa não desfaz o alarme; o retorno informa que a entrega não foi confirmada.
+            webhook_delivery = "FAILED"
 
     await manager.broadcast({"event": "PANEL_UPDATE", "panel_id": panel.id, "status": "CRITICO"}, current_user.tenant_id)
     active_alarm_count = db.query(AlarmModel).filter(
@@ -855,7 +861,7 @@ async def force_failure(data: dict, db: Session = Depends(get_db), current_user:
         AlarmModel.panel_id == panel.id,
         AlarmModel.status.in_(["ACTIVE", "ACKNOWLEDGED"]),
     ).count()
-    return {"status": "success", "message": f"Falha simulada em {panel.id}. {active_alarm_count} alarme(s) ativo(s) ou reconhecido(s) registrado(s).", "active_alarms": active_alarm_count}
+    return {"status": "success", "message": f"Falha simulada em {panel.id}. {active_alarm_count} alarme(s) ativo(s) ou reconhecido(s) registrado(s).", "active_alarms": active_alarm_count, "webhook_delivery": webhook_delivery, "webhook_http_status": webhook_http_status}
 
 @app.get("/api/panels")
 def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
