@@ -2,6 +2,10 @@
 
 Versão revisada para **demonstração e homologação controlada**. Este pacote não é SCADA industrial certificado e não deve ser conectado a funções de proteção, intertravamento ou comando de equipamentos elétricos.
 
+## v0.7.1 — Histórico permanece aberto durante o polling
+
+A seção expansível do histórico mantém seu estado aberto enquanto os dados do painel são atualizados automaticamente.
+
 ## v0.7.0 — Histórico de alterações das ordens de serviço
 
 Cada OS registra criação e alterações de estado/campos com usuário, papel, horário e detalhes. O histórico fica disponível em uma seção expansível na lista de ordens. Ordens anteriores à atualização não têm eventos retroativos; alterações passam a ser registradas após a implantação.

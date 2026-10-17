@@ -150,6 +150,7 @@
         let currentTab = 'realtime';
         let currentUser = '', currentCargo = '', tokenJwt = '';
         let dadosGlobais = {}, auditLogs = [], billingData = {}, inventoryData = {}, historyData = {}, workOrders = [], alarmsData = [], assetsData = [], maintenancePlans = [], maintenanceTasks = [], deviceCredentials = [], pollingInterval = null;
+        const workOrderHistoryOpen = new Set();
         let chartInstances = {};
         let historyWindowHours = 168;
         let html5QrCodeScanner = null;
@@ -873,7 +874,7 @@
                       <button class="btn-primary" type="submit">Criar ordem de serviço</button>
                     </form>
                     <div style="overflow-x:auto;margin-top:20px"><table class="enterprise-table"><tr><th>ID</th><th>Painel</th><th>Título</th><th>Prioridade</th><th>Estado</th><th>Técnico</th><th>Prazo</th><th>Início</th><th>Conclusão</th><th>Resumo de execução</th><th>Ação</th><th>Histórico</th></tr>
-                    ${workOrders.map(w => { const events = Array.isArray(w.history) ? w.history : []; return `<tr><td>${escapeHtml(w.id)}</td><td>${escapeHtml(w.panel_id)}</td><td>${escapeHtml(w.title)}</td><td>${escapeHtml(w.priority)}</td><td>${escapeHtml(w.status)}</td><td>${escapeHtml(w.assigned_technician || '—')}</td><td>${escapeHtml(formatarDataHora(w.due_at))}</td><td>${escapeHtml(formatarDataHora(w.started_at))}</td><td>${escapeHtml(formatarDataHora(w.completed_at))}</td><td><input id="os-resolution-${Number(w.id)}" maxlength="4000" value="${escapeHtml(w.resolution || '')}" placeholder="Obrigatório para concluir" style="min-width:180px"></td><td><select id="os-status-${Number(w.id)}"><option ${w.status==='ABERTA'?'selected':''}>ABERTA</option><option ${w.status==='EM_ANDAMENTO'?'selected':''}>EM_ANDAMENTO</option><option ${w.status==='AGUARDANDO_PECA'?'selected':''}>AGUARDANDO_PECA</option><option ${w.status==='CONCLUIDA'?'selected':''}>CONCLUIDA</option><option ${w.status==='CANCELADA'?'selected':''}>CANCELADA</option></select><button type="button" class="btn-action" onclick="atualizarOrdemServico(${Number(w.id)})">Guardar</button></td><td class="os-history"><details><summary>Ver histórico (${events.length})</summary>${events.length ? events.map(event => `<div class="os-history-event"><strong>${escapeHtml(formatarDataHora(event.timestamp))}</strong><br>${escapeHtml(event.user_name)} (${escapeHtml(event.role)}) · ${escapeHtml(event.action)}<br>${escapeHtml(event.details)}${event.resolution ? `<br><strong>Resumo registrado:</strong> ${escapeHtml(event.resolution)}` : ''}</div>`).join('') : '<div class="os-history-event">Sem eventos anteriores. O histórico começa a ser registrado a partir desta versão.</div>'}</details></td></tr>`; }).join('')}
+                    ${workOrders.map(w => { const events = Array.isArray(w.history) ? w.history : []; const orderId = String(Number(w.id)); return `<tr><td>${escapeHtml(w.id)}</td><td>${escapeHtml(w.panel_id)}</td><td>${escapeHtml(w.title)}</td><td>${escapeHtml(w.priority)}</td><td>${escapeHtml(w.status)}</td><td>${escapeHtml(w.assigned_technician || '—')}</td><td>${escapeHtml(formatarDataHora(w.due_at))}</td><td>${escapeHtml(formatarDataHora(w.started_at))}</td><td>${escapeHtml(formatarDataHora(w.completed_at))}</td><td><input id="os-resolution-${Number(w.id)}" maxlength="4000" value="${escapeHtml(w.resolution || '')}" placeholder="Obrigatório para concluir" style="min-width:180px"></td><td><select id="os-status-${Number(w.id)}"><option ${w.status==='ABERTA'?'selected':''}>ABERTA</option><option ${w.status==='EM_ANDAMENTO'?'selected':''}>EM_ANDAMENTO</option><option ${w.status==='AGUARDANDO_PECA'?'selected':''}>AGUARDANDO_PECA</option><option ${w.status==='CONCLUIDA'?'selected':''}>CONCLUIDA</option><option ${w.status==='CANCELADA'?'selected':''}>CANCELADA</option></select><button type="button" class="btn-action" onclick="atualizarOrdemServico(${Number(w.id)})">Guardar</button></td><td class="os-history"><details data-os-history="${orderId}" ${workOrderHistoryOpen.has(orderId) ? 'open' : ''}><summary>Ver histórico (${events.length})</summary>${events.length ? events.map(event => `<div class="os-history-event"><strong>${escapeHtml(formatarDataHora(event.timestamp))}</strong><br>${escapeHtml(event.user_name)} (${escapeHtml(event.role)}) · ${escapeHtml(event.action)}<br>${escapeHtml(event.details)}${event.resolution ? `<br><strong>Resumo registrado:</strong> ${escapeHtml(event.resolution)}` : ''}</div>`).join('') : '<div class="os-history-event">Sem eventos anteriores. O histórico começa a ser registrado a partir desta versão.</div>'}</details></td></tr>`; }).join('')}
                     </table></div></div>`;
             } else if (currentTab === 'audit') {
                 container.innerHTML = `<div style="grid-column: 1/-1;">
@@ -885,6 +886,13 @@
                 </div>`;
             }
         }
+        document.addEventListener('toggle', (event) => {
+            const details = event.target;
+            if (!(details instanceof HTMLDetailsElement) || !details.hasAttribute('data-os-history')) return;
+            const orderId = details.getAttribute('data-os-history');
+            if (details.open) workOrderHistoryOpen.add(orderId);
+            else workOrderHistoryOpen.delete(orderId);
+        }, true);
         // Delegação de eventos para evitar interpolar identificadores de painéis em código JavaScript inline.
         document.addEventListener('click', (event) => {
             const target = event.target.closest('[data-action]');

@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.7.1 — Persistência visual do histórico
+- A expansão do histórico por OS é mantida durante a atualização automática do painel e novas renderizações da tela.
+
 ## v0.7.0 — Histórico de alterações das ordens de serviço
 - Criada trilha dedicada e multiempresa para eventos de OS, persistida na mesma transação que a criação ou atualização.
 - Cada evento registra usuário, papel, data/hora, campos alterados e o resumo de execução quando ele muda ou a OS é concluída.
