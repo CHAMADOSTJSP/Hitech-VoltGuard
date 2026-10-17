@@ -1,5 +1,6 @@
 import os
 import io
+import json
 import random
 import hashlib
 import secrets
@@ -113,6 +114,16 @@ class WorkOrderChecklistItemModel(Base):
     completed_at = Column(DateTime, nullable=True)
     completed_by = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+class WorkOrderChecklistTemplateModel(Base):
+    __tablename__ = "work_order_checklist_templates"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    tenant_id = Column(String, nullable=False, index=True)
+    name = Column(String(120), nullable=False)
+    items_json = Column(Text, nullable=False)
+    created_by = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    __table_args__ = (Index("uq_work_order_checklist_template_tenant_name", tenant_id, name, unique=True),)
 
 class TenantSubscriptionModel(Base):
     __tablename__ = "subscriptions"
@@ -281,7 +292,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.9.0",
+    version="0.10.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -1243,6 +1254,67 @@ class WorkOrderUpdate(BaseModel):
 
 class WorkOrderChecklistItemUpdate(BaseModel):
     is_completed: bool
+
+class WorkOrderChecklistTemplateCreate(BaseModel):
+    name: str
+    items: List[str]
+
+@app.get("/api/work-order-checklist-templates")
+def list_work_order_checklist_templates(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    templates = db.query(WorkOrderChecklistTemplateModel).filter(
+        WorkOrderChecklistTemplateModel.tenant_id == current_user.tenant_id
+    ).order_by(WorkOrderChecklistTemplateModel.name.asc()).all()
+    return [{"id": item.id, "name": item.name, "items": json.loads(item.items_json),
+             "created_by": item.created_by, "created_at": utc_iso(item.created_at)} for item in templates]
+
+@app.post("/api/work-order-checklist-templates", status_code=201)
+def create_work_order_checklist_template(data: WorkOrderChecklistTemplateCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role not in {"CEO", "Gerente"}:
+        raise HTTPException(status_code=403, detail="Somente CEO ou Gerente pode criar modelos de checklist.")
+    name = data.name.strip()
+    items = [item.strip() for item in data.items if item.strip()]
+    if not name or len(name) > 120:
+        raise HTTPException(status_code=422, detail="Informe um nome de modelo com até 120 caracteres.")
+    if len(data.items) > 20:
+        raise HTTPException(status_code=422, detail="O modelo aceita no máximo 20 itens.")
+    if not items or len(items) > 20 or any(len(item) > 240 for item in items):
+        raise HTTPException(status_code=422, detail="O modelo deve ter de 1 a 20 itens, com até 240 caracteres cada.")
+    existing = db.query(WorkOrderChecklistTemplateModel).filter(
+        WorkOrderChecklistTemplateModel.tenant_id == current_user.tenant_id,
+        WorkOrderChecklistTemplateModel.name == name,
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Já existe um modelo com esse nome nesta organização.")
+    template = WorkOrderChecklistTemplateModel(
+        tenant_id=current_user.tenant_id, name=name, items_json=json.dumps(items, ensure_ascii=False),
+        created_by=current_user.username,
+    )
+    db.add(template)
+    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username,
+                         role=current_user.role, action="CRIAR_MODELO_CHECKLIST_OS",
+                         details=f"Modelo de checklist criado: {name} ({len(items)} itens)."))
+    db.commit()
+    db.refresh(template)
+    return {"id": template.id, "name": template.name, "items": items,
+            "created_by": template.created_by, "created_at": utc_iso(template.created_at)}
+
+@app.delete("/api/work-order-checklist-templates/{template_id}")
+def delete_work_order_checklist_template(template_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role not in {"CEO", "Gerente"}:
+        raise HTTPException(status_code=403, detail="Somente CEO ou Gerente pode remover modelos de checklist.")
+    template = db.query(WorkOrderChecklistTemplateModel).filter(
+        WorkOrderChecklistTemplateModel.id == template_id,
+        WorkOrderChecklistTemplateModel.tenant_id == current_user.tenant_id,
+    ).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="Modelo de checklist não encontrado nesta organização.")
+    name = template.name
+    db.delete(template)
+    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username,
+                         role=current_user.role, action="REMOVER_MODELO_CHECKLIST_OS",
+                         details=f"Modelo de checklist removido: {name}."))
+    db.commit()
+    return {"status": "success", "id": template_id}
 
 @app.post("/api/work-orders", status_code=201)
 def create_work_order(data: WorkOrderCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

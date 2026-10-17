@@ -161,7 +161,7 @@
     <script>
         let currentTab = 'realtime';
         let currentUser = '', currentCargo = '', tokenJwt = '';
-        let dadosGlobais = {}, auditLogs = [], billingData = {}, inventoryData = {}, historyData = {}, workOrders = [], alarmsData = [], assetsData = [], maintenancePlans = [], maintenanceTasks = [], deviceCredentials = [], pollingInterval = null;
+        let dadosGlobais = {}, auditLogs = [], billingData = {}, inventoryData = {}, historyData = {}, workOrders = [], workOrderChecklistTemplates = [], alarmsData = [], assetsData = [], maintenancePlans = [], maintenanceTasks = [], deviceCredentials = [], pollingInterval = null;
         const workOrderHistoryOpen = new Set();
         let workOrderSearchText = '', workOrderStatusFilter = 'TODAS', workOrderOnlyOverdue = false;
         let chartInstances = {};
@@ -385,6 +385,7 @@
             if (aba === 'assets') carregarAtivos();
             else if (aba === 'maintenance') carregarManutencao();
             else if (aba === 'devices') carregarDispositivos();
+            else if (aba === 'orders') { renderizar(); carregarModelosChecklistOS(); }
             else renderizar();
         }
 
@@ -651,6 +652,52 @@
             const data = await response.json().catch(() => ({}));
             if (!response.ok) throw new Error(data.detail || `Erro HTTP ${response.status}`);
             return data;
+        }
+        function atualizarSeletorModelosChecklistOS(selectedId = '') {
+            const select = document.getElementById('os-checklist-template');
+            if (!select) return;
+            const previous = selectedId || select.value;
+            select.innerHTML = `<option value="">Selecionar modelo...</option>${workOrderChecklistTemplates.map(template => `<option value="${Number(template.id)}">${escapeHtml(template.name)}</option>`).join('')}`;
+            if (workOrderChecklistTemplates.some(template => Number(template.id) === Number(previous))) select.value = String(previous);
+        }
+        async function carregarModelosChecklistOS(selectedId = '') {
+            try {
+                workOrderChecklistTemplates = await apiJson('/api/work-order-checklist-templates');
+                atualizarSeletorModelosChecklistOS(selectedId);
+            } catch (err) { console.error('Falha ao carregar modelos de checklist:', err); }
+        }
+        function aplicarModeloChecklistOS() {
+            const templateId = Number(document.getElementById('os-checklist-template')?.value);
+            const template = workOrderChecklistTemplates.find(item => Number(item.id) === templateId);
+            const field = document.getElementById('os-checklist');
+            if (!template || !field) return alert('Selecione um modelo de checklist.');
+            if (field.value.trim() && !confirm('Substituir os itens atuais pelo conteúdo deste modelo?')) return;
+            field.value = template.items.join('\n');
+        }
+        async function salvarModeloChecklistOS() {
+            const name = document.getElementById('os-checklist-template-name')?.value.trim() || '';
+            const items = document.getElementById('os-checklist')?.value.split(/\r?\n/).map(item => item.trim()).filter(Boolean) || [];
+            if (!name) return alert('Informe um nome para o modelo.');
+            if (!items.length) return alert('Adicione pelo menos um item ao checklist antes de salvar como modelo.');
+            try {
+                const template = await apiJson('/api/work-order-checklist-templates', {method:'POST', body:JSON.stringify({name, items})});
+                await carregarModelosChecklistOS(template.id);
+                const nameField = document.getElementById('os-checklist-template-name');
+                if (nameField) nameField.value = '';
+                alert('Modelo de checklist salvo para esta organização.');
+            } catch (err) { alert(err.message); }
+        }
+        async function removerModeloChecklistOS() {
+            const select = document.getElementById('os-checklist-template');
+            const templateId = Number(select?.value);
+            const template = workOrderChecklistTemplates.find(item => Number(item.id) === templateId);
+            if (!template) return alert('Selecione o modelo que deseja remover.');
+            if (!confirm(`Remover o modelo "${template.name}"? As OS já criadas não serão alteradas.`)) return;
+            try {
+                await apiJson(`/api/work-order-checklist-templates/${templateId}`, {method:'DELETE'});
+                await carregarModelosChecklistOS();
+                alert('Modelo removido.');
+            } catch (err) { alert(err.message); }
         }
         async function carregarAtivos() { try { assetsData = await apiJson('/api/assets'); renderizar(); } catch(e) { alert(e.message); } }
         async function criarAtivo(event) {
@@ -957,6 +1004,7 @@
                       <div class="input-group"><label>Técnico atribuído</label><input id="os-tech" maxlength="120"></div>
                       <div class="input-group"><label>Prazo (opcional)</label><input id="os-due-at" type="datetime-local"></div>
                       <div class="input-group" style="grid-column:1/-1"><label>Descrição</label><input id="os-description" maxlength="4000"></div>
+                      <div class="input-group" style="grid-column:1/-1"><label>Modelo de checklist</label><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><select id="os-checklist-template" style="flex:1;min-width:220px"><option value="">Selecionar modelo...</option></select><button type="button" class="btn-action" onclick="aplicarModeloChecklistOS()">Usar modelo</button>${['CEO','Gerente'].includes(currentCargo) ? '<input id="os-checklist-template-name" maxlength="120" placeholder="Nome do novo modelo" style="flex:1;min-width:180px"><button type="button" class="btn-action" onclick="salvarModeloChecklistOS()">Salvar checklist como modelo</button><button type="button" class="btn-action" onclick="removerModeloChecklistOS()">Remover selecionado</button>' : ''}</div></div>
                       <div class="input-group" style="grid-column:1/-1"><label>Checklist (opcional, um item por linha; até 20)</label><textarea id="os-checklist" maxlength="5000" rows="3" placeholder="Ex.: Inspecionar visualmente\nVerificar conexões\nRegistrar medições"></textarea></div>
                       <button class="btn-primary" type="submit">Criar ordem de serviço</button>
                     </form>

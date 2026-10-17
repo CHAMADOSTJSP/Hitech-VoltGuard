@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.10.0 — Modelos reutilizáveis de checklist
+- Adicionado armazenamento de modelos de checklist isolado por organização, com nome exclusivo dentro de cada tenant.
+- CEO e Gerente podem salvar modelos a partir dos itens preenchidos e remover os modelos selecionados.
+- Usuários com acesso à gestão de OS podem aplicar um modelo; isso preenche o checklist sem criar a ordem automaticamente.
+- Criação e remoção de modelos entram no registro de auditoria. Os checklists já copiados para ordens existentes não mudam.
+
 ## v0.9.0 — Checklist de execução para ordens de serviço
 - Criação de checklist opcional com até 20 itens por ordem.
 - Marcação e reabertura de itens autorizadas a papéis operacionais; cada mudança gera histórico e auditoria com usuário e horário.

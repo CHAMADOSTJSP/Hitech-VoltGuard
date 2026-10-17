@@ -2,6 +2,10 @@
 
 Versão revisada para **demonstração e homologação controlada**. Este pacote não é SCADA industrial certificado e não deve ser conectado a funções de proteção, intertravamento ou comando de equipamentos elétricos.
 
+## v0.10.0 — Modelos reutilizáveis de checklist
+
+Modelos de checklist são guardados por organização. CEO e Gerente podem salvar o checklist atual como modelo e remover modelos; qualquer usuário autenticado com acesso às OS pode aplicar um modelo ao formulário. As OS existentes permanecem independentes dos modelos.
+
 ## v0.9.0 — Checklist de execução para ordens de serviço
 
 Ao criar uma OS, é possível incluir até 20 itens de checklist. A equipe marca cada item durante a execução; cada alteração registra usuário, horário e ação no histórico. O sistema impede concluir uma ordem enquanto houver itens pendentes. OS antigas sem checklist continuam funcionando.
