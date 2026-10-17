@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.12.0 — Edição dos dados da OS
+- Adicionada edição de título, prioridade, técnico, prazo e descrição de uma ordem existente.
+- Mudanças dos dados principais são registradas no histórico da OS e na auditoria.
+- Permite limpar o prazo e remover o técnico atribuído.
+
+## v0.11.0 — Relatório individual de ordem de serviço
+- Adicionado relatório imprimível por OS com dados da ordem, prazo, técnico, descrição, checklist, resumo de execução e histórico.
+- A impressão pode ser salva como PDF pelo navegador, sem dependência de serviço externo.
+- Conteúdo variável é escapado antes de ser incluído no documento.
+
 ## v0.10.2 — Preservação dos modelos ao redesenhar a tela
 - Corrigido o seletor que voltava ao estado vazio quando a tela de ordens era redesenhada após criar uma OS.
 - As opções existentes são reaplicadas ao formulário usando os modelos carregados da organização.

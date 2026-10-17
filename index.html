@@ -84,6 +84,12 @@
         .os-checklist-item { display: flex; align-items: flex-start; gap: 7px; margin: 8px 0; line-height: 1.4; }
         .os-checklist-item input { width: auto; margin-top: 2px; }
         .os-checklist-item small { display: block; color: #9ca3af; margin-top: 3px; }
+        .os-edit { margin-top: 7px; min-width: 230px; white-space: normal; }
+        .os-edit summary { cursor: pointer; color: #10b981; font-weight: 700; }
+        .os-edit-fields { display: grid; gap: 7px; padding-top: 8px; }
+        .os-edit-fields label { display: grid; gap: 3px; color: #9ca3af; font-size: 10px; }
+        .os-edit-fields input, .os-edit-fields select, .os-edit-fields textarea { width: 100%; min-width: 180px; box-sizing: border-box; }
+        .os-edit-fields textarea { min-height: 58px; resize: vertical; }
         .os-overview { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:14px 0; }
         .os-overview-card { background:#0b2419; border:1px solid #065f46; border-radius:6px; padding:12px; }
         .os-overview-card span { display:block; color:#9ca3af; font-size:10px; text-transform:uppercase; }
@@ -163,6 +169,7 @@
         let currentUser = '', currentCargo = '', tokenJwt = '';
         let dadosGlobais = {}, auditLogs = [], billingData = {}, inventoryData = {}, historyData = {}, workOrders = [], workOrderChecklistTemplates = [], alarmsData = [], assetsData = [], maintenancePlans = [], maintenanceTasks = [], deviceCredentials = [], pollingInterval = null;
         const workOrderHistoryOpen = new Set();
+        const workOrderEditOpen = new Set();
         let workOrderSearchText = '', workOrderStatusFilter = 'TODAS', workOrderOnlyOverdue = false;
         let chartInstances = {};
         let historyWindowHours = 168;
@@ -175,6 +182,14 @@
             const normalizado = /(?:Z|[+-]\d{2}:\d{2})$/.test(valor) ? valor : `${valor}Z`;
             const data = new Date(normalizado);
             return Number.isNaN(data.getTime()) ? String(valor) : data.toLocaleString('pt-BR', {dateStyle:'short', timeStyle:'short'});
+        }
+
+        function dataParaInputLocal(valor) {
+            if (!valor) return '';
+            const normalizado = /(?:Z|[+-]\d{2}:\d{2})$/.test(valor) ? valor : `${valor}Z`;
+            const data = new Date(normalizado);
+            if (Number.isNaN(data.getTime())) return '';
+            return new Date(data.getTime() - data.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
         }
 
         function escapeHtml(value) { return String(value ?? '').replace(/[&<>\"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[ch])); }
@@ -525,6 +540,22 @@
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.detail || 'Não foi possível atualizar a ordem.');
                 alert('Ordem de serviço atualizada.'); await buscarDadosPainéis(); renderizar();
+            } catch (err) { alert(err.message); }
+        }
+
+        async function atualizarDadosOrdemServico(id) {
+            const title = document.getElementById(`os-edit-title-${id}`)?.value.trim();
+            const priority = document.getElementById(`os-edit-priority-${id}`)?.value;
+            const technician = document.getElementById(`os-edit-tech-${id}`)?.value.trim() || null;
+            const dueValue = document.getElementById(`os-edit-due-${id}`)?.value;
+            const description = document.getElementById(`os-edit-description-${id}`)?.value || '';
+            if (!title) return alert('Informe o título da ordem.');
+            const payload = {title, priority, assigned_technician:technician, due_at:dueValue ? new Date(dueValue).toISOString() : null, description};
+            try {
+                const res = await fetch(`/api/work-orders/${Number(id)}`, {method:'PATCH', headers:{'Content-Type':'application/json','Authorization':`Bearer ${tokenJwt}`}, body:JSON.stringify(payload)});
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Não foi possível salvar os dados da ordem.');
+                alert('Dados da ordem atualizados.'); await buscarDadosPainéis(); renderizar();
             } catch (err) { alert(err.message); }
         }
 
@@ -1041,7 +1072,7 @@
                         const checklistHtml = checklist.length
                             ? checklist.map(item => `<label class="os-checklist-item"><input type="checkbox" ${item.is_completed ? 'checked' : ''} ${terminal ? 'disabled' : ''} onchange="atualizarChecklistOS(${Number(w.id)},${Number(item.id)},this)"><span>${escapeHtml(item.label)}${item.is_completed ? `<small>Concluído por ${escapeHtml(item.completed_by || '—')} em ${escapeHtml(formatarDataHora(item.completed_at))}</small>` : ''}</span></label>`).join('')
                             : '<span>Sem itens de checklist</span>';
-                        return `<tr data-os-row data-status="${escapeHtml(w.status)}" data-overdue="${overdue}" data-search="${escapeHtml(search)}"><td>${escapeHtml(w.id)}</td><td>${escapeHtml(w.panel_id)}</td><td>${escapeHtml(w.title)}</td><td>${escapeHtml(w.priority)}</td><td>${escapeHtml(w.status)}</td><td>${escapeHtml(w.assigned_technician || '—')}</td><td>${overdue ? '<span class="os-overdue">ATRASADA · </span>' : ''}${escapeHtml(formatarDataHora(w.due_at))}</td><td>${escapeHtml(formatarDataHora(w.started_at))}</td><td>${escapeHtml(formatarDataHora(w.completed_at))}</td><td class="os-checklist"><details><summary>Checklist (${checklistDone}/${checklist.length})</summary>${checklistHtml}</details></td><td><input id="os-resolution-${Number(w.id)}" maxlength="4000" value="${escapeHtml(w.resolution || '')}" placeholder="Obrigatório para concluir" style="min-width:180px"></td><td><select id="os-status-${Number(w.id)}"><option ${w.status==='ABERTA'?'selected':''}>ABERTA</option><option ${w.status==='EM_ANDAMENTO'?'selected':''}>EM_ANDAMENTO</option><option ${w.status==='AGUARDANDO_PECA'?'selected':''}>AGUARDANDO_PECA</option><option ${w.status==='CONCLUIDA'?'selected':''}>CONCLUIDA</option><option ${w.status==='CANCELADA'?'selected':''}>CANCELADA</option></select><button type="button" class="btn-action" onclick="atualizarOrdemServico(${Number(w.id)})">Guardar</button><button type="button" class="btn-action" onclick="gerarRelatorioOrdem(${Number(w.id)})">Relatório PDF</button></td><td class="os-history"><details data-os-history="${orderId}" ${workOrderHistoryOpen.has(orderId) ? 'open' : ''}><summary>Ver histórico (${events.length})</summary>${events.length ? events.map(event => `<div class="os-history-event"><strong>${escapeHtml(formatarDataHora(event.timestamp))}</strong><br>${escapeHtml(event.user_name)} (${escapeHtml(event.role)}) · ${escapeHtml(event.action)}<br>${escapeHtml(event.details)}${event.resolution ? `<br><strong>Resumo registrado:</strong> ${escapeHtml(event.resolution)}` : ''}</div>`).join('') : '<div class="os-history-event">Sem eventos anteriores. O histórico começa a ser registrado a partir desta versão.</div>'}</details></td></tr>`;
+                        return `<tr data-os-row data-status="${escapeHtml(w.status)}" data-overdue="${overdue}" data-search="${escapeHtml(search)}"><td>${escapeHtml(w.id)}</td><td>${escapeHtml(w.panel_id)}</td><td>${escapeHtml(w.title)}<details class="os-edit" data-os-edit="${orderId}" ${workOrderEditOpen.has(orderId) ? 'open' : ''}><summary>Editar dados</summary><div class="os-edit-fields"><label>Título<input id="os-edit-title-${Number(w.id)}" maxlength="200" value="${escapeHtml(w.title)}"></label><label>Prioridade<select id="os-edit-priority-${Number(w.id)}"><option ${w.priority==='BAIXA'?'selected':''}>BAIXA</option><option ${['MEDIA','MÉDIA'].includes(w.priority)?'selected':''}>MEDIA</option><option ${w.priority==='ALTA'?'selected':''}>ALTA</option><option ${['CRITICA','CRÍTICA'].includes(w.priority)?'selected':''}>CRITICA</option></select></label><label>Técnico<input id="os-edit-tech-${Number(w.id)}" maxlength="120" value="${escapeHtml(w.assigned_technician || '')}"></label><label>Prazo<input id="os-edit-due-${Number(w.id)}" type="datetime-local" value="${dataParaInputLocal(w.due_at)}"></label><label>Descrição<textarea id="os-edit-description-${Number(w.id)}" maxlength="4000">${escapeHtml(w.description || '')}</textarea></label><button type="button" class="btn-action" onclick="atualizarDadosOrdemServico(${Number(w.id)})">Salvar dados</button></div></details></td><td>${escapeHtml(w.priority)}</td><td>${escapeHtml(w.status)}</td><td>${escapeHtml(w.assigned_technician || '—')}</td><td>${overdue ? '<span class="os-overdue">ATRASADA · </span>' : ''}${escapeHtml(formatarDataHora(w.due_at))}</td><td>${escapeHtml(formatarDataHora(w.started_at))}</td><td>${escapeHtml(formatarDataHora(w.completed_at))}</td><td class="os-checklist"><details><summary>Checklist (${checklistDone}/${checklist.length})</summary>${checklistHtml}</details></td><td><input id="os-resolution-${Number(w.id)}" maxlength="4000" value="${escapeHtml(w.resolution || '')}" placeholder="Obrigatório para concluir" style="min-width:180px"></td><td><select id="os-status-${Number(w.id)}"><option ${w.status==='ABERTA'?'selected':''}>ABERTA</option><option ${w.status==='EM_ANDAMENTO'?'selected':''}>EM_ANDAMENTO</option><option ${w.status==='AGUARDANDO_PECA'?'selected':''}>AGUARDANDO_PECA</option><option ${w.status==='CONCLUIDA'?'selected':''}>CONCLUIDA</option><option ${w.status==='CANCELADA'?'selected':''}>CANCELADA</option></select><button type="button" class="btn-action" onclick="atualizarOrdemServico(${Number(w.id)})">Guardar</button><button type="button" class="btn-action" onclick="gerarRelatorioOrdem(${Number(w.id)})">Relatório PDF</button></td><td class="os-history"><details data-os-history="${orderId}" ${workOrderHistoryOpen.has(orderId) ? 'open' : ''}><summary>Ver histórico (${events.length})</summary>${events.length ? events.map(event => `<div class="os-history-event"><strong>${escapeHtml(formatarDataHora(event.timestamp))}</strong><br>${escapeHtml(event.user_name)} (${escapeHtml(event.role)}) · ${escapeHtml(event.action)}<br>${escapeHtml(event.details)}${event.resolution ? `<br><strong>Resumo registrado:</strong> ${escapeHtml(event.resolution)}` : ''}</div>`).join('') : '<div class="os-history-event">Sem eventos anteriores. O histórico começa a ser registrado a partir desta versão.</div>'}</details></td></tr>`;
                     }).join('')}
                     </tbody></table><p id="os-no-results" hidden>Nenhuma ordem corresponde aos filtros selecionados.</p></div></div>`;
                 filtrarOrdensServico();
@@ -1059,10 +1090,14 @@
         }
         document.addEventListener('toggle', (event) => {
             const details = event.target;
-            if (!(details instanceof HTMLDetailsElement) || !details.hasAttribute('data-os-history')) return;
-            const orderId = details.getAttribute('data-os-history');
-            if (details.open) workOrderHistoryOpen.add(orderId);
-            else workOrderHistoryOpen.delete(orderId);
+            if (!(details instanceof HTMLDetailsElement)) return;
+            const historyId = details.getAttribute('data-os-history');
+            const editId = details.getAttribute('data-os-edit');
+            if (!historyId && !editId) return;
+            const targetSet = historyId ? workOrderHistoryOpen : workOrderEditOpen;
+            const orderId = historyId || editId;
+            if (details.open) targetSet.add(orderId);
+            else targetSet.delete(orderId);
         }, true);
         // Delegação de eventos para evitar interpolar identificadores de painéis em código JavaScript inline.
         document.addEventListener('click', (event) => {

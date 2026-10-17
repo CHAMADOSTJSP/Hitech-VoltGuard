@@ -2,6 +2,10 @@
 
 Versão revisada para **demonstração e homologação controlada**. Este pacote não é SCADA industrial certificado e não deve ser conectado a funções de proteção, intertravamento ou comando de equipamentos elétricos.
 
+## v0.12.0 — Edição dos dados da OS
+
+Os dados principais de uma ordem existente podem ser editados pela coluna **Título**: título, prioridade, técnico atribuído, prazo e descrição. As alterações são registradas no histórico da ordem.
+
 ## v0.11.0 — Relatório individual de ordem de serviço
 
 Cada OS pode abrir um relatório imprimível com seus dados, checklist, resumo de execução e histórico. Use a opção de impressão do navegador e escolha “Salvar como PDF” para exportar o documento.

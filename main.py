@@ -292,7 +292,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.11.0",
+    version="0.12.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -1245,6 +1245,7 @@ class WorkOrderCreate(BaseModel):
     checklist: Optional[List[str]] = None
 
 class WorkOrderUpdate(BaseModel):
+    title: Optional[str] = None
     status: Optional[str] = None
     priority: Optional[str] = None
     assigned_technician: Optional[str] = None
@@ -1357,8 +1358,10 @@ def update_work_order(order_id: int, data: WorkOrderUpdate, db: Session = Depend
     order = db.query(WorkOrderModel).filter(WorkOrderModel.id == order_id, WorkOrderModel.tenant_id == current_user.tenant_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Ordem de serviço não encontrada.")
+    provided_fields = getattr(data, "model_fields_set", getattr(data, "__fields_set__", set()))
     previous_status = order.status
     previous_values = {
+        "title": order.title,
         "priority": order.priority,
         "assigned_technician": order.assigned_technician,
         "due_at": utc_iso(order.due_at),
@@ -1367,6 +1370,11 @@ def update_work_order(order_id: int, data: WorkOrderUpdate, db: Session = Depend
     }
     if data.resolution is not None and len(data.resolution) > 4000:
         raise HTTPException(status_code=422, detail="Resumo de execução demasiado longo.")
+    if data.title is not None:
+        title = data.title.strip()
+        if not title or len(title) > 200:
+            raise HTTPException(status_code=422, detail="Informe um título com até 200 caracteres.")
+        order.title = title
     allowed_status = {"ABERTA", "EM_ANDAMENTO", "AGUARDANDO_PECA", "CONCLUIDA", "CANCELADA"}
     if data.status is not None:
         if data.status not in allowed_status:
@@ -1400,19 +1408,22 @@ def update_work_order(order_id: int, data: WorkOrderUpdate, db: Session = Depend
         if data.priority not in {"BAIXA", "MEDIA", "MÉDIA", "ALTA", "CRITICA", "CRÍTICA"}:
             raise HTTPException(status_code=422, detail="Prioridade inválida.")
         order.priority = data.priority
-    if data.assigned_technician is not None:
-        if len(data.assigned_technician) > 120:
+    if "assigned_technician" in provided_fields:
+        technician = (data.assigned_technician or "").strip()
+        if len(technician) > 120:
             raise HTTPException(status_code=422, detail="Nome do técnico demasiado longo.")
-        order.assigned_technician = data.assigned_technician.strip() or None
+        order.assigned_technician = technician or None
     if data.description is not None:
         if len(data.description) > 4000:
             raise HTTPException(status_code=422, detail="Descrição demasiado longa.")
         order.description = data.description
-    if data.due_at is not None:
+    if "due_at" in provided_fields:
         order.due_at = utc_naive(data.due_at)
     if data.resolution is not None:
         order.resolution = data.resolution.strip() or None
     changes = []
+    if previous_values["title"] != order.title:
+        changes.append(f"Título: {previous_values['title']} → {order.title}")
     if previous_status != order.status:
         changes.append(f"Estado: {previous_status} → {order.status}")
     if previous_values["priority"] != order.priority:
