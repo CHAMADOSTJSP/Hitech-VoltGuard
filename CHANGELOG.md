@@ -25,3 +25,8 @@ Consulte `REVISAO_TECNICA.md`. A aplicação permanece candidata a demonstraçã
 - Added a Central de Alarmes interface with status, severity, timestamps, message, and operator actions.
 - Added automated smoke coverage for alarm lifecycle and cross-tenant access denial.
 - This release does not add physical PLC integration, production notification delivery, billing collection, or industrial certification.
+
+## 0.4.1 — Alarmes simulados funcionais
+- O endpoint de simulação de falha agora cria/atualiza alarmes persistentes de temperatura e corrente para o tenant autenticado.
+- O botão “Disparar Alarme Crítico” atualiza os dados, exibe erros de forma explícita e abre a Central de Alarmes após a simulação.
+- Teste automatizado garante que a simulação cria alarmes consultáveis e persistentes sem equipamento físico.

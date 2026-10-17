@@ -84,3 +84,12 @@ Endpoints autenticados:
 - `POST /api/alarms/{id}/clear`
 
 O estado dos alarmes é específico por organização. Esta versão ainda não configura notificações de produção ou integrações com PLCs.
+
+### Testar a Central de Alarmes com telemetria simulada
+1. Entre com uma conta que tenha papel CEO ou Gerente.
+2. Na aba **Tempo Real**, clique em **Disparar Alarme Crítico** em um painel de demonstração.
+3. Confirme a mensagem de sucesso; a interface abre a **Central de Alarmes** automaticamente.
+4. Devem aparecer alarmes `HIGH_TEMPERATURE` e `HIGH_CURRENT`. Você pode reconhecer o alarme ou encerrar manualmente conforme suas permissões.
+5. Para encerrar automaticamente por retorno à faixa normal, envie telemetria dentro dos limites configurados via endpoint autenticado `/api/telemetry`.
+
+Este botão altera apenas dados simulados da aplicação. Não envia comandos a equipamentos físicos nem deve ser usado como teste de proteção industrial.

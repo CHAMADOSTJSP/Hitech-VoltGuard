@@ -95,6 +95,19 @@ class VoltGuardSmokeTests(unittest.TestCase):
         cleared = self.client.get(f"/api/alarms?status_filter=CLEARED", headers=headers)
         self.assertTrue(any(a["id"] == alarm["id"] for a in cleared.json()))
 
+    def test_demo_simulation_creates_persistent_alarms(self):
+        _, headers = self.create_tenant("SIMALARMS")
+        panels = self.client.get("/api/panels", headers=headers).json()["panels"]
+        panel = panels[0]
+        response = self.client.post("/api/demo/force-failure", headers=headers, json={"panel_id": panel["id"]})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertGreaterEqual(response.json()["active_alarms"], 2)
+        alarms = self.client.get("/api/alarms?status_filter=ACTIVE", headers=headers)
+        self.assertEqual(alarms.status_code, 200, alarms.text)
+        types = {alarm["alarm_type"] for alarm in alarms.json() if alarm["panel_id"] == panel["id"]}
+        self.assertIn("HIGH_TEMPERATURE", types)
+        self.assertIn("HIGH_CURRENT", types)
+
     def test_report_requires_authentication(self):
         response = self.client.get("/api/export/executive-report")
         self.assertEqual(response.status_code, 401)

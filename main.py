@@ -574,12 +574,42 @@ async def force_failure(data: dict, db: Session = Depends(get_db), current_user:
     if not panel:
         raise HTTPException(status_code=404, detail="Painel não encontrado.")
     
+    # Simulação explícita: atualiza telemetria e cria/atualiza alarmes persistentes.
+    # Não depende de PLC, Modbus ou equipamento físico.
+    rule = db.query(TenantRuleModel).filter(TenantRuleModel.tenant_id == current_user.tenant_id).first()
+    temp_limit = rule.max_temperature if rule else 85.0
+    current_limit = rule.max_current if rule else 500.0
     panel.status = "CRITICO"
-    panel.temperature = 94.5
+    panel.temperature = max(94.5, temp_limit + 5.0)
+    panel.current = max(float(panel.current or 0), current_limit + 25.0)
     panel.predictive_failure_hours = 2
-    panel.recommendation = "ALERTA CRÍTICO: Sobreaquecimento extremo detetado!"
-    
-    db.add(PanelHistoryModel(panel_id=panel.id, tenant_id=current_user.tenant_id, timestamp=datetime.utcnow().isoformat(timespec="seconds") + "Z", temperature=panel.temperature))
+    panel.recommendation = "ALERTA CRÍTICO: falha elétrica simulada para teste da Central de Alarmes."
+
+    now = datetime.utcnow()
+    simulated_conditions = [
+        ("HIGH_TEMPERATURE", f"Temperatura simulada {panel.temperature} °C acima do limite configurado de {temp_limit} °C."),
+        ("HIGH_CURRENT", f"Corrente simulada {panel.current} A acima do limite configurado de {current_limit} A."),
+    ]
+    open_alarms = db.query(AlarmModel).filter(
+        AlarmModel.tenant_id == current_user.tenant_id,
+        AlarmModel.panel_id == panel.id,
+        AlarmModel.status.in_(["ACTIVE", "ACKNOWLEDGED"]),
+    ).all()
+    for alarm_type, message in simulated_conditions:
+        existing_alarm = next((a for a in open_alarms if a.alarm_type == alarm_type), None)
+        if existing_alarm:
+            existing_alarm.last_triggered_at = now
+            existing_alarm.message = message
+            existing_alarm.severity = "CRITICAL"
+            # Preserve ACKNOWLEDGED status when the operator already acknowledged it.
+        else:
+            db.add(AlarmModel(
+                tenant_id=current_user.tenant_id, panel_id=panel.id,
+                alarm_type=alarm_type, severity="CRITICAL", message=message,
+                status="ACTIVE", first_triggered_at=now, last_triggered_at=now,
+            ))
+
+    db.add(PanelHistoryModel(panel_id=panel.id, tenant_id=current_user.tenant_id, timestamp=now.isoformat(timespec="seconds") + "Z", temperature=panel.temperature))
     db.add(AuditLogModel(
         tenant_id=current_user.tenant_id,
         user_name=current_user.username,
@@ -600,7 +630,12 @@ async def force_failure(data: dict, db: Session = Depends(get_db), current_user:
             pass
 
     await manager.broadcast({"event": "PANEL_UPDATE", "panel_id": panel.id, "status": "CRITICO"}, current_user.tenant_id)
-    return {"status": "success", "message": f"Falha crítica simulada com sucesso no cubículo {panel.id}!"}
+    active_alarm_count = db.query(AlarmModel).filter(
+        AlarmModel.tenant_id == current_user.tenant_id,
+        AlarmModel.panel_id == panel.id,
+        AlarmModel.status.in_(["ACTIVE", "ACKNOWLEDGED"]),
+    ).count()
+    return {"status": "success", "message": f"Falha simulada em {panel.id}. {active_alarm_count} alarme(s) ativo(s) ou reconhecido(s) registrado(s).", "active_alarms": active_alarm_count}
 
 @app.get("/api/panels")
 def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

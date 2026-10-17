@@ -381,13 +381,20 @@
         }
 
         async function simularFalhaComercial(id) {
-            const res = await fetch('/api/demo/force-failure', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${tokenJwt}`},
-                body: JSON.stringify({panel_id: id})
-            });
-            const d = await res.json();
-            if(res.ok) { alert(d.message); mudarAba('realtime'); }
+            try {
+                const res = await fetch('/api/demo/force-failure', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${tokenJwt}`},
+                    body: JSON.stringify({panel_id: id})
+                });
+                const d = await res.json();
+                if (!res.ok) throw new Error(d.detail || 'Não foi possível gerar o alarme simulado.');
+                await buscarDadosPainéis();
+                alert(`${d.message} A Central de Alarmes será aberta.`);
+                mudarAba('alarms');
+            } catch (err) {
+                alert(err.message || 'Falha ao executar a simulação.');
+            }
         }
 
         async function salvarWebhook(event) {
