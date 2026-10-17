@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.35.1 — Ajuste visual do resumo do relatório
+
+A aba Resumo usa colunas mais largas para exibir o título e as notas sem cortes ao abrir no Excel.
+
 ## v0.35.0 — Relatório executivo formatado em Excel
 
 O relatório executivo agora é exportado como `.xlsx`, com abas separadas para resumo, painéis, alarmes, ordens de serviço, ativos, manutenção e estoque. O arquivo inclui cabeçalhos destacados, filtros, linhas congeladas, colunas ajustadas e configuração para impressão. Mantém a rastreabilidade de alarmes e OS e o progresso dos checklists.

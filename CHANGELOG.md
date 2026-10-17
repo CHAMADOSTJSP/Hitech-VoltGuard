@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.35.1 — Ajuste visual do resumo do relatório
+- Aumentada a largura das colunas do resumo para exibir o título e as notas por completo no Excel.
+
 ## v0.35.0 — Relatório executivo formatado em Excel
 - O relatório é exportado como `.xlsx`, com abas separadas para resumo, painéis, alarmes, ordens de serviço, ativos, manutenção e estoque.
 - Incluídos cabeçalhos destacados, filtros, linhas congeladas, colunas ajustadas e configuração de impressão.
