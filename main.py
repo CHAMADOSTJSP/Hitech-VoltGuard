@@ -292,7 +292,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.34.0",
+    version="0.35.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -1303,28 +1303,17 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.get("/api/export/executive-report")
 def export_executive_report(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Exporta um resumo operacional CSV, limitado ao tenant autenticado."""
-    import csv
-    output = io.StringIO(newline="")
-    writer = csv.writer(output, delimiter=";")
+    """Exporta relatório executivo Excel formatado, limitado ao tenant autenticado."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils import get_column_letter
+    output = io.BytesIO()
     def safe_text(value):
         text = "" if value is None else str(value)
         # Evita que conteúdo digitado por usuários seja interpretado como fórmula ao abrir no Excel.
         if text.lstrip().startswith(("=", "+", "-", "@")):
             return "'" + text
         return text
-
-    def status_counts(records, field="status"):
-        counts = {}
-        for record in records:
-            value = getattr(record, field, None) or "NÃO INFORMADO"
-            counts[value] = counts.get(value, 0) + 1
-        return counts
-
-    def write_counts(title, counts):
-        writer.writerow([title, "Quantidade"])
-        for label, count in sorted(counts.items()):
-            writer.writerow([safe_text(label), count])
 
     panels = db.query(PanelModel).filter(PanelModel.tenant_id == current_user.tenant_id).order_by(PanelModel.id).all()
     alarms = db.query(AlarmModel).filter(AlarmModel.tenant_id == current_user.tenant_id).order_by(AlarmModel.first_triggered_at.desc()).all()
@@ -1342,66 +1331,97 @@ def export_executive_report(db: Session = Depends(get_db), current_user: User = 
         checklist_by_order.setdefault(item.work_order_id, []).append(item)
     work_order_by_alarm = {item.alarm_id: item.id for item in work_orders if item.alarm_id is not None}
 
-    writer.writerow(["Relatório Executivo Operacional - HITECH VoltGuard"])
-    writer.writerow(["Organização", safe_text(current_user.tenant_id)])
-    writer.writerow(["Gerado em UTC", datetime.utcnow().isoformat(timespec="seconds")])
-    writer.writerow(["Nota", "Retrato dos dados cadastrados no momento da exportação; dados demonstrativos não substituem avaliação operacional."])
-    writer.writerow([])
-    writer.writerow(["RESUMO"])
-    writer.writerow(["Indicador", "Quantidade"])
-    writer.writerow(["Painéis", len(panels)])
-    writer.writerow(["Painéis críticos", sum(1 for p in panels if p.status == "CRITICO")])
-    writer.writerow(["Alarmes", len(alarms)])
-    writer.writerow(["Alarmes ativos", sum(1 for a in alarms if a.status == "ACTIVE")])
-    writer.writerow(["Alarmes reconhecidos", sum(1 for a in alarms if a.status == "ACKNOWLEDGED")])
-    writer.writerow(["Ordens de serviço abertas", sum(1 for w in work_orders if w.status not in ("CONCLUIDA", "CANCELADA"))])
-    writer.writerow(["Ordens originadas de alarmes", sum(1 for w in work_orders if w.alarm_id is not None)])
-    writer.writerow(["Ativos cadastrados", len(assets)])
-    writer.writerow(["Tarefas de manutenção", len(tasks)])
-    writer.writerow(["Itens de estoque abaixo do mínimo", sum(1 for i in inventory if i.quantity_in_stock < i.min_threshold)])
-    writer.writerow([])
-    write_counts("PAINÉIS POR ESTADO", status_counts(panels))
-    writer.writerow([])
-    write_counts("ALARMES POR ESTADO", status_counts(alarms))
-    writer.writerow([])
-    write_counts("ORDENS DE SERVIÇO POR ESTADO", status_counts(work_orders))
-    writer.writerow([])
-    write_counts("TAREFAS DE MANUTENÇÃO POR ESTADO", status_counts(tasks))
-    writer.writerow([])
-    writer.writerow(["PAINÉIS"])
-    writer.writerow(["ID", "Nome", "Local", "Tensão", "Corrente (A)", "Temperatura (°C)", "Estado", "Componente", "Recomendação"])
-    for p in panels:
-        writer.writerow([p.id, safe_text(p.name), safe_text(p.location), p.voltage, p.current, p.temperature, safe_text(p.status), safe_text(p.component), safe_text(p.recommendation)])
-    writer.writerow([])
-    writer.writerow(["ALARMES"])
-    writer.writerow(["ID", "Data inicial", "Última ocorrência", "Reconhecido em", "Reconhecido por", "Encerrado em", "Painel", "Tipo", "Severidade", "Estado", "Mensagem", "OS vinculada"])
-    for a in alarms:
-        linked_order = work_order_by_alarm.get(a.id, "")
-        writer.writerow([a.id, a.first_triggered_at.isoformat() if a.first_triggered_at else "", a.last_triggered_at.isoformat() if a.last_triggered_at else "", a.acknowledged_at.isoformat() if a.acknowledged_at else "", safe_text(a.acknowledged_by), a.cleared_at.isoformat() if a.cleared_at else "", safe_text(a.panel_id), safe_text(a.alarm_type), safe_text(a.severity), safe_text(a.status), safe_text(a.message), linked_order])
-    writer.writerow([])
-    writer.writerow(["ORDENS DE SERVIÇO"])
-    writer.writerow(["ID", "Alarme de origem", "Painel", "Título", "Prioridade", "Estado", "Técnico", "Criada em", "Prazo", "Início", "Conclusão", "Checklist concluído", "Itens no checklist", "Resumo de execução"])
-    for w in work_orders:
-        checklist = checklist_by_order.get(w.id, [])
-        checklist_done = sum(1 for item in checklist if item.is_completed)
-        writer.writerow([w.id, w.alarm_id or "", safe_text(w.panel_id), safe_text(w.title), safe_text(w.priority), safe_text(w.status), safe_text(w.assigned_technician), w.created_at.isoformat() if w.created_at else "", w.due_at.isoformat() if w.due_at else "", w.started_at.isoformat() if w.started_at else "", w.completed_at.isoformat() if w.completed_at else "", checklist_done, len(checklist), safe_text(w.resolution)])
-    writer.writerow([])
-    writer.writerow(["ATIVOS"])
-    writer.writerow(["ID", "Tag", "Nome", "Tipo", "Local", "Fabricante", "Modelo", "Série", "Painel", "Estado"])
-    for a in assets:
-        writer.writerow([a.id, safe_text(a.asset_tag), safe_text(a.name), safe_text(a.asset_type), safe_text(a.location), safe_text(a.manufacturer), safe_text(a.model), safe_text(a.serial_number), safe_text(a.panel_id), safe_text(a.status)])
-    writer.writerow([])
-    writer.writerow(["TAREFAS DE MANUTENÇÃO"])
-    writer.writerow(["ID", "Ativo ID", "Tarefa", "Responsável", "Prazo", "Estado", "Concluída em"])
-    for t in tasks:
-        writer.writerow([t.id, t.asset_id, safe_text(t.title), safe_text(t.assigned_to), t.due_at.isoformat() if t.due_at else "", safe_text(t.status), t.completed_at.isoformat() if t.completed_at else ""])
-    writer.writerow([])
-    writer.writerow(["ESTOQUE"])
-    writer.writerow(["ID", "Item", "Categoria", "Quantidade", "Estoque mínimo", "Custo unitário", "Abaixo do mínimo"])
-    for i in inventory:
-        writer.writerow([i.id, safe_text(i.part_name), safe_text(i.category), i.quantity_in_stock, i.min_threshold, i.unit_cost, "SIM" if i.quantity_in_stock < i.min_threshold else "NÃO"])
+    workbook = Workbook()
+    summary = workbook.active
+    summary.title = "Resumo"
+    dark_green = "064E3B"
+    accent = "10B981"
+    pale_green = "D1FAE5"
+    light_gray = "F3F4F6"
+    white = "FFFFFF"
+    thin_green = Side(style="thin", color="A7F3D0")
+
+    def setup_sheet(sheet, title, headers, rows):
+        sheet.sheet_view.showGridLines = False
+        sheet.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+        title_cell = sheet.cell(1, 1, title)
+        title_cell.font = Font(name="Calibri", size=16, bold=True, color=white)
+        title_cell.fill = PatternFill("solid", fgColor=dark_green)
+        title_cell.alignment = Alignment(vertical="center")
+        sheet.row_dimensions[1].height = 30
+        sheet.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(headers))
+        sheet.cell(2, 1, f"Organização: {safe_text(current_user.tenant_id)}  |  Gerado em UTC: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}")
+        sheet.cell(2, 1).font = Font(italic=True, color="4B5563", size=10)
+        sheet.cell(2, 1).alignment = Alignment(wrap_text=True, vertical="center")
+        sheet.row_dimensions[2].height = 24
+        sheet.merge_cells(start_row=3, start_column=1, end_row=3, end_column=len(headers))
+        sheet.cell(3, 1, "Retrato dos dados cadastrados no momento da exportação; dados demonstrativos não substituem avaliação operacional.")
+        sheet.cell(3, 1).font = Font(italic=True, color="6B7280", size=9)
+        sheet.cell(3, 1).alignment = Alignment(wrap_text=True, vertical="center")
+        sheet.row_dimensions[3].height = 28
+        header_row = 5
+        for col, header in enumerate(headers, 1):
+            cell = sheet.cell(header_row, col, header)
+            cell.font = Font(bold=True, color=white)
+            cell.fill = PatternFill("solid", fgColor=accent)
+            cell.alignment = Alignment(wrap_text=True, vertical="center")
+            cell.border = Border(bottom=thin_green)
+        sheet.row_dimensions[header_row].height = 32
+        for row_idx, row in enumerate(rows, header_row + 1):
+            for col_idx, value in enumerate(row, 1):
+                if isinstance(value, str):
+                    value = safe_text(value)
+                cell = sheet.cell(row_idx, col_idx, value)
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
+                if row_idx % 2 == 0:
+                    cell.fill = PatternFill("solid", fgColor=light_gray)
+            sheet.row_dimensions[row_idx].height = 30 if len(headers) > 5 else 21
+        last_row = max(header_row, sheet.max_row)
+        sheet.freeze_panes = "A6"
+        sheet.auto_filter.ref = f"A{header_row}:{get_column_letter(len(headers))}{last_row}"
+        for column in range(1, len(headers) + 1):
+            values = [str(sheet.cell(row, column).value or "") for row in range(header_row, min(last_row, header_row + 100) + 1)]
+            width = min(48, max(12, max((len(value) for value in values), default=12) + 2))
+            sheet.column_dimensions[get_column_letter(column)].width = width
+        sheet.sheet_properties.pageSetUpPr.fitToPage = True
+        sheet.page_setup.fitToWidth = 1
+        sheet.page_setup.fitToHeight = 0
+        sheet.page_setup.orientation = "landscape"
+        sheet.sheet_properties.outlinePr.summaryBelow = True
+
+    summary_rows = [
+        ["Painéis", len(panels)],
+        ["Painéis críticos", sum(1 for p in panels if p.status == "CRITICO")],
+        ["Alarmes", len(alarms)],
+        ["Alarmes ativos", sum(1 for a in alarms if a.status == "ACTIVE")],
+        ["Alarmes reconhecidos", sum(1 for a in alarms if a.status == "ACKNOWLEDGED")],
+        ["Ordens de serviço abertas", sum(1 for w in work_orders if w.status not in ("CONCLUIDA", "CANCELADA"))],
+        ["Ordens originadas de alarmes", sum(1 for w in work_orders if w.alarm_id is not None)],
+        ["Ativos cadastrados", len(assets)],
+        ["Tarefas de manutenção", len(tasks)],
+        ["Itens de estoque abaixo do mínimo", sum(1 for i in inventory if i.quantity_in_stock < i.min_threshold)],
+    ]
+    setup_sheet(summary, "Relatório Executivo Operacional — HITECH VoltGuard", ["Indicador", "Quantidade"], summary_rows)
+
+    detail_sheets = [
+        ("Painéis", ["ID", "Nome", "Local", "Tensão", "Corrente (A)", "Temperatura (°C)", "Estado", "Componente", "Recomendação"], [[p.id, p.name, p.location, p.voltage, p.current, p.temperature, p.status, p.component, p.recommendation] for p in panels]),
+        ("Alarmes", ["ID", "Data inicial", "Última ocorrência", "Reconhecido em", "Reconhecido por", "Encerrado em", "Painel", "Tipo", "Severidade", "Estado", "Mensagem", "OS vinculada"], [[a.id, a.first_triggered_at, a.last_triggered_at, a.acknowledged_at, a.acknowledged_by, a.cleared_at, a.panel_id, a.alarm_type, a.severity, a.status, a.message, work_order_by_alarm.get(a.id)] for a in alarms]),
+        ("Ordens de Serviço", ["ID", "Alarme de origem", "Painel", "Título", "Prioridade", "Estado", "Técnico", "Criada em", "Prazo", "Início", "Conclusão", "Checklist concluído", "Itens no checklist", "Resumo de execução"], [[w.id, w.alarm_id, w.panel_id, w.title, w.priority, w.status, w.assigned_technician, w.created_at, w.due_at, w.started_at, w.completed_at, sum(1 for item in checklist_by_order.get(w.id, []) if item.is_completed), len(checklist_by_order.get(w.id, [])), w.resolution] for w in work_orders]),
+        ("Ativos", ["ID", "Tag", "Nome", "Tipo", "Local", "Fabricante", "Modelo", "Série", "Painel", "Estado"], [[a.id, a.asset_tag, a.name, a.asset_type, a.location, a.manufacturer, a.model, a.serial_number, a.panel_id, a.status] for a in assets]),
+        ("Manutenção", ["ID", "Ativo ID", "Tarefa", "Responsável", "Prazo", "Estado", "Concluída em"], [[t.id, t.asset_id, t.title, t.assigned_to, t.due_at, t.status, t.completed_at] for t in tasks]),
+        ("Estoque", ["ID", "Item", "Categoria", "Quantidade", "Estoque mínimo", "Custo unitário (R$)", "Abaixo do mínimo"], [[i.id, i.part_name, i.category, i.quantity_in_stock, i.min_threshold, i.unit_cost, "SIM" if i.quantity_in_stock < i.min_threshold else "NÃO"] for i in inventory]),
+    ]
+    for sheet_name, headers, rows in detail_sheets:
+        setup_sheet(workbook.create_sheet(sheet_name), sheet_name, headers, rows)
+
+    # Start readers on the executive summary and give every sheet a consistent print header.
+    workbook.active = 0
+    for sheet in workbook.worksheets:
+        sheet.print_title_rows = "1:5"
+        sheet.sheet_view.zoomScale = 90
+    workbook.save(output)
     output.seek(0)
-    return StreamingResponse(iter(["\ufeff" + output.getvalue()]), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=relatorio_executivo_voltguard.csv"})
+    return StreamingResponse(iter([output.getvalue()]), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": "attachment; filename=relatorio_executivo_voltguard.xlsx"})
 
 class WorkOrderCreate(BaseModel):
     panel_id: str

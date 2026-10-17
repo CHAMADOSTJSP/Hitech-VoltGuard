@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.35.0 — Relatório executivo formatado em Excel
+
+O relatório executivo agora é exportado como `.xlsx`, com abas separadas para resumo, painéis, alarmes, ordens de serviço, ativos, manutenção e estoque. O arquivo inclui cabeçalhos destacados, filtros, linhas congeladas, colunas ajustadas e configuração para impressão. Mantém a rastreabilidade de alarmes e OS e o progresso dos checklists.
+
 ## v0.34.0 — Rastreabilidade no relatório executivo
 
 O CSV executivo inclui datas de ocorrência, reconhecimento e encerramento dos alarmes e mostra a OS vinculada. As OS exportadas incluem o alarme de origem e o progresso do checklist; o resumo também conta alarmes ativos/reconhecidos e OS originadas de alarmes.

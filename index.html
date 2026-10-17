@@ -309,7 +309,7 @@
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
-                link.download = 'relatorio_executivo_voltguard.csv';
+                link.download = 'relatorio_executivo_voltguard.xlsx';
                 document.body.appendChild(link);
                 link.click();
                 link.remove();
@@ -1459,9 +1459,9 @@
                 container.innerHTML = `
                     <div style="grid-column: 1/-1; background: rgba(17, 42, 29, 0.95); border: 1px solid #10b981; padding: 25px; border-radius: 8px; max-width: 600px;">
                         <h3 style="color:#10b981; margin-top:0;">📈 Relatório Executivo Operacional</h3>
-                        <p style="font-size:13px; color:#d1d5db;">Exporte um retrato da organização com indicadores e registros de painéis, alarmes, ordens de serviço, ativos, manutenção e estoque. O CSV inclui vínculos entre alarmes e OS, além do progresso dos checklists. Compatível com Excel; os dados refletem o momento da exportação.</p>
+                        <p style="font-size:13px; color:#d1d5db;">Exporte um retrato da organização em uma pasta de trabalho Excel formatada, com abas separadas para resumo, painéis, alarmes, ordens de serviço, ativos, manutenção e estoque. As tabelas têm filtros, cabeçalhos destacados e colunas ajustadas. Os dados refletem o momento da exportação.</p>
                         <p style="font-size:12px; color:#9ca3af;">Relatório operacional demonstrativo; não certifica conformidade com NR-10 ou outras normas.</p>
-                        <button type="button" class="btn-primary" style="margin-top:15px;" onclick="baixarRelatorio()">📥 Descarregar relatório executivo (.csv)</button>
+                        <button type="button" class="btn-primary" style="margin-top:15px;" onclick="baixarRelatorio()">📥 Descarregar relatório executivo (.xlsx)</button>
                     </div>`;
                 return;
             }

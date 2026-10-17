@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.35.0 — Relatório executivo formatado em Excel
+- O relatório é exportado como `.xlsx`, com abas separadas para resumo, painéis, alarmes, ordens de serviço, ativos, manutenção e estoque.
+- Incluídos cabeçalhos destacados, filtros, linhas congeladas, colunas ajustadas e configuração de impressão.
+- Mantidas as referências entre alarmes e OS, contagens executivas e progresso dos checklists.
+
 ## v0.34.0 — Rastreabilidade no relatório executivo
 - O CSV inclui datas da ocorrência, reconhecimento e encerramento dos alarmes e o ID da OS vinculada.
 - Incluídos no resumo os alarmes ativos/reconhecidos e as ordens geradas por alarmes.
