@@ -432,6 +432,34 @@
             if(res.ok) { alert(d.message); }
         }
 
+        async function carregarRegrasPainel() {
+            const selector = document.getElementById('panel-rule-select');
+            if (!selector || !selector.value) return;
+            try {
+                const res = await fetch(`/api/panels/${encodeURIComponent(selector.value)}/alarm-rules`, {headers:{'Authorization': `Bearer ${tokenJwt}`}});
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Falha ao carregar regras do painel.');
+                document.getElementById('panel-rule-temp').value = data.max_temperature;
+                document.getElementById('panel-rule-current').value = data.max_current;
+                document.getElementById('panel-rule-temp-hyst').value = data.temperature_hysteresis;
+                document.getElementById('panel-rule-current-hyst').value = data.current_hysteresis;
+                document.getElementById('panel-rule-mode').innerText = data.custom ? 'Usando regras específicas deste painel.' : 'Usando regras padrão da organização até salvar regras específicas.';
+            } catch (err) { alert(err.message); }
+        }
+
+        async function salvarRegrasPainel(event) {
+            event.preventDefault();
+            const panelId = document.getElementById('panel-rule-select').value;
+            const payload = {max_temperature:Number(document.getElementById('panel-rule-temp').value), max_current:Number(document.getElementById('panel-rule-current').value), temperature_hysteresis:Number(document.getElementById('panel-rule-temp-hyst').value), current_hysteresis:Number(document.getElementById('panel-rule-current-hyst').value)};
+            try {
+                const res = await fetch(`/api/panels/${encodeURIComponent(panelId)}/alarm-rules`, {method:'PUT', headers:{'Content-Type':'application/json','Authorization':`Bearer ${tokenJwt}`}, body:JSON.stringify(payload)});
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Falha ao guardar regras.');
+                document.getElementById('panel-rule-mode').innerText = 'Regras específicas salvas para este painel.';
+                alert(data.message);
+            } catch (err) { alert(err.message); }
+        }
+
         async function criarOrdemServico(event) {
             event.preventDefault();
             const payload = {panel_id: document.getElementById('os-panel').value, title: document.getElementById('os-title').value.trim(), priority: document.getElementById('os-priority').value, assigned_technician: document.getElementById('os-tech').value.trim() || null, description: document.getElementById('os-description').value.trim() || null};
@@ -725,9 +753,22 @@
                         <form onsubmit="salvarRegrasTenant(event)" style="margin-top: 15px;">
                             <div class="input-group"><label>Temperatura Máxima de Alerta (°C)</label><input type="number" step="0.1" id="rule-temp-input" value="${billingData.max_temperature || 85.0}" required></div>
                             <div class="input-group"><label>Corrente Máxima de Alerta (A)</label><input type="number" step="0.1" id="rule-curr-input" value="${billingData.max_current || 500.0}" required></div>
-                            <button type="submit" class="btn-primary" style="margin-top: 10px;">Guardar Regras do Tenant</button>
+                            <button type="submit" class="btn-primary" style="margin-top: 10px;">Guardar Regras da Organização</button>
+                        </form>
+                        <hr style="border-color:#065f46;margin:24px 0;">
+                        <h3 style="color:#10b981;">Regras específicas por painel</h3>
+                        <p style="font-size:13px;color:#d1d5db;">Regras específicas substituem os limites padrão da organização. A histerese reduz abertura e fechamento repetidos quando as leituras oscilam perto do limite.</p>
+                        <form onsubmit="salvarRegrasPainel(event)" style="margin-top:15px;">
+                            <div class="input-group"><label>Painel</label><select id="panel-rule-select" onchange="carregarRegrasPainel()" required>${(dadosGlobais.panels || []).map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name || p.id)} — ${escapeHtml(p.id)}</option>`).join('')}</select></div>
+                            <div class="input-group"><label>Temperatura máxima (°C)</label><input type="number" step="0.1" min="0.1" max="250" id="panel-rule-temp" value="85" required></div>
+                            <div class="input-group"><label>Corrente máxima (A)</label><input type="number" step="0.1" min="0.1" max="100000" id="panel-rule-current" value="500" required></div>
+                            <div class="input-group"><label>Histerese de temperatura (°C)</label><input type="number" step="0.1" min="0" id="panel-rule-temp-hyst" value="3" required></div>
+                            <div class="input-group"><label>Histerese de corrente (A)</label><input type="number" step="0.1" min="0" id="panel-rule-current-hyst" value="10" required></div>
+                            <p id="panel-rule-mode" style="font-size:12px;color:#9ca3af;">Selecione um painel para carregar as regras.</p>
+                            <button type="submit" class="btn-primary" style="margin-top:10px;">Salvar regras deste painel</button>
                         </form>
                     </div>`;
+                setTimeout(() => carregarRegrasPainel(), 0);
                 return;
             }
 

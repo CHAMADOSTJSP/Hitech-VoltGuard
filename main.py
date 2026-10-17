@@ -107,6 +107,18 @@ class TenantRuleModel(Base):
     max_temperature = Column(Float, default=85.0)
     max_current = Column(Float, default=500.0)
 
+class PanelAlarmRuleModel(Base):
+    __tablename__ = "panel_alarm_rules"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(String, index=True, nullable=False)
+    panel_id = Column(String, index=True, nullable=False)
+    max_temperature = Column(Float, nullable=False, default=85.0)
+    max_current = Column(Float, nullable=False, default=500.0)
+    temperature_hysteresis = Column(Float, nullable=False, default=3.0)
+    current_hysteresis = Column(Float, nullable=False, default=10.0)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class WorkOrderModel(Base):
     __tablename__ = "work_orders"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
@@ -238,7 +250,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.5.0",
+    version="0.5.6",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -558,6 +570,64 @@ def add_panel(data: dict, db: Session = Depends(get_db), current_user: User = De
     db.commit()
     return {"status": "success", "message": f"Painel {panel_id} adicionado com sucesso!"}
 
+def get_effective_alarm_rule(db: Session, tenant_id: str, panel_id: str):
+    panel_rule = db.query(PanelAlarmRuleModel).filter(PanelAlarmRuleModel.tenant_id == tenant_id, PanelAlarmRuleModel.panel_id == panel_id).first()
+    if panel_rule:
+        return panel_rule
+    tenant_rule = db.query(TenantRuleModel).filter(TenantRuleModel.tenant_id == tenant_id).first()
+    return type("EffectiveRule", (), {"max_temperature": tenant_rule.max_temperature if tenant_rule else 85.0,
+        "max_current": tenant_rule.max_current if tenant_rule else 500.0,
+        "temperature_hysteresis": 3.0, "current_hysteresis": 10.0})()
+
+
+def condition_is_active(value: float, limit: float, hysteresis: float, alarm_exists: bool) -> bool:
+    # An open alarm remains active until the reading falls below limit - hysteresis.
+    return value > (limit - hysteresis if alarm_exists else limit)
+
+
+@app.get("/api/panels/{panel_id}/alarm-rules", tags=["Alarm Rules"])
+def get_panel_alarm_rules(panel_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    panel = db.query(PanelModel).filter(PanelModel.id == panel_id, PanelModel.tenant_id == current_user.tenant_id).first()
+    if not panel:
+        raise HTTPException(status_code=404, detail="Painel não encontrado nesta organização.")
+    custom = db.query(PanelAlarmRuleModel).filter(PanelAlarmRuleModel.tenant_id == current_user.tenant_id, PanelAlarmRuleModel.panel_id == panel_id).first()
+    rule = get_effective_alarm_rule(db, current_user.tenant_id, panel_id)
+    return {"panel_id": panel_id, "custom": custom is not None, "max_temperature": rule.max_temperature,
+            "max_current": rule.max_current, "temperature_hysteresis": rule.temperature_hysteresis,
+            "current_hysteresis": rule.current_hysteresis}
+
+
+@app.put("/api/panels/{panel_id}/alarm-rules", tags=["Alarm Rules"])
+def save_panel_alarm_rules(panel_id: str, data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role not in {"CEO", "Gerente"}:
+        raise HTTPException(status_code=403, detail="Sem permissão para alterar regras de alarme.")
+    panel = db.query(PanelModel).filter(PanelModel.id == panel_id, PanelModel.tenant_id == current_user.tenant_id).first()
+    if not panel:
+        raise HTTPException(status_code=404, detail="Painel não encontrado nesta organização.")
+    import math
+    try:
+        values = {"max_temperature": float(data.get("max_temperature", 85)), "max_current": float(data.get("max_current", 500)),
+                  "temperature_hysteresis": float(data.get("temperature_hysteresis", 3)), "current_hysteresis": float(data.get("current_hysteresis", 10))}
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail="Todos os limites devem ser numéricos.")
+    if not all(math.isfinite(v) for v in values.values()):
+        raise HTTPException(status_code=422, detail="Valores não finitos não são permitidos.")
+    if not 0 < values["max_temperature"] <= 250 or not 0 < values["max_current"] <= 100000:
+        raise HTTPException(status_code=422, detail="Limites máximos fora dos intervalos permitidos.")
+    if not 0 <= values["temperature_hysteresis"] < values["max_temperature"] or not 0 <= values["current_hysteresis"] < values["max_current"]:
+        raise HTTPException(status_code=422, detail="A histerese deve ser não negativa e menor que o limite correspondente.")
+    rule = db.query(PanelAlarmRuleModel).filter(PanelAlarmRuleModel.tenant_id == current_user.tenant_id, PanelAlarmRuleModel.panel_id == panel_id).first()
+    if rule is None:
+        rule = PanelAlarmRuleModel(tenant_id=current_user.tenant_id, panel_id=panel_id)
+        db.add(rule)
+    for key, value in values.items(): setattr(rule, key, value)
+    rule.updated_at = datetime.utcnow()
+    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role,
+        action="CONFIGURAR_REGRAS_PAINEL", details=f"Regras atualizadas para {panel_id}: temperatura={values['max_temperature']}°C, corrente={values['max_current']}A."))
+    db.commit()
+    return {"status": "success", "message": "Regras específicas do painel atualizadas.", "panel_id": panel_id, **values}
+
+
 @app.post("/api/telemetry", tags=["Industrial Ingestion"])
 def ingest_telemetry(data: TelemetryData, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     import math
@@ -575,9 +645,8 @@ def ingest_telemetry(data: TelemetryData, current_user: User = Depends(get_curre
     if not panel:
         raise HTTPException(status_code=404, detail=f"Painel {data.panel_id} não encontrado.")
     
-    rule = db.query(TenantRuleModel).filter(TenantRuleModel.tenant_id == current_user.tenant_id).first()
-    temp_limit = rule.max_temperature if rule else 85.0
-    current_limit = rule.max_current if rule else 500.0
+    rule = get_effective_alarm_rule(db, current_user.tenant_id, panel.id)
+    temp_limit, current_limit = rule.max_temperature, rule.max_current
     
     panel.temperature = data.temperature
     panel.current = data.current
@@ -597,16 +666,17 @@ def ingest_telemetry(data: TelemetryData, current_user: User = Depends(get_curre
         panel.recommendation = "Sistema a operar dentro dos parâmetros configurados."
         
     # Alarm lifecycle: one open alarm per panel/type; repeated events update the same record.
-    active_conditions = []
-    if data.temperature > temp_limit:
-        active_conditions.append(("HIGH_TEMPERATURE", "CRITICAL", f"Temperatura {data.temperature} °C acima do limite {temp_limit} °C."))
-    if data.current > current_limit:
-        active_conditions.append(("HIGH_CURRENT", "CRITICAL", f"Corrente {data.current} A acima do limite {current_limit} A."))
     open_alarms = db.query(AlarmModel).filter(
         AlarmModel.tenant_id == current_user.tenant_id,
         AlarmModel.panel_id == panel.id,
         AlarmModel.status.in_(["ACTIVE", "ACKNOWLEDGED"]),
     ).all()
+    open_types = {item.alarm_type for item in open_alarms}
+    active_conditions = []
+    if condition_is_active(data.temperature, temp_limit, rule.temperature_hysteresis, "HIGH_TEMPERATURE" in open_types):
+        active_conditions.append(("HIGH_TEMPERATURE", "CRITICAL", f"Temperatura {data.temperature} °C acima do limite configurado de {temp_limit} °C."))
+    if condition_is_active(data.current, current_limit, rule.current_hysteresis, "HIGH_CURRENT" in open_types):
+        active_conditions.append(("HIGH_CURRENT", "CRITICAL", f"Corrente {data.current} A acima do limite configurado de {current_limit} A."))
     active_types = {condition[0] for condition in active_conditions}
     now = datetime.utcnow()
     for alarm_type, severity, message in active_conditions:
@@ -1204,17 +1274,18 @@ def ingest_device_telemetry(data: DeviceTelemetry, authorization: Optional[str] 
     if data.gateway_qr is not None and len(data.gateway_qr) > 160: raise HTTPException(status_code=422, detail="Identificador do gateway demasiado longo.")
     panel = db.query(PanelModel).filter(PanelModel.id == credential.panel_id, PanelModel.tenant_id == credential.tenant_id).first()
     if not panel: raise HTTPException(status_code=404, detail="Painel associado não encontrado.")
-    rule = db.query(TenantRuleModel).filter(TenantRuleModel.tenant_id == credential.tenant_id).first()
-    temp_limit, current_limit = (rule.max_temperature, rule.max_current) if rule else (85.0, 500.0)
+    rule = get_effective_alarm_rule(db, credential.tenant_id, panel.id)
+    temp_limit, current_limit = rule.max_temperature, rule.max_current
     panel.temperature, panel.current = data.temperature, data.current
     if data.voltage: panel.voltage = data.voltage[:80]
-    active_conditions = []
-    if data.temperature > temp_limit: active_conditions.append(("HIGH_TEMPERATURE", f"Temperatura {data.temperature} °C acima do limite {temp_limit} °C."))
-    if data.current > current_limit: active_conditions.append(("HIGH_CURRENT", f"Corrente {data.current} A acima do limite {current_limit} A."))
-    panel.status = "CRITICO" if active_conditions else "NORMAL"
-    panel.recommendation = "ALERTA: " + "; ".join(message for _, message in active_conditions) if active_conditions else "Sistema a operar dentro dos parâmetros configurados."
     now = datetime.utcnow()
     opened = db.query(AlarmModel).filter(AlarmModel.tenant_id == credential.tenant_id, AlarmModel.panel_id == panel.id, AlarmModel.status.in_(["ACTIVE", "ACKNOWLEDGED"])).all()
+    opened_types = {item.alarm_type for item in opened}
+    active_conditions = []
+    if condition_is_active(data.temperature, temp_limit, rule.temperature_hysteresis, "HIGH_TEMPERATURE" in opened_types): active_conditions.append(("HIGH_TEMPERATURE", f"Temperatura {data.temperature} °C acima do limite configurado de {temp_limit} °C."))
+    if condition_is_active(data.current, current_limit, rule.current_hysteresis, "HIGH_CURRENT" in opened_types): active_conditions.append(("HIGH_CURRENT", f"Corrente {data.current} A acima do limite configurado de {current_limit} A."))
+    panel.status = "CRITICO" if active_conditions else "NORMAL"
+    panel.recommendation = "ALERTA: " + "; ".join(message for _, message in active_conditions) if active_conditions else "Sistema a operar dentro dos parâmetros configurados."
     active_types = {item[0] for item in active_conditions}
     for alarm_type, message in active_conditions:
         existing = next((x for x in opened if x.alarm_type == alarm_type), None)

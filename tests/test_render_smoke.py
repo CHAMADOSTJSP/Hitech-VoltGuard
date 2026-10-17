@@ -108,6 +108,39 @@ class VoltGuardSmokeTests(unittest.TestCase):
         self.assertIn("HIGH_TEMPERATURE", types)
         self.assertIn("HIGH_CURRENT", types)
 
+    def test_panel_alarm_rules_and_hysteresis(self):
+        _, headers = self.create_tenant("PANELRULES")
+        panel = self.client.get("/api/panels", headers=headers).json()["panels"][0]
+        panel_id = panel["id"]
+        saved = self.client.put(f"/api/panels/{panel_id}/alarm-rules", headers=headers, json={
+            "max_temperature": 80, "max_current": 400,
+            "temperature_hysteresis": 5, "current_hysteresis": 20
+        })
+        self.assertEqual(saved.status_code, 200, saved.text)
+        self.assertEqual(saved.json()["max_temperature"], 80)
+        read = self.client.get(f"/api/panels/{panel_id}/alarm-rules", headers=headers)
+        self.assertTrue(read.json()["custom"])
+        # Trigger at 82, remain active at 78 (limit - hysteresis = 75), clear at 74.
+        self.assertEqual(self.client.post("/api/telemetry", headers=headers, json={"panel_id":panel_id,"temperature":82,"current":100,"voltage":"380V AC"}).status_code, 200)
+        alarms = self.client.get("/api/alarms?status_filter=ACTIVE", headers=headers).json()
+        alarm = next(a for a in alarms if a["panel_id"] == panel_id and a["alarm_type"] == "HIGH_TEMPERATURE")
+        alarm_id = alarm["id"]
+        self.client.post("/api/telemetry", headers=headers, json={"panel_id":panel_id,"temperature":78,"current":100,"voltage":"380V AC"})
+        alarms = self.client.get("/api/alarms?status_filter=ACTIVE", headers=headers).json()
+        self.assertTrue(any(a["id"] == alarm_id for a in alarms))
+        self.client.post("/api/telemetry", headers=headers, json={"panel_id":panel_id,"temperature":74,"current":100,"voltage":"380V AC"})
+        cleared = self.client.get("/api/alarms?status_filter=CLEARED", headers=headers).json()
+        self.assertTrue(any(a["id"] == alarm_id for a in cleared))
+
+    def test_panel_alarm_rules_tenant_isolation_and_validation(self):
+        _, headers_a = self.create_tenant("RULESA")
+        _, headers_b = self.create_tenant("RULESB")
+        panel_a = self.client.get("/api/panels", headers=headers_a).json()["panels"][0]
+        foreign = self.client.get(f"/api/panels/{panel_a['id']}/alarm-rules", headers=headers_b)
+        self.assertEqual(foreign.status_code, 404)
+        invalid = self.client.put(f"/api/panels/{panel_a['id']}/alarm-rules", headers=headers_a, json={"max_temperature":80,"max_current":100,"temperature_hysteresis":80,"current_hysteresis":10})
+        self.assertEqual(invalid.status_code, 422)
+
     def test_asset_creation_and_tenant_isolation(self):
         tenant, headers = self.create_tenant("ASSET")
         other_tenant, other_headers = self.create_tenant("ASSETOTHER")

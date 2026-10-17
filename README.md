@@ -151,3 +151,7 @@ Ao criar uma credencial em **Dispositivos**, abre uma janela com o token e botã
 
 ## v0.5.4 — Histórico gráfico
 A aba **Tendência Térmica** mostra gráficos de temperatura e corrente a partir das amostras armazenadas. O filtro de período atua sobre até 500 amostras por painel carregadas no painel principal: última hora, 24 horas, 7 dias ou todo o histórico carregado. Para consultas mais extensas, use o endpoint autenticado `GET /api/telemetry/history/{panel_id}`, que suporta paginação. A tensão permanece exibida como última leitura textual porque o modelo atual não guarda uma tensão numérica normalizada. Se não houver amostras no período, a interface informa isso sem inventar dados.
+
+
+### Regras de alarme por painel (v0.5.6)
+A aba **Regras de Alarme** permite configurar limites e histerese por painel. Endpoints: `GET /api/panels/{panel_id}/alarm-rules` e `PUT /api/panels/{panel_id}/alarm-rules`. Painéis sem regra específica continuam usando os limites da organização. A tabela `panel_alarm_rules` é criada por `create_all`; não exige apagar ou recriar o banco existente.

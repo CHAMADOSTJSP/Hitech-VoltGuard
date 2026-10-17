@@ -74,3 +74,10 @@ Consulte `REVISAO_TECNICA.md`. A aplicação permanece candidata a demonstraçã
 - Substituído o alerta nativo ao criar credencial por uma janela acessível com token selecionável e botão **Copiar token**.
 - Incluído fallback de cópia e instrução para usar Ctrl+C se o navegador bloquear a cópia automática.
 - O token continua sendo exibido somente na criação e não é gravado no armazenamento do navegador.
+
+
+## v0.5.6
+- Regras de alarme configuráveis por painel, com fallback para os limites da organização.
+- Histerese configurável para temperatura e corrente, reduzindo oscilação de alarmes.
+- Auditoria de alterações de regras e validação de isolamento multi-tenant.
+- UI de configuração por painel na aba Regras de Alarme.
