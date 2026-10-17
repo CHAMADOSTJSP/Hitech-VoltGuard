@@ -292,7 +292,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.17.0",
+    version="0.18.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -590,7 +590,7 @@ def update_tenant_rules(data: dict, db: Session = Depends(get_db), current_user:
     else:
         db.add(TenantRuleModel(tenant_id=current_user.tenant_id, max_temperature=max_temp, max_current=max_curr))
         
-    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="CONFIGURAR_REGRAS", details=f"Limites alterados: Temp={max_temp}°C"))
+    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="CONFIGURAR_REGRAS", details=f"Limites da organização atualizados: temperatura={max_temp}°C, corrente={max_curr}A."))
     db.commit()
     return {"status": "success", "message": f"Regras de alarme atualizadas para Limite Térmico: {max_temp}°C"}
 
@@ -699,6 +699,22 @@ def save_panel_alarm_rules(panel_id: str, data: dict, db: Session = Depends(get_
         action="CONFIGURAR_REGRAS_PAINEL", details=f"Regras atualizadas para {panel_id}: temperatura={values['max_temperature']}°C, corrente={values['max_current']}A."))
     db.commit()
     return {"status": "success", "message": "Regras específicas do painel atualizadas.", "panel_id": panel_id, **values}
+
+
+@app.delete("/api/panels/{panel_id}/alarm-rules", tags=["Alarm Rules"])
+def delete_panel_alarm_rules(panel_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role not in {"CEO", "Gerente"}:
+        raise HTTPException(status_code=403, detail="Sem permissão para alterar regras de alarme.")
+    panel = db.query(PanelModel).filter(PanelModel.id == panel_id, PanelModel.tenant_id == current_user.tenant_id).first()
+    if not panel:
+        raise HTTPException(status_code=404, detail="Painel não encontrado nesta organização.")
+    rule = db.query(PanelAlarmRuleModel).filter(PanelAlarmRuleModel.tenant_id == current_user.tenant_id, PanelAlarmRuleModel.panel_id == panel_id).first()
+    if rule:
+        db.delete(rule)
+        db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role,
+            action="RESTAURAR_REGRAS_PAINEL", details=f"Regras específicas removidas do painel {panel_id}; aplicados os padrões da organização."))
+        db.commit()
+    return {"status": "success", "custom": False, "panel_id": panel_id, "message": "O painel está usando os limites padrão da organização."}
 
 
 @app.post("/api/telemetry", tags=["Industrial Ingestion"])

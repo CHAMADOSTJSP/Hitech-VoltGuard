@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.18.0 — Regras de alarme
+- Adicionada restauração das regras padrão da organização para um painel, removendo sua substituição específica.
+- A restauração é restrita ao tenant e registrada na auditoria.
+- Corrigida a auditoria das regras da organização para incluir temperatura e corrente.
+- Evita que respostas fora de ordem troquem os valores exibidos ao alternar rapidamente entre painéis.
+
 ## v0.17.0 — Credenciais de dispositivos
 - Corrigido o registro de auditoria na criação para incluir o ID definitivo da credencial.
 - Tornada idempotente a revogação repetida, preservando o instante original da revogação.

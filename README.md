@@ -2,6 +2,10 @@
 
 Versão revisada para **demonstração e homologação controlada**. Este pacote não é SCADA industrial certificado e não deve ser conectado a funções de proteção, intertravamento ou comando de equipamentos elétricos.
 
+## v0.18.0 — Regras de alarme
+
+Regras específicas por painel podem ser removidas para voltar aos limites padrão da organização. A alteração é isolada por organização e auditada. A auditoria das regras gerais registra os limites de temperatura e corrente.
+
 ## v0.17.0 — Credenciais de dispositivos
 
 A aba Dispositivos resume credenciais ativas, nunca utilizadas e revogadas, com busca e filtros por painel/estado. O log de criação guarda o ID atribuído pelo banco; chamadas repetidas para revogar não alteram o horário original.
@@ -216,7 +220,7 @@ A aba **Tendência Térmica** mostra gráficos de temperatura e corrente a parti
 
 
 ### Regras de alarme por painel (v0.5.6)
-A aba **Regras de Alarme** permite configurar limites e histerese por painel. Endpoints: `GET /api/panels/{panel_id}/alarm-rules` e `PUT /api/panels/{panel_id}/alarm-rules`. Painéis sem regra específica continuam usando os limites da organização. A tabela `panel_alarm_rules` é criada por `create_all`; não exige apagar ou recriar o banco existente.
+A aba **Regras de Alarme** permite configurar limites e histerese por painel. Endpoints: `GET`, `PUT` e `DELETE /api/panels/{panel_id}/alarm-rules`. Ao remover uma regra personalizada, o painel volta a usar os limites da organização. A tabela `panel_alarm_rules` é criada por `create_all`; não exige apagar ou recriar o banco existente.
 
 
 ## v0.5.8
