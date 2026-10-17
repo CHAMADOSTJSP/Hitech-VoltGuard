@@ -15,7 +15,7 @@ from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from pydantic import BaseModel
 import jwt
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Index, Text, text
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Index, Text, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -102,6 +102,17 @@ class WorkOrderHistoryModel(Base):
     action = Column(String, nullable=False)
     details = Column(Text, nullable=False)
     resolution = Column(Text, nullable=True)
+
+class WorkOrderChecklistItemModel(Base):
+    __tablename__ = "work_order_checklist_items"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    tenant_id = Column(String, nullable=False, index=True)
+    work_order_id = Column(Integer, nullable=False, index=True)
+    label = Column(String(240), nullable=False)
+    is_completed = Column(Boolean, default=False, nullable=False)
+    completed_at = Column(DateTime, nullable=True)
+    completed_by = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 class TenantSubscriptionModel(Base):
     __tablename__ = "subscriptions"
@@ -270,7 +281,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.8.0",
+    version="0.9.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -880,6 +891,17 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
             })
         for events in history_by_order.values():
             events.reverse()
+        checklist_by_order = {}
+        if work_order_ids:
+            checklist_items = db.query(WorkOrderChecklistItemModel).filter(
+                WorkOrderChecklistItemModel.tenant_id == current_user.tenant_id,
+                WorkOrderChecklistItemModel.work_order_id.in_(work_order_ids),
+            ).order_by(WorkOrderChecklistItemModel.id.asc()).all()
+            for item in checklist_items:
+                checklist_by_order.setdefault(item.work_order_id, []).append({
+                    "id": item.id, "label": item.label, "is_completed": item.is_completed,
+                    "completed_at": utc_iso(item.completed_at), "completed_by": item.completed_by,
+                })
         inventory = db.query(InventoryModel).filter(InventoryModel.tenant_id == current_user.tenant_id).all()
         alarms = db.query(AlarmModel).filter(AlarmModel.tenant_id == current_user.tenant_id).order_by(AlarmModel.first_triggered_at.desc()).limit(200).all()
         
@@ -894,7 +916,7 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
             history_data[p.id] = [{"timestamp": h.timestamp, "temperature": h.temperature, "current": h.current, "voltage": h.voltage} for h in h_records]
 
         logs_data = [{"timestamp": str(l.timestamp), "user_name": l.user_name, "role": l.role, "action": l.action, "details": l.details} for l in logs]
-        wo_data = [{"id": w.id, "alarm_id": w.alarm_id, "panel_id": w.panel_id, "title": w.title, "priority": w.priority, "status": w.status, "assigned_technician": w.assigned_technician, "created_at": utc_iso(w.created_at), "due_at": utc_iso(w.due_at), "started_at": utc_iso(w.started_at), "completed_at": utc_iso(w.completed_at), "description": w.description, "resolution": w.resolution, "history": history_by_order.get(w.id, [])} for w in work_orders]
+        wo_data = [{"id": w.id, "alarm_id": w.alarm_id, "panel_id": w.panel_id, "title": w.title, "priority": w.priority, "status": w.status, "assigned_technician": w.assigned_technician, "created_at": utc_iso(w.created_at), "due_at": utc_iso(w.due_at), "started_at": utc_iso(w.started_at), "completed_at": utc_iso(w.completed_at), "description": w.description, "resolution": w.resolution, "history": history_by_order.get(w.id, []), "checklist": checklist_by_order.get(w.id, [])} for w in work_orders]
         inv_data = [{"id": i.id, "part_name": i.part_name, "category": i.category, "quantity_in_stock": i.quantity_in_stock, "min_threshold": i.min_threshold, "unit_cost": i.unit_cost} for i in inventory]
         
         billing_info = {
@@ -1043,6 +1065,16 @@ def create_work_order_from_alarm(alarm_id: int, db: Session = Depends(get_db), c
     ))
     try:
         db.flush()
+        checklist_labels = [
+            "Inspecionar visualmente o painel e a área",
+            "Verificar a condição indicada pelo alarme",
+            "Registrar a solução e validar o retorno à condição normal",
+        ]
+        db.add_all([
+            WorkOrderChecklistItemModel(
+                tenant_id=current_user.tenant_id, work_order_id=order.id, label=label
+            ) for label in checklist_labels
+        ])
         db.add(WorkOrderHistoryModel(
             tenant_id=current_user.tenant_id, work_order_id=order.id,
             user_name=current_user.username, role=current_user.role, action="CRIADA",
@@ -1199,6 +1231,7 @@ class WorkOrderCreate(BaseModel):
     description: Optional[str] = None
     assigned_technician: Optional[str] = None
     due_at: Optional[datetime] = None
+    checklist: Optional[List[str]] = None
 
 class WorkOrderUpdate(BaseModel):
     status: Optional[str] = None
@@ -1207,6 +1240,9 @@ class WorkOrderUpdate(BaseModel):
     description: Optional[str] = None
     due_at: Optional[datetime] = None
     resolution: Optional[str] = None
+
+class WorkOrderChecklistItemUpdate(BaseModel):
+    is_completed: bool
 
 @app.post("/api/work-orders", status_code=201)
 def create_work_order(data: WorkOrderCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -1219,12 +1255,20 @@ def create_work_order(data: WorkOrderCreate, db: Session = Depends(get_db), curr
         raise HTTPException(status_code=422, detail="Prioridade inválida.")
     if data.description and len(data.description) > 4000:
         raise HTTPException(status_code=422, detail="Descrição demasiado longa.")
+    checklist_labels = [label.strip() for label in (data.checklist or []) if label.strip()]
+    if len(checklist_labels) > 20 or any(len(label) > 240 for label in checklist_labels):
+        raise HTTPException(status_code=422, detail="O checklist aceita até 20 itens com no máximo 240 caracteres cada.")
     panel = db.query(PanelModel).filter(PanelModel.id == panel_id, PanelModel.tenant_id == current_user.tenant_id).first()
     if not panel:
         raise HTTPException(status_code=404, detail="Painel não encontrado nesta organização.")
     order = WorkOrderModel(tenant_id=current_user.tenant_id, panel_id=panel_id, title=title, priority=data.priority, status="ABERTA", assigned_technician=(data.assigned_technician or "").strip() or None, description=data.description, due_at=utc_naive(data.due_at))
     db.add(order)
     db.flush()
+    db.add_all([
+        WorkOrderChecklistItemModel(
+            tenant_id=current_user.tenant_id, work_order_id=order.id, label=label
+        ) for label in checklist_labels
+    ])
     db.add(WorkOrderHistoryModel(
         tenant_id=current_user.tenant_id, work_order_id=order.id,
         user_name=current_user.username, role=current_user.role, action="CRIADA",
@@ -1268,6 +1312,13 @@ def update_work_order(order_id: int, data: WorkOrderUpdate, db: Session = Depend
             completion_note = (data.resolution or order.resolution or "").strip()
             if len(completion_note) < 10:
                 raise HTTPException(status_code=422, detail="Descreva a solução executada (mínimo de 10 caracteres) antes de concluir a ordem.")
+            pending_checklist = db.query(WorkOrderChecklistItemModel).filter(
+                WorkOrderChecklistItemModel.tenant_id == current_user.tenant_id,
+                WorkOrderChecklistItemModel.work_order_id == order.id,
+                WorkOrderChecklistItemModel.is_completed.is_(False),
+            ).count()
+            if pending_checklist:
+                raise HTTPException(status_code=422, detail=f"Conclua os {pending_checklist} item(ns) pendente(s) do checklist antes de encerrar a ordem.")
             order.resolution = completion_note
             order.completed_at = datetime.utcnow()
         if data.status == "EM_ANDAMENTO" and order.started_at is None:
@@ -1318,6 +1369,59 @@ def update_work_order(order_id: int, data: WorkOrderUpdate, db: Session = Depend
             "started_at": utc_iso(order.started_at),
             "completed_at": utc_iso(order.completed_at),
             "resolution": order.resolution}
+
+@app.patch("/api/work-orders/{order_id}/checklist/{item_id}")
+def update_work_order_checklist_item(
+    order_id: int, item_id: int, data: WorkOrderChecklistItemUpdate,
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
+):
+    if current_user.role not in {"CEO", "Gerente", "Técnico de Campo"}:
+        raise HTTPException(status_code=403, detail="Sem permissão para atualizar o checklist da ordem.")
+    order = db.query(WorkOrderModel).filter(
+        WorkOrderModel.id == order_id, WorkOrderModel.tenant_id == current_user.tenant_id
+    ).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Ordem de serviço não encontrada.")
+    if order.status in {"CONCLUIDA", "CANCELADA"}:
+        raise HTTPException(status_code=409, detail="O checklist de uma ordem encerrada não pode ser alterado.")
+    item = db.query(WorkOrderChecklistItemModel).filter(
+        WorkOrderChecklistItemModel.id == item_id,
+        WorkOrderChecklistItemModel.work_order_id == order.id,
+        WorkOrderChecklistItemModel.tenant_id == current_user.tenant_id,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item de checklist não encontrado nesta ordem.")
+    event_data = None
+    if item.is_completed != data.is_completed:
+        item.is_completed = data.is_completed
+        item.completed_at = datetime.utcnow() if data.is_completed else None
+        item.completed_by = current_user.username if data.is_completed else None
+        action = "marcado como concluído" if data.is_completed else "reaberto"
+        details = f'Checklist: "{item.label}" {action}.'
+        event = WorkOrderHistoryModel(
+            tenant_id=current_user.tenant_id, work_order_id=order.id,
+            user_name=current_user.username, role=current_user.role,
+            action="CHECKLIST_ATUALIZADO", details=details,
+        )
+        db.add(event)
+        db.add(AuditLogModel(
+            tenant_id=current_user.tenant_id, user_name=current_user.username,
+            role=current_user.role, action="ATUALIZAR_CHECKLIST_ORDEM",
+            details=f"Ordem {order.id}: {details}",
+        ))
+        db.commit()
+        db.refresh(item)
+        db.refresh(event)
+        event_data = {
+            "timestamp": utc_iso(event.timestamp), "user_name": event.user_name,
+            "role": event.role, "action": event.action, "details": event.details,
+            "resolution": None,
+        }
+    return {
+        "id": item.id, "is_completed": item.is_completed,
+        "completed_at": utc_iso(item.completed_at), "completed_by": item.completed_by,
+        "history_event": event_data,
+    }
 
 class AssetCreate(BaseModel):
     asset_tag: str

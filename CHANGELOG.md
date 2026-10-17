@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.9.0 — Checklist de execução para ordens de serviço
+- Criação de checklist opcional com até 20 itens por ordem.
+- Marcação e reabertura de itens autorizadas a papéis operacionais; cada mudança gera histórico e auditoria com usuário e horário.
+- A conclusão da OS é bloqueada até que todos os itens estejam concluídos; ordens antigas sem checklist seguem o fluxo atual.
+- Checklist de OS encerradas fica bloqueado para edição.
+
 ## v0.8.0 — Busca e prioridade operacional para ordens
 - Adicionados indicadores de ordens abertas, em andamento, atrasadas e concluídas.
 - Busca local por painel, título ou técnico e filtros por estado e prazo vencido.
