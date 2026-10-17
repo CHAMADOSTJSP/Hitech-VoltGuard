@@ -6,6 +6,10 @@ Versão revisada para **demonstração e homologação controlada**. Este pacote
 
 Modelos de checklist são guardados por organização. CEO e Gerente podem salvar o checklist atual como modelo e remover modelos; qualquer usuário autenticado com acesso às OS pode aplicar um modelo ao formulário. As OS existentes permanecem independentes dos modelos.
 
+## v0.10.1 — Aplicação direta dos modelos
+
+Selecionar um modelo agora preenche automaticamente os itens no formulário da nova OS; a aplicação confirma antes de substituir itens já digitados. O botão **Usar modelo** permanece disponível.
+
 ## v0.9.0 — Checklist de execução para ordens de serviço
 
 Ao criar uma OS, é possível incluir até 20 itens de checklist. A equipe marca cada item durante a execução; cada alteração registra usuário, horário e ação no histórico. O sistema impede concluir uma ordem enquanto houver itens pendentes. OS antigas sem checklist continuam funcionando.

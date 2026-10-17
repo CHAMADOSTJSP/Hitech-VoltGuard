@@ -146,8 +146,8 @@ Começar modular no monólito atual e separar ingestão, tarefas assíncronas ou
 
 As páginas e licenças comerciais podem mudar; verificar a versão e os termos aplicáveis antes de qualquer integração ou distribuição.
 
-## Implementação iniciada — v0.10.0
+## Implementação iniciada — v0.10.1
 
-Entregues a ligação rastreável entre alarmes e ordens de serviço, autorização por papel, transições controladas, o ciclo operacional de OS, histórico dedicado por ordem, busca/priorização por situação e prazo, checklist de execução auditável com bloqueio de conclusão enquanto houver pendências e modelos reutilizáveis isolados por organização.
+Entregues a ligação rastreável entre alarmes e ordens de serviço, autorização por papel, transições controladas, o ciclo operacional de OS, histórico dedicado por ordem, busca/priorização por situação e prazo, checklist de execução auditável com bloqueio de conclusão enquanto houver pendências e modelos reutilizáveis isolados por organização que são aplicados diretamente ao selecionar.
 
 Esta etapa não transforma o sistema em produto industrial pronto; deve ser seguida pela consolidação de identidade/permissões, migrações formais, ingestão/gateway resiliente, notificação monitorada e um piloto validado com clientes.

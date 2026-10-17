@@ -666,12 +666,12 @@
                 atualizarSeletorModelosChecklistOS(selectedId);
             } catch (err) { console.error('Falha ao carregar modelos de checklist:', err); }
         }
-        function aplicarModeloChecklistOS() {
+        function aplicarModeloChecklistOS(confirmarSubstituicao = true, silencioso = false) {
             const templateId = Number(document.getElementById('os-checklist-template')?.value);
             const template = workOrderChecklistTemplates.find(item => Number(item.id) === templateId);
             const field = document.getElementById('os-checklist');
-            if (!template || !field) return alert('Selecione um modelo de checklist.');
-            if (field.value.trim() && !confirm('Substituir os itens atuais pelo conteúdo deste modelo?')) return;
+            if (!template || !field) { if (!silencioso) alert('Selecione um modelo de checklist.'); return; }
+            if (confirmarSubstituicao && field.value.trim() && !confirm('Substituir os itens atuais pelo conteúdo deste modelo?')) return;
             field.value = template.items.join('\n');
         }
         async function salvarModeloChecklistOS() {
@@ -1004,7 +1004,7 @@
                       <div class="input-group"><label>Técnico atribuído</label><input id="os-tech" maxlength="120"></div>
                       <div class="input-group"><label>Prazo (opcional)</label><input id="os-due-at" type="datetime-local"></div>
                       <div class="input-group" style="grid-column:1/-1"><label>Descrição</label><input id="os-description" maxlength="4000"></div>
-                      <div class="input-group" style="grid-column:1/-1"><label>Modelo de checklist</label><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><select id="os-checklist-template" style="flex:1;min-width:220px"><option value="">Selecionar modelo...</option></select><button type="button" class="btn-action" onclick="aplicarModeloChecklistOS()">Usar modelo</button>${['CEO','Gerente'].includes(currentCargo) ? '<input id="os-checklist-template-name" maxlength="120" placeholder="Nome do novo modelo" style="flex:1;min-width:180px"><button type="button" class="btn-action" onclick="salvarModeloChecklistOS()">Salvar checklist como modelo</button><button type="button" class="btn-action" onclick="removerModeloChecklistOS()">Remover selecionado</button>' : ''}</div></div>
+                      <div class="input-group" style="grid-column:1/-1"><label>Modelo de checklist</label><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><select id="os-checklist-template" onchange="aplicarModeloChecklistOS(true,true)" style="flex:1;min-width:220px"><option value="">Selecionar modelo...</option></select><button type="button" class="btn-action" onclick="aplicarModeloChecklistOS()">Usar modelo</button>${['CEO','Gerente'].includes(currentCargo) ? '<input id="os-checklist-template-name" maxlength="120" placeholder="Nome do novo modelo" style="flex:1;min-width:180px"><button type="button" class="btn-action" onclick="salvarModeloChecklistOS()">Salvar checklist como modelo</button><button type="button" class="btn-action" onclick="removerModeloChecklistOS()">Remover selecionado</button>' : ''}</div></div>
                       <div class="input-group" style="grid-column:1/-1"><label>Checklist (opcional, um item por linha; até 20)</label><textarea id="os-checklist" maxlength="5000" rows="3" placeholder="Ex.: Inspecionar visualmente\nVerificar conexões\nRegistrar medições"></textarea></div>
                       <button class="btn-primary" type="submit">Criar ordem de serviço</button>
                     </form>

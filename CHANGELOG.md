@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.10.1 — Aplicação direta dos modelos
+- Selecionar um modelo de checklist preenche automaticamente o campo da OS.
+- Se já houver itens digitados, a interface pede confirmação antes de substituí-los.
+- Mantido o botão explícito **Usar modelo** para reaplicar o modelo selecionado.
+
 ## v0.10.0 — Modelos reutilizáveis de checklist
 - Adicionado armazenamento de modelos de checklist isolado por organização, com nome exclusivo dentro de cada tenant.
 - CEO e Gerente podem salvar modelos a partir dos itens preenchidos e remover os modelos selecionados.
