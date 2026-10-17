@@ -2,6 +2,10 @@
 
 Versão revisada para **demonstração e homologação controlada**. Este pacote não é SCADA industrial certificado e não deve ser conectado a funções de proteção, intertravamento ou comando de equipamentos elétricos.
 
+## v0.16.0 — Acompanhamento de manutenção
+
+A aba Manutenção apresenta contadores operacionais, destaca e filtra tarefas atrasadas, permite buscar por ativo/tarefa/responsável e ajustar o responsável, prazo e estado da tarefa. Alterações operacionais entram na auditoria.
+
 ## v0.15.0 — Gestão de ativos
 
 A aba Ativos agora permite buscar por tag, nome, tipo, localização, fabricante, modelo, série ou painel, filtrar por estado e editar os dados. Mudanças são registradas na auditoria e os ativos podem ser marcados como `ATIVO`, `MANUTENCAO` ou `INATIVO`, preservando seus vínculos com planos e tarefas.
@@ -172,7 +176,7 @@ Endpoints autenticados: `GET /api/assets`, `POST /api/assets` e `PATCH /api/asse
 ### Manutenção preventiva
 A aba **Manutenção** permite criar planos com periodicidade em dias e checklist, gera a primeira tarefa e agenda a próxima execução quando uma tarefa recorrente é concluída. Estados: `PENDENTE`, `EM_ANDAMENTO`, `CONCLUIDA`, `CANCELADA`. A recorrência é acionada na conclusão da tarefa, não por um scheduler externo.
 
-Endpoints autenticados: `GET/POST /api/maintenance/plans`, `GET/POST /api/maintenance/tasks`, `PATCH /api/maintenance/tasks/{id}`.
+Endpoints autenticados: `GET/POST /api/maintenance/plans`, `GET/POST /api/maintenance/tasks`, `PATCH /api/maintenance/tasks/{id}` (atualiza estado, responsável e prazo).
 
 ### Credenciais dedicadas de dispositivo
 A aba **Dispositivos** permite emitir um token exclusivo vinculado a um painel. A API guarda somente o hash SHA-256 do token; o valor bruto aparece uma única vez na criação. Credenciais podem ser revogadas. Use HTTPS, armazene o token em cofre de segredos no gateway e nunca no JavaScript do navegador.

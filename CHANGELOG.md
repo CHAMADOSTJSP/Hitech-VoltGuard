@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.16.0 — Acompanhamento de manutenção
+- Adicionados indicadores de tarefas pendentes, em andamento, atrasadas e concluídas.
+- Adicionados busca, filtro por estado e filtro de tarefas atrasadas.
+- Permite ajustar responsável e prazo da tarefa junto com a transição de estado.
+- Alterações de estado, responsável e prazo são registradas na auditoria.
+- A data de conclusão é preservada quando uma tarefa concluída é salva novamente.
+
 ## v0.15.0 — Gestão de ativos
 - Adicionada edição de identificação, dados técnicos, painel associado e estado dos ativos.
 - Adicionados busca textual e filtro por estado na lista de ativos.

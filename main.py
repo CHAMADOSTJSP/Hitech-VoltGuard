@@ -292,7 +292,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.15.0",
+    version="0.16.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -1599,6 +1599,7 @@ class MaintenanceTaskUpdate(BaseModel):
     status: str
     assigned_to: Optional[str] = None
     notes: Optional[str] = None
+    due_at: Optional[datetime] = None
 
 class DeviceCredentialCreate(BaseModel):
     panel_id: str
@@ -1739,11 +1740,28 @@ def update_maintenance_task(task_id: int, data: MaintenanceTaskUpdate, db: Sessi
     if data.status not in allowed_transitions.get(row.status, set()):
         raise HTTPException(status_code=409, detail="Transição inválida para o estado atual da tarefa.")
     was_completed = row.status == "CONCLUIDA"
+    old_status = row.status
+    changed_fields = []
     row.status = data.status
-    if data.assigned_to is not None: row.assigned_to = data.assigned_to[:120].strip() or None
-    if data.notes is not None: row.notes = data.notes[:4000]
-    row.completed_at = datetime.utcnow() if data.status == "CONCLUIDA" else None
-    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="ATUALIZAR_TAREFA_MANUTENCAO", details=f"Tarefa {task_id}; estado {row.status}"))
+    if old_status != row.status: changed_fields.append(f"estado {old_status} → {row.status}")
+    if data.assigned_to is not None:
+        assigned_to = data.assigned_to[:120].strip() or None
+        if assigned_to != row.assigned_to:
+            row.assigned_to = assigned_to
+            changed_fields.append("responsável")
+    if data.notes is not None and data.notes[:4000] != row.notes:
+        row.notes = data.notes[:4000]
+        changed_fields.append("observações")
+    if data.due_at is not None and data.due_at != row.due_at:
+        row.due_at = data.due_at
+        changed_fields.append("prazo")
+    if data.status == "CONCLUIDA":
+        if not was_completed or row.completed_at is None:
+            row.completed_at = datetime.utcnow()
+    else:
+        row.completed_at = None
+    if changed_fields:
+        db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="ATUALIZAR_TAREFA_MANUTENCAO", details=f"Tarefa {task_id}; " + ", ".join(changed_fields)))
     # When a recurring task is completed, schedule the next task from the plan interval.
     if row.status == "CONCLUIDA" and not was_completed and row.plan_id:
         plan = db.query(MaintenancePlanModel).filter(MaintenancePlanModel.id == row.plan_id, MaintenancePlanModel.tenant_id == current_user.tenant_id, MaintenancePlanModel.active == 1).first()
