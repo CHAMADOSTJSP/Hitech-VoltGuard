@@ -541,10 +541,13 @@
                 'stop scanning': 'Parar leitura',
                 'scan': 'Iniciar leitura',
             };
-            readerContainer.querySelectorAll('button, a').forEach((element) => {
-                const texto = (element.textContent || '').trim().toLowerCase();
-                if (traducoes[texto]) element.textContent = traducoes[texto];
-            });
+            const walker = document.createTreeWalker(readerContainer, NodeFilter.SHOW_TEXT);
+            let textNode;
+            while ((textNode = walker.nextNode())) {
+                const original = textNode.nodeValue || '';
+                const texto = original.trim().toLowerCase();
+                if (traducoes[texto]) textNode.nodeValue = original.replace(original.trim(), traducoes[texto]);
+            }
         }
 
         async function iniciarLeitorCamera() {

@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.38.1 — Tradução completa do leitor QR
+- Expandida a localização para traduzir textos renderizados como nós de texto, incluindo a leitura de QR por imagem.
+
 ## v0.38.0 — Leitor QR em português
 - Traduzidos os controles do leitor de QR para português, inclusive quando a biblioteca os atualiza dinamicamente.
 - Esclarecido na aba que a câmera é opcional e que há consulta manual por código/ID e leitura por imagem.

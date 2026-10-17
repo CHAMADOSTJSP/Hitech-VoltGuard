@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.38.1 — Tradução completa do leitor QR
+
+A tradução dos controles do leitor agora alcança também textos inseridos em nós de texto da biblioteca, incluindo a opção para ler um QR a partir de imagem.
+
 ## v0.38.0 — Leitor QR em português
 
 Os controles do leitor QR passam a ser exibidos em português. A orientação da aba esclarece que a câmera é opcional e que também é possível consultar o painel por imagem, código ou ID.
