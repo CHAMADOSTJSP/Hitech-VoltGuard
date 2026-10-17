@@ -338,6 +338,16 @@
             } catch (err) { alert(err.message || 'Falha ao atualizar alarme.'); }
         }
 
+        async function abrirOrdemDoAlarme(id) {
+            try {
+                const res = await fetch(`/api/alarms/${id}/work-order`, {method:'POST', headers:{'Authorization':`Bearer ${tokenJwt}`}});
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Não foi possível abrir a ordem de serviço.');
+                await buscarDadosPainéis();
+                alert(data.status === 'already_exists' ? `Este alarme já está vinculado à ordem #${data.id}.` : `Ordem de serviço #${data.id} criada a partir do alarme.`);
+            } catch (err) { alert(err.message || 'Falha ao abrir ordem de serviço.'); }
+        }
+
         function mudarAba(aba) {
             currentTab = aba;
             ['realtime', 'commission', 'predictive', 'esg', 'inventory', 'assets', 'maintenance', 'devices', 'rules', 'alarms', 'orders', 'audit', 'billing', 'executive', 'webhooks', 'demo'].forEach(t => {
@@ -782,7 +792,7 @@
                   <h3 style="color:#10b981;margin-top:0;">🚨 Central de Alarmes</h3>
                   <p>${openCount} alarme(s) ativo(s) ou reconhecido(s). Alarmes são gerados a partir da telemetria recebida e dos limites configurados.</p>
                   <div style="overflow-x:auto;"><table class="enterprise-table"><tr><th>Data (UTC)</th><th>Painel</th><th>Tipo</th><th>Severidade</th><th>Mensagem</th><th>Estado</th><th>Ações</th></tr>
-                  ${alarmsData.map(a => `<tr><td>${escapeHtml((a.first_triggered_at || '').replace('T',' ').replace('Z',''))}</td><td>${escapeHtml(a.panel_id)}</td><td>${escapeHtml(a.alarm_type)}</td><td>${escapeHtml(a.severity)}</td><td>${escapeHtml(a.message)}</td><td>${escapeHtml(a.status)}</td><td>${a.status === 'ACTIVE' ? `<button type="button" class="btn-primary" onclick="acaoAlarme(${Number(a.id)},'acknowledge')">Reconhecer</button>` : ''} ${a.status !== 'CLEARED' ? `<button type="button" class="btn-primary" onclick="acaoAlarme(${Number(a.id)},'clear')">Encerrar</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7">Nenhum alarme registrado. Ao receber telemetria fora dos limites, os alarmes aparecerão aqui.</td></tr>'}
+                  ${alarmsData.map(a => `<tr><td>${escapeHtml((a.first_triggered_at || '').replace('T',' ').replace('Z',''))}</td><td>${escapeHtml(a.panel_id)}</td><td>${escapeHtml(a.alarm_type)}</td><td>${escapeHtml(a.severity)}</td><td>${escapeHtml(a.message)}</td><td>${escapeHtml(a.status)}</td><td>${a.work_order_id ? `<span>OS #${Number(a.work_order_id)}</span>` : (a.status !== 'CLEARED' && ['CEO','Gerente','Técnico de Campo'].includes(currentCargo) ? `<button type="button" class="btn-primary" onclick="abrirOrdemDoAlarme(${Number(a.id)})">Abrir OS</button>` : '')} ${a.status === 'ACTIVE' && ['CEO','Gerente','Técnico de Campo'].includes(currentCargo) ? `<button type="button" class="btn-primary" onclick="acaoAlarme(${Number(a.id)},'acknowledge')">Reconhecer</button>` : ''} ${a.status !== 'CLEARED' && ['CEO','Gerente','Técnico de Campo'].includes(currentCargo) ? `<button type="button" class="btn-primary" onclick="acaoAlarme(${Number(a.id)},'clear')">Encerrar</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7">Nenhum alarme registrado. Ao receber telemetria fora dos limites, os alarmes aparecerão aqui.</td></tr>'}
                   </table></div></div>`;
                 return;
             }

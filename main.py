@@ -15,7 +15,7 @@ from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from pydantic import BaseModel
 import jwt
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, text
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Index, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -123,6 +123,7 @@ class WorkOrderModel(Base):
     __tablename__ = "work_orders"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     tenant_id = Column(String, default="HITECH-DEFAULT", index=True)
+    alarm_id = Column(Integer, nullable=True, index=True)
     panel_id = Column(String, nullable=False)
     title = Column(String, nullable=False)
     priority = Column(String, default="ALTA")
@@ -130,6 +131,9 @@ class WorkOrderModel(Base):
     assigned_technician = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     description = Column(String, nullable=True)
+
+
+Index("uq_work_orders_tenant_alarm", WorkOrderModel.tenant_id, WorkOrderModel.alarm_id, unique=True)
 
 class InventoryModel(Base):
     __tablename__ = "inventory"
@@ -250,7 +254,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.5.6",
+    version="0.5.9",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -352,6 +356,14 @@ def init_db():
                     connection.execute(text("ALTER TABLE panel_history ADD COLUMN current FLOAT"))
                 if "voltage" not in columns:
                     connection.execute(text("ALTER TABLE panel_history ADD COLUMN voltage VARCHAR"))
+            if "work_orders" in inspector.get_table_names():
+                columns = {col["name"] for col in inspector.get_columns("work_orders")}
+                if "alarm_id" not in columns:
+                    connection.execute(text("ALTER TABLE work_orders ADD COLUMN alarm_id INTEGER"))
+                connection.execute(text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_work_orders_tenant_alarm "
+                    "ON work_orders (tenant_id, alarm_id)"
+                ))
         Base.metadata.create_all(bind=engine)
         
         # Não criar contas de demonstração com senhas conhecidas. Todas as contas
@@ -622,53 +634,10 @@ def save_panel_alarm_rules(panel_id: str, data: dict, db: Session = Depends(get_
         db.add(rule)
     for key, value in values.items(): setattr(rule, key, value)
     rule.updated_at = datetime.utcnow()
-    # Recalcula imediatamente o estado do painel e os alarmes abertos usando a regra
-    # recém-salva. Assim a Central de Alarmes não mantém a mensagem do limite antigo.
-    now = datetime.utcnow()
-    open_alarms = db.query(AlarmModel).filter(
-        AlarmModel.tenant_id == current_user.tenant_id,
-        AlarmModel.panel_id == panel.id,
-        AlarmModel.status.in_(["ACTIVE", "ACKNOWLEDGED"]),
-    ).all()
-    open_by_type = {alarm.alarm_type: alarm for alarm in open_alarms}
-    conditions = {
-        "HIGH_TEMPERATURE": (float(panel.temperature or 0), values["max_temperature"], values["temperature_hysteresis"], "Temperatura", "°C"),
-        "HIGH_CURRENT": (float(panel.current or 0), values["max_current"], values["current_hysteresis"], "Corrente", "A"),
-    }
-    active_types = set()
-    for alarm_type, (reading, limit, hysteresis, label, unit) in conditions.items():
-        existing_alarm = open_by_type.get(alarm_type)
-        threshold = limit - hysteresis if existing_alarm else limit
-        is_active = reading > threshold
-        if is_active:
-            active_types.add(alarm_type)
-            message = f"{label} {reading:g} {unit} acima do limite configurado de {limit:g} {unit}."
-            if existing_alarm:
-                existing_alarm.message = message
-                existing_alarm.severity = "CRITICAL"
-                existing_alarm.last_triggered_at = now
-            else:
-                db.add(AlarmModel(tenant_id=current_user.tenant_id, panel_id=panel.id,
-                    alarm_type=alarm_type, severity="CRITICAL", message=message, status="ACTIVE",
-                    first_triggered_at=now, last_triggered_at=now))
-        elif existing_alarm:
-            existing_alarm.status = "CLEARED"
-            existing_alarm.cleared_at = now
-
-    if active_types:
-        panel.status = "CRITICO"
-        panel.recommendation = "ALERTA: " + " e ".join(
-            f"{label.lower()} acima de {values['max_temperature'] if alarm_type == 'HIGH_TEMPERATURE' else values['max_current']} {unit}"
-            for alarm_type, (_, _, _, label, unit) in conditions.items() if alarm_type in active_types
-        ) + "."
-    else:
-        panel.status = "NORMAL"
-        panel.recommendation = "Sistema a operar dentro dos parâmetros configurados."
-
     db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role,
         action="CONFIGURAR_REGRAS_PAINEL", details=f"Regras atualizadas para {panel_id}: temperatura={values['max_temperature']}°C, corrente={values['max_current']}A."))
     db.commit()
-    return {"status": "success", "message": "Regras específicas do painel atualizadas e alarmes recalculados.", "panel_id": panel_id, "active_conditions": sorted(active_types), **values}
+    return {"status": "success", "message": "Regras específicas do painel atualizadas.", "panel_id": panel_id, **values}
 
 
 @app.post("/api/telemetry", tags=["Industrial Ingestion"])
@@ -750,10 +719,9 @@ async def force_failure(data: dict, db: Session = Depends(get_db), current_user:
     
     # Simulação explícita: atualiza telemetria e cria/atualiza alarmes persistentes.
     # Não depende de PLC, Modbus ou equipamento físico.
-    # Respeita a regra específica do painel; usa a regra da organização apenas como fallback.
-    rule = get_effective_alarm_rule(db, current_user.tenant_id, panel.id)
-    temp_limit = rule.max_temperature
-    current_limit = rule.max_current
+    rule = db.query(TenantRuleModel).filter(TenantRuleModel.tenant_id == current_user.tenant_id).first()
+    temp_limit = rule.max_temperature if rule else 85.0
+    current_limit = rule.max_current if rule else 500.0
     panel.status = "CRITICO"
     panel.temperature = max(94.5, temp_limit + 5.0)
     panel.current = max(float(panel.current or 0), current_limit + 25.0)
@@ -871,7 +839,7 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
             history_data[p.id] = [{"timestamp": h.timestamp, "temperature": h.temperature, "current": h.current, "voltage": h.voltage} for h in h_records]
 
         logs_data = [{"timestamp": str(l.timestamp), "user_name": l.user_name, "role": l.role, "action": l.action, "details": l.details} for l in logs]
-        wo_data = [{"id": w.id, "panel_id": w.panel_id, "title": w.title, "priority": w.priority, "status": w.status, "assigned_technician": w.assigned_technician, "created_at": str(w.created_at), "description": w.description} for w in work_orders]
+        wo_data = [{"id": w.id, "alarm_id": w.alarm_id, "panel_id": w.panel_id, "title": w.title, "priority": w.priority, "status": w.status, "assigned_technician": w.assigned_technician, "created_at": str(w.created_at), "description": w.description} for w in work_orders]
         inv_data = [{"id": i.id, "part_name": i.part_name, "category": i.category, "quantity_in_stock": i.quantity_in_stock, "min_threshold": i.min_threshold, "unit_cost": i.unit_cost} for i in inventory]
         
         billing_info = {
@@ -884,7 +852,8 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
             "max_current": rule.max_current if rule else 500.0
         }
 
-        alarm_data = [{"id": a.id, "panel_id": a.panel_id, "alarm_type": a.alarm_type, "severity": a.severity,
+        work_order_by_alarm = {w.alarm_id: w.id for w in work_orders if w.alarm_id is not None}
+        alarm_data = [{"id": a.id, "work_order_id": work_order_by_alarm.get(a.id), "panel_id": a.panel_id, "alarm_type": a.alarm_type, "severity": a.severity,
                        "message": a.message, "status": a.status, "first_triggered_at": a.first_triggered_at.isoformat() + "Z",
                        "last_triggered_at": a.last_triggered_at.isoformat() + "Z", "acknowledged_at": a.acknowledged_at.isoformat() + "Z" if a.acknowledged_at else None,
                        "acknowledged_by": a.acknowledged_by, "cleared_at": a.cleared_at.isoformat() + "Z" if a.cleared_at else None} for a in alarms]
@@ -944,15 +913,21 @@ def list_alarms(status_filter: Optional[str] = None, db: Session = Depends(get_d
         if status_filter not in {"ACTIVE", "ACKNOWLEDGED", "CLEARED"}:
             raise HTTPException(status_code=422, detail="Filtro de estado de alarme inválido.")
         query = query.filter(AlarmModel.status == status_filter)
-    return [{"id": a.id, "panel_id": a.panel_id, "alarm_type": a.alarm_type, "severity": a.severity,
+    alarms = query.order_by(AlarmModel.first_triggered_at.desc()).limit(500).all()
+    linked_orders = dict(db.query(WorkOrderModel.alarm_id, WorkOrderModel.id).filter(
+        WorkOrderModel.tenant_id == current_user.tenant_id, WorkOrderModel.alarm_id.is_not(None)
+    ).all())
+    return [{"id": a.id, "work_order_id": linked_orders.get(a.id), "panel_id": a.panel_id, "alarm_type": a.alarm_type, "severity": a.severity,
              "message": a.message, "status": a.status, "first_triggered_at": a.first_triggered_at.isoformat() + "Z",
              "last_triggered_at": a.last_triggered_at.isoformat() + "Z", "acknowledged_at": a.acknowledged_at.isoformat() + "Z" if a.acknowledged_at else None,
              "acknowledged_by": a.acknowledged_by, "cleared_at": a.cleared_at.isoformat() + "Z" if a.cleared_at else None}
-            for a in query.order_by(AlarmModel.first_triggered_at.desc()).limit(500).all()]
+            for a in alarms]
 
 
 @app.post("/api/alarms/{alarm_id}/acknowledge")
 def acknowledge_alarm(alarm_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role not in {"CEO", "Gerente", "Técnico de Campo"}:
+        raise HTTPException(status_code=403, detail="Sem permissão para reconhecer alarmes.")
     alarm = db.query(AlarmModel).filter(AlarmModel.id == alarm_id, AlarmModel.tenant_id == current_user.tenant_id).first()
     if not alarm:
         raise HTTPException(status_code=404, detail="Alarme não encontrado nesta organização.")
@@ -965,6 +940,68 @@ def acknowledge_alarm(alarm_id: int, db: Session = Depends(get_db), current_user
         db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="RECONHECER_ALARME", details=f"Alarme {alarm_id} reconhecido."))
         db.commit()
     return {"status": "success", "id": alarm.id, "alarm_status": alarm.status}
+
+
+@app.post("/api/alarms/{alarm_id}/work-order", status_code=201, tags=["Work Orders"])
+def create_work_order_from_alarm(alarm_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Create one traceable maintenance order from an open alarm."""
+    if current_user.role not in {"CEO", "Gerente", "Técnico de Campo"}:
+        raise HTTPException(status_code=403, detail="Sem permissão para criar ordens de serviço.")
+    alarm = db.query(AlarmModel).filter(
+        AlarmModel.id == alarm_id, AlarmModel.tenant_id == current_user.tenant_id
+    ).first()
+    if not alarm:
+        raise HTTPException(status_code=404, detail="Alarme não encontrado nesta organização.")
+    existing = db.query(WorkOrderModel).filter(
+        WorkOrderModel.tenant_id == current_user.tenant_id, WorkOrderModel.alarm_id == alarm.id
+    ).first()
+    if existing:
+        return JSONResponse(status_code=200, content={
+            "status": "already_exists", "id": existing.id, "alarm_id": alarm.id,
+            "panel_id": existing.panel_id, "title": existing.title, "priority": existing.priority,
+            "order_status": existing.status,
+        })
+    if alarm.status == "CLEARED":
+        raise HTTPException(status_code=409, detail="Não é possível abrir uma ordem a partir de um alarme encerrado.")
+    panel = db.query(PanelModel).filter(
+        PanelModel.id == alarm.panel_id, PanelModel.tenant_id == current_user.tenant_id
+    ).first()
+    if not panel:
+        raise HTTPException(status_code=404, detail="Painel associado não encontrado nesta organização.")
+    title = f"Investigar {alarm.alarm_type.replace('_', ' ').lower()} — {panel.name}"
+    order = WorkOrderModel(
+        tenant_id=current_user.tenant_id, alarm_id=alarm.id, panel_id=panel.id,
+        title=title[:200], priority="CRITICA" if alarm.severity == "CRITICAL" else "ALTA",
+        status="ABERTA", description=(
+            f"Criada a partir do alarme #{alarm.id}. {alarm.message}\n"
+            f"Primeira ocorrência: {alarm.first_triggered_at.isoformat()}Z; "
+            f"última ocorrência: {alarm.last_triggered_at.isoformat()}Z."
+        )[:4000],
+    )
+    db.add(order)
+    db.add(AuditLogModel(
+        tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role,
+        action="CRIAR_ORDEM_A_PARTIR_DE_ALARME",
+        details=f"Ordem de serviço criada para o alarme {alarm.id} no painel {panel.id}.",
+    ))
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        existing = db.query(WorkOrderModel).filter(
+            WorkOrderModel.tenant_id == current_user.tenant_id, WorkOrderModel.alarm_id == alarm.id
+        ).first()
+        if existing:
+            return JSONResponse(status_code=200, content={
+                "status": "already_exists", "id": existing.id, "alarm_id": alarm.id,
+                "panel_id": existing.panel_id, "title": existing.title, "priority": existing.priority,
+                "order_status": existing.status,
+            })
+        raise
+    db.refresh(order)
+    return {"status": "created", "id": order.id, "alarm_id": alarm.id,
+            "panel_id": order.panel_id, "title": order.title, "priority": order.priority,
+            "order_status": order.status}
 
 
 @app.post("/api/alarms/{alarm_id}/clear")
@@ -1132,6 +1169,15 @@ def update_work_order(order_id: int, data: WorkOrderUpdate, db: Session = Depend
     if data.status is not None:
         if data.status not in allowed_status:
             raise HTTPException(status_code=422, detail="Estado inválido.")
+        allowed_transitions = {
+            "ABERTA": {"ABERTA", "EM_ANDAMENTO", "AGUARDANDO_PECA", "CONCLUIDA", "CANCELADA"},
+            "EM_ANDAMENTO": {"EM_ANDAMENTO", "ABERTA", "AGUARDANDO_PECA", "CONCLUIDA", "CANCELADA"},
+            "AGUARDANDO_PECA": {"AGUARDANDO_PECA", "EM_ANDAMENTO", "CANCELADA", "CONCLUIDA"},
+            "CONCLUIDA": {"CONCLUIDA"},
+            "CANCELADA": {"CANCELADA"},
+        }
+        if data.status not in allowed_transitions.get(order.status, set()):
+            raise HTTPException(status_code=409, detail="Transição inválida para o estado atual da ordem.")
         order.status = data.status
     if data.priority is not None:
         if data.priority not in {"BAIXA", "MEDIA", "MÉDIA", "ALTA", "CRITICA", "CRÍTICA"}:
@@ -1256,15 +1302,25 @@ def create_maintenance_task(data: MaintenanceTaskCreate, db: Session = Depends(g
 
 @app.patch("/api/maintenance/tasks/{task_id}")
 def update_maintenance_task(task_id: int, data: MaintenanceTaskUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role not in {"CEO", "Gerente", "Técnico de Campo"}:
+        raise HTTPException(status_code=403, detail="Sem permissão para atualizar tarefas de manutenção.")
     row = db.query(MaintenanceTaskModel).filter(MaintenanceTaskModel.id == task_id, MaintenanceTaskModel.tenant_id == current_user.tenant_id).first()
     if not row: raise HTTPException(status_code=404, detail="Tarefa não encontrada.")
     if data.status not in {"PENDENTE", "EM_ANDAMENTO", "CONCLUIDA", "CANCELADA"}: raise HTTPException(status_code=422, detail="Estado inválido.")
+    allowed_transitions = {
+        "PENDENTE": {"PENDENTE", "EM_ANDAMENTO", "CONCLUIDA", "CANCELADA"},
+        "EM_ANDAMENTO": {"EM_ANDAMENTO", "PENDENTE", "CONCLUIDA", "CANCELADA"},
+        "CONCLUIDA": {"CONCLUIDA"},
+        "CANCELADA": {"CANCELADA"},
+    }
+    if data.status not in allowed_transitions.get(row.status, set()):
+        raise HTTPException(status_code=409, detail="Transição inválida para o estado atual da tarefa.")
     was_completed = row.status == "CONCLUIDA"
     row.status = data.status
     if data.assigned_to is not None: row.assigned_to = data.assigned_to[:120].strip() or None
     if data.notes is not None: row.notes = data.notes[:4000]
     row.completed_at = datetime.utcnow() if data.status == "CONCLUIDA" else None
-    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="ATUALIZAR_TAREFA_MANUTENCAO", details=f"Tarefa {task_id}; estado {row.status}")); db.commit()
+    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="ATUALIZAR_TAREFA_MANUTENCAO", details=f"Tarefa {task_id}; estado {row.status}"))
     # When a recurring task is completed, schedule the next task from the plan interval.
     if row.status == "CONCLUIDA" and not was_completed and row.plan_id:
         plan = db.query(MaintenancePlanModel).filter(MaintenancePlanModel.id == row.plan_id, MaintenancePlanModel.tenant_id == current_user.tenant_id, MaintenancePlanModel.active == 1).first()
@@ -1272,7 +1328,7 @@ def update_maintenance_task(task_id: int, data: MaintenanceTaskUpdate, db: Sessi
             next_due = max(plan.next_due_at, datetime.utcnow()) + timedelta(days=plan.interval_days)
             plan.next_due_at = next_due
             db.add(MaintenanceTaskModel(tenant_id=current_user.tenant_id, plan_id=plan.id, asset_id=plan.asset_id, title=plan.title, due_at=next_due, notes="Checklist: " + plan.checklist))
-            db.commit()
+    db.commit()
     return {"status": "success", "id": row.id, "task_status": row.status}
 
 @app.get("/api/devices/credentials")
