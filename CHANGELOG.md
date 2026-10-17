@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.20.0 — Relatório executivo ampliado
+- Ampliado o CSV com resumos de estado e registros de painéis, alarmes, OS, ativos, manutenção e estoque.
+- Adicionada marca UTF-8 para melhorar a abertura de acentos no Excel.
+- Campos textuais exportados são protegidos contra interpretação como fórmulas por planilhas.
+- A aba explica o conteúdo e o caráter demonstrativo do relatório.
+
 ## v0.19.0 — Resumo de assinatura e uso
 - A aba Assinatura & Billing apresenta os painéis cadastrados, o limite e as vagas disponíveis.
 - Removida a data de expiração fictícia quando não há data registrada na assinatura.

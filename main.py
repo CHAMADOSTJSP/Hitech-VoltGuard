@@ -292,7 +292,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.19.0",
+    version="0.20.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -1282,26 +1282,90 @@ async def websocket_endpoint(websocket: WebSocket):
 
 @app.get("/api/export/executive-report")
 def export_executive_report(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Exporta um relatório CSV real, limitado ao tenant autenticado."""
+    """Exporta um resumo operacional CSV, limitado ao tenant autenticado."""
     import csv
     output = io.StringIO(newline="")
     writer = csv.writer(output, delimiter=";")
-    writer.writerow(["Relatório Executivo Operacional - HITECH VoltGuard"])
-    writer.writerow(["Organização", current_user.tenant_id])
-    writer.writerow(["Gerado em UTC", datetime.utcnow().isoformat(timespec="seconds")])
-    writer.writerow([])
-    writer.writerow(["ID", "Painel", "Local", "Tensão", "Corrente (A)", "Temperatura (°C)", "Estado", "Componente", "Recomendação"])
+    def safe_text(value):
+        text = "" if value is None else str(value)
+        # Evita que conteúdo digitado por usuários seja interpretado como fórmula ao abrir no Excel.
+        if text.lstrip().startswith(("=", "+", "-", "@")):
+            return "'" + text
+        return text
+
+    def status_counts(records, field="status"):
+        counts = {}
+        for record in records:
+            value = getattr(record, field, None) or "NÃO INFORMADO"
+            counts[value] = counts.get(value, 0) + 1
+        return counts
+
+    def write_counts(title, counts):
+        writer.writerow([title, "Quantidade"])
+        for label, count in sorted(counts.items()):
+            writer.writerow([safe_text(label), count])
+
     panels = db.query(PanelModel).filter(PanelModel.tenant_id == current_user.tenant_id).order_by(PanelModel.id).all()
-    for p in panels:
-        writer.writerow([p.id, p.name, p.location, p.voltage, p.current, p.temperature, p.status, p.component, p.recommendation])
+    alarms = db.query(AlarmModel).filter(AlarmModel.tenant_id == current_user.tenant_id).order_by(AlarmModel.first_triggered_at.desc()).all()
+    work_orders = db.query(WorkOrderModel).filter(WorkOrderModel.tenant_id == current_user.tenant_id).order_by(WorkOrderModel.id).all()
+    assets = db.query(AssetModel).filter(AssetModel.tenant_id == current_user.tenant_id).order_by(AssetModel.id).all()
+    tasks = db.query(MaintenanceTaskModel).filter(MaintenanceTaskModel.tenant_id == current_user.tenant_id).order_by(MaintenanceTaskModel.due_at).all()
+    inventory = db.query(InventoryModel).filter(InventoryModel.tenant_id == current_user.tenant_id).order_by(InventoryModel.id).all()
+
+    writer.writerow(["Relatório Executivo Operacional - HITECH VoltGuard"])
+    writer.writerow(["Organização", safe_text(current_user.tenant_id)])
+    writer.writerow(["Gerado em UTC", datetime.utcnow().isoformat(timespec="seconds")])
+    writer.writerow(["Nota", "Retrato dos dados cadastrados no momento da exportação; dados demonstrativos não substituem avaliação operacional."])
     writer.writerow([])
-    writer.writerow(["Resumo", "Quantidade"])
-    writer.writerow(["Total de painéis", len(panels)])
+    writer.writerow(["RESUMO"])
+    writer.writerow(["Indicador", "Quantidade"])
+    writer.writerow(["Painéis", len(panels)])
     writer.writerow(["Painéis críticos", sum(1 for p in panels if p.status == "CRITICO")])
-    open_orders = db.query(WorkOrderModel).filter(WorkOrderModel.tenant_id == current_user.tenant_id, WorkOrderModel.status.notin_(["CONCLUIDA", "CANCELADA"])).count()
-    writer.writerow(["Ordens de serviço abertas", open_orders])
+    writer.writerow(["Alarmes", len(alarms)])
+    writer.writerow(["Ordens de serviço abertas", sum(1 for w in work_orders if w.status not in ("CONCLUIDA", "CANCELADA"))])
+    writer.writerow(["Ativos cadastrados", len(assets)])
+    writer.writerow(["Tarefas de manutenção", len(tasks)])
+    writer.writerow(["Itens de estoque abaixo do mínimo", sum(1 for i in inventory if i.quantity_in_stock < i.min_threshold)])
+    writer.writerow([])
+    write_counts("PAINÉIS POR ESTADO", status_counts(panels))
+    writer.writerow([])
+    write_counts("ALARMES POR ESTADO", status_counts(alarms))
+    writer.writerow([])
+    write_counts("ORDENS DE SERVIÇO POR ESTADO", status_counts(work_orders))
+    writer.writerow([])
+    write_counts("TAREFAS DE MANUTENÇÃO POR ESTADO", status_counts(tasks))
+    writer.writerow([])
+    writer.writerow(["PAINÉIS"])
+    writer.writerow(["ID", "Nome", "Local", "Tensão", "Corrente (A)", "Temperatura (°C)", "Estado", "Componente", "Recomendação"])
+    for p in panels:
+        writer.writerow([p.id, safe_text(p.name), safe_text(p.location), p.voltage, p.current, p.temperature, safe_text(p.status), safe_text(p.component), safe_text(p.recommendation)])
+    writer.writerow([])
+    writer.writerow(["ALARMES"])
+    writer.writerow(["ID", "Data inicial", "Painel", "Tipo", "Severidade", "Estado", "Mensagem", "Reconhecido por"])
+    for a in alarms:
+        writer.writerow([a.id, a.first_triggered_at.isoformat() if a.first_triggered_at else "", safe_text(a.panel_id), safe_text(a.alarm_type), safe_text(a.severity), safe_text(a.status), safe_text(a.message), safe_text(a.acknowledged_by)])
+    writer.writerow([])
+    writer.writerow(["ORDENS DE SERVIÇO"])
+    writer.writerow(["ID", "Painel", "Título", "Prioridade", "Estado", "Técnico", "Criada em", "Prazo", "Início", "Conclusão", "Resumo de execução"])
+    for w in work_orders:
+        writer.writerow([w.id, safe_text(w.panel_id), safe_text(w.title), safe_text(w.priority), safe_text(w.status), safe_text(w.assigned_technician), w.created_at.isoformat() if w.created_at else "", w.due_at.isoformat() if w.due_at else "", w.started_at.isoformat() if w.started_at else "", w.completed_at.isoformat() if w.completed_at else "", safe_text(w.resolution)])
+    writer.writerow([])
+    writer.writerow(["ATIVOS"])
+    writer.writerow(["ID", "Tag", "Nome", "Tipo", "Local", "Fabricante", "Modelo", "Série", "Painel", "Estado"])
+    for a in assets:
+        writer.writerow([a.id, safe_text(a.asset_tag), safe_text(a.name), safe_text(a.asset_type), safe_text(a.location), safe_text(a.manufacturer), safe_text(a.model), safe_text(a.serial_number), safe_text(a.panel_id), safe_text(a.status)])
+    writer.writerow([])
+    writer.writerow(["TAREFAS DE MANUTENÇÃO"])
+    writer.writerow(["ID", "Ativo ID", "Tarefa", "Responsável", "Prazo", "Estado", "Concluída em"])
+    for t in tasks:
+        writer.writerow([t.id, t.asset_id, safe_text(t.title), safe_text(t.assigned_to), t.due_at.isoformat() if t.due_at else "", safe_text(t.status), t.completed_at.isoformat() if t.completed_at else ""])
+    writer.writerow([])
+    writer.writerow(["ESTOQUE"])
+    writer.writerow(["ID", "Item", "Categoria", "Quantidade", "Estoque mínimo", "Custo unitário", "Abaixo do mínimo"])
+    for i in inventory:
+        writer.writerow([i.id, safe_text(i.part_name), safe_text(i.category), i.quantity_in_stock, i.min_threshold, i.unit_cost, "SIM" if i.quantity_in_stock < i.min_threshold else "NÃO"])
     output.seek(0)
-    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=relatorio_executivo_voltguard.csv"})
+    return StreamingResponse(iter(["\ufeff" + output.getvalue()]), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": "attachment; filename=relatorio_executivo_voltguard.csv"})
 
 class WorkOrderCreate(BaseModel):
     panel_id: str

@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.20.0 — Relatório executivo ampliado
+
+O CSV executivo inclui indicadores e registros da organização para painéis, alarmes, ordens de serviço, ativos, tarefas de manutenção e estoque. A exportação é isolada por organização, inclui marca UTF-8 para compatibilidade com Excel e protege campos textuais contra execução acidental como fórmulas.
+
 ## v0.19.0 — Resumo de assinatura e uso
 
 A aba Assinatura & Billing mostra o plano e estado retornados pela organização, a data de expiração quando cadastrada e o uso do limite de painéis. A tela informa quando a data não foi configurada e esclarece que não processa pagamentos nem alterações de plano.
