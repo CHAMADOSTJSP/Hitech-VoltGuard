@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.30.0 — Guia de integração de telemetria
+- Adicionado guia rápido expansível na aba Dispositivos com endpoint, cabeçalhos e exemplo de payload para o painel selecionado.
+- Incluído botão para copiar a requisição de exemplo sem inserir nem revelar o token na interface.
+- Documentados os campos opcionais e os intervalos aceitos para temperatura e corrente.
+
 ## v0.29.0 — Tarefas avulsas de manutenção
 - Adicionado formulário para agendar tarefa avulsa com ativo, prazo, responsável e checklist/observações.
 - Exibidos detalhes e data de conclusão das tarefas na listagem.

@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.30.0 — Guia de integração de telemetria
+
+A aba Dispositivos inclui um guia rápido expansível para enviar leituras ao endpoint de telemetria, com exemplo HTTP copiável e payload ajustado ao painel selecionado. O exemplo usa um marcador de token: o segredo continua guardado no gateway e nunca é inserido nem exibido novamente pela interface.
+
 ## v0.29.0 — Tarefas avulsas de manutenção
 
 A aba Manutenção permite agendar tarefas avulsas além dos planos recorrentes. Checklist e observações ficam visíveis nos detalhes da tarefa, a data de conclusão aparece na lista e tarefas concluídas ou canceladas têm o estado final bloqueado na interface.
