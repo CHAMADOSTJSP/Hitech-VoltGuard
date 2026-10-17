@@ -512,10 +512,23 @@
 
         function atualizarGraficosExistentes() {
             const lista = Object.values(dadosGlobais);
-            lista.forEach(p => {
-                if(document.getElementById(`chart-${escapeHtml(p.id)}`)) { renderizarChart(p.id); }
-                else { renderizar(); }
-            });
+            if (!lista.length) return;
+
+            // Os canvases reais usam chart-temp-* e chart-current-*.
+            // Verificar um ID genérico fazia o polling reconstruir a aba a cada 3 s,
+            // interrompendo os gráficos e causando o efeito de aparecer/desaparecer.
+            const canvasesDisponiveis = lista.every(p =>
+                document.getElementById(`chart-temp-${p.id}`) &&
+                document.getElementById(`chart-current-${p.id}`)
+            );
+
+            if (!canvasesDisponiveis) {
+                renderizar();
+                return;
+            }
+
+            // Atualiza somente os dados dos gráficos existentes; não recria o DOM.
+            lista.forEach(p => renderizarChart(p.id));
         }
 
         async function apiJson(path, options = {}) {

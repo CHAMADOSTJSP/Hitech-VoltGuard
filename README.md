@@ -1,3 +1,6 @@
+## v0.5.5 — Correção de estabilidade dos gráficos
+Corrige a atualização periódica da aba Tendência Térmica para atualizar os gráficos existentes sem reconstruir repetidamente a interface. Mantém a API, os modelos de dados e o banco existentes.
+
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
 Versão revisada para **demonstração e homologação controlada**. Este pacote não é SCADA industrial certificado e não deve ser conectado a funções de proteção, intertravamento ou comando de equipamentos elétricos.

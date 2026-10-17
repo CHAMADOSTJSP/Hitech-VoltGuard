@@ -1,3 +1,8 @@
+## v0.5.5 — Correção de atualização dos gráficos
+- Corrigida a verificação dos canvases de histórico: o polling agora procura os IDs reais `chart-temp-*` e `chart-current-*`.
+- Evita reconstruir toda a aba de tendências a cada ciclo de atualização, impedindo que os gráficos desapareçam intermitentemente.
+- Mantém a atualização dos datasets sem inventar amostras.
+
 # Changelog
 
 ## v0.5.4 — Histórico gráfico de telemetria
