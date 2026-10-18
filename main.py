@@ -63,6 +63,11 @@ class PanelModel(Base):
     voltage = Column(String, nullable=False)
     current = Column(Float, default=0.0)
     temperature = Column(Float, default=0.0)
+    voltage_v = Column(Float, nullable=True)
+    active_power_kw = Column(Float, nullable=True)
+    active_energy_kwh = Column(Float, nullable=True)
+    frequency_hz = Column(Float, nullable=True)
+    power_factor = Column(Float, nullable=True)
     gateway_qr = Column(String, nullable=True, index=True)
     status = Column(String, default="NORMAL")
     component = Column(String, default="Disjuntor Principal")
@@ -81,6 +86,12 @@ class PanelHistoryModel(Base):
     # Nullable for backward compatibility with historical rows created before v0.5.1.
     current = Column(Float, nullable=True)
     voltage = Column(String, nullable=True)
+    temperature_measured = Column(Boolean, nullable=False, default=True)
+    voltage_v = Column(Float, nullable=True)
+    active_power_kw = Column(Float, nullable=True)
+    active_energy_kwh = Column(Float, nullable=True)
+    frequency_hz = Column(Float, nullable=True)
+    power_factor = Column(Float, nullable=True)
 
 class AuditLogModel(Base):
     __tablename__ = "audit_logs"
@@ -292,7 +303,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.38.1",
+    version="0.39.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -409,6 +420,29 @@ def init_db():
                     connection.execute(text("ALTER TABLE panel_history ADD COLUMN current FLOAT"))
                 if "voltage" not in columns:
                     connection.execute(text("ALTER TABLE panel_history ADD COLUMN voltage VARCHAR"))
+                history_columns = {
+                    "temperature_measured": "BOOLEAN NOT NULL DEFAULT 1",
+                    "voltage_v": "FLOAT",
+                    "active_power_kw": "FLOAT",
+                    "active_energy_kwh": "FLOAT",
+                    "frequency_hz": "FLOAT",
+                    "power_factor": "FLOAT",
+                }
+                for column_name, column_type in history_columns.items():
+                    if column_name not in columns:
+                        connection.execute(text(f"ALTER TABLE panel_history ADD COLUMN {column_name} {column_type}"))
+            if "panels" in inspector.get_table_names():
+                panel_columns = {col["name"] for col in inspector.get_columns("panels")}
+                telemetry_columns = {
+                    "voltage_v": "FLOAT",
+                    "active_power_kw": "FLOAT",
+                    "active_energy_kwh": "FLOAT",
+                    "frequency_hz": "FLOAT",
+                    "power_factor": "FLOAT",
+                }
+                for column_name, column_type in telemetry_columns.items():
+                    if column_name not in panel_columns:
+                        connection.execute(text(f"ALTER TABLE panels ADD COLUMN {column_name} {column_type}"))
             if "work_orders" in inspector.get_table_names():
                 columns = {col["name"] for col in inspector.get_columns("work_orders")}
                 compatibility_columns = {
@@ -942,6 +976,9 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
 
             panels_data.append({
                 "id": p.id, "name": p.name, "location": p.location, "voltage": p.voltage,
+                "voltage_v": p.voltage_v, "active_power_kw": p.active_power_kw,
+                "active_energy_kwh": p.active_energy_kwh, "frequency_hz": p.frequency_hz,
+                "power_factor": p.power_factor,
                 "current": curr, "temperature": temp, "gateway_qr": p.gateway_qr,
                 "status": p.status, "component": p.component, "predictive_failure_hours": p.predictive_failure_hours,
                 "recommendation": p.recommendation, "esg_waste_kwh": p.esg_waste_kwh, "assigned_to": p.assigned_to,
@@ -992,7 +1029,13 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
                 PanelHistoryModel.tenant_id == current_user.tenant_id,
             ).order_by(PanelHistoryModel.id.desc()).limit(500).all()
             h_records.reverse()
-            history_data[p.id] = [{"timestamp": h.timestamp, "temperature": h.temperature, "current": h.current, "voltage": h.voltage} for h in h_records]
+            history_data[p.id] = [{
+                "timestamp": h.timestamp, "temperature": h.temperature,
+                "temperature_measured": h.temperature_measured,
+                "current": h.current, "voltage": h.voltage, "voltage_v": h.voltage_v,
+                "active_power_kw": h.active_power_kw, "active_energy_kwh": h.active_energy_kwh,
+                "frequency_hz": h.frequency_hz, "power_factor": h.power_factor,
+            } for h in h_records]
 
         logs_data = [{"timestamp": str(l.timestamp), "user_name": l.user_name, "role": l.role, "action": l.action, "details": l.details} for l in logs]
         wo_data = [{"id": w.id, "alarm_id": w.alarm_id, "panel_id": w.panel_id, "title": w.title, "priority": w.priority, "status": w.status, "assigned_technician": w.assigned_technician, "created_at": utc_iso(w.created_at), "due_at": utc_iso(w.due_at), "started_at": utc_iso(w.started_at), "completed_at": utc_iso(w.completed_at), "description": w.description, "resolution": w.resolution, "history": history_by_order.get(w.id, []), "checklist": checklist_by_order.get(w.id, [])} for w in work_orders]
@@ -1108,7 +1151,10 @@ def get_telemetry_history(
         "next_before_id": next_before_id,
         "history": [
             {"id": row.id, "timestamp": row.timestamp, "temperature": row.temperature,
-             "current": row.current, "voltage": row.voltage}
+             "temperature_measured": row.temperature_measured,
+             "current": row.current, "voltage": row.voltage, "voltage_v": row.voltage_v,
+             "active_power_kw": row.active_power_kw, "active_energy_kwh": row.active_energy_kwh,
+             "frequency_hz": row.frequency_hz, "power_factor": row.power_factor}
             for row in rows
         ],
     }
@@ -1272,6 +1318,9 @@ def get_panel_by_qr(qr_code: str, db: Session = Depends(get_db), current_user: U
         connectivity_status = "ONLINE" if age_seconds <= offline_after_seconds else "OFFLINE"
     return {
         "id": panel.id, "name": panel.name, "location": panel.location, "voltage": panel.voltage,
+        "voltage_v": panel.voltage_v, "active_power_kw": panel.active_power_kw,
+        "active_energy_kwh": panel.active_energy_kwh, "frequency_hz": panel.frequency_hz,
+        "power_factor": panel.power_factor,
         "current": panel.current, "temperature": panel.temperature, "gateway_qr": panel.gateway_qr,
         "status": panel.status, "component": panel.component, "predictive_failure_hours": panel.predictive_failure_hours,
         "recommendation": panel.recommendation, "esg_waste_kwh": panel.esg_waste_kwh, "assigned_to": panel.assigned_to,
@@ -1881,9 +1930,14 @@ class DeviceCredentialCreate(BaseModel):
 
 class DeviceTelemetry(BaseModel):
     panel_id: str
-    temperature: float
-    current: float
-    voltage: Optional[str] = "380V AC"
+    temperature: Optional[float] = None
+    current: Optional[float] = None
+    voltage: Optional[str] = None
+    voltage_v: Optional[float] = None
+    active_power_kw: Optional[float] = None
+    active_energy_kwh: Optional[float] = None
+    frequency_hz: Optional[float] = None
+    power_factor: Optional[float] = None
     gateway_qr: Optional[str] = None
 
 @app.get("/api/assets")
@@ -2086,36 +2140,69 @@ def ingest_device_telemetry(data: DeviceTelemetry, authorization: Optional[str] 
         raise HTTPException(status_code=401, detail="Credencial de dispositivo inválida ou revogada.")
     if data.panel_id != credential.panel_id:
         raise HTTPException(status_code=403, detail="Esta credencial não está autorizada para o painel informado.")
-    if not math.isfinite(data.temperature) or not -50 <= data.temperature <= 250 or not math.isfinite(data.current) or not 0 <= data.current <= 100000:
-        raise HTTPException(status_code=422, detail="Temperatura ou corrente fora do intervalo permitido.")
-    if data.voltage is not None and len(data.voltage) > 80: raise HTTPException(status_code=422, detail="Tensão demasiado longa.")
+    measurements = {
+        "temperature": (data.temperature, -50, 250, "Temperatura"),
+        "current": (data.current, 0, 100000, "Corrente"),
+        "voltage_v": (data.voltage_v, 0, 100000, "Tensão"),
+        "active_power_kw": (data.active_power_kw, -1000000, 1000000, "Potência ativa"),
+        "active_energy_kwh": (data.active_energy_kwh, 0, 1e15, "Energia ativa"),
+        "frequency_hz": (data.frequency_hz, 0, 1000, "Frequência"),
+        "power_factor": (data.power_factor, -1, 1, "Fator de potência"),
+    }
+    if not any(value is not None for value, *_ in measurements.values()):
+        raise HTTPException(status_code=422, detail="Envie ao menos uma grandeza de telemetria.")
+    for value, minimum, maximum, label in measurements.values():
+        if value is not None and (not math.isfinite(value) or not minimum <= value <= maximum):
+            raise HTTPException(status_code=422, detail=f"{label} fora do intervalo permitido ({minimum} a {maximum}).")
+    if data.voltage is not None and len(data.voltage) > 80: raise HTTPException(status_code=422, detail="Tensão textual demasiado longa.")
     if data.gateway_qr is not None and len(data.gateway_qr) > 160: raise HTTPException(status_code=422, detail="Identificador do gateway demasiado longo.")
     panel = db.query(PanelModel).filter(PanelModel.id == credential.panel_id, PanelModel.tenant_id == credential.tenant_id).first()
     if not panel: raise HTTPException(status_code=404, detail="Painel associado não encontrado.")
     rule = get_effective_alarm_rule(db, credential.tenant_id, panel.id)
     temp_limit, current_limit = rule.max_temperature, rule.max_current
-    panel.temperature, panel.current = data.temperature, data.current
+    if data.temperature is not None: panel.temperature = data.temperature
+    if data.current is not None: panel.current = data.current
     if data.voltage: panel.voltage = data.voltage[:80]
+    for field in ("voltage_v", "active_power_kw", "active_energy_kwh", "frequency_hz", "power_factor"):
+        value = getattr(data, field)
+        if value is not None:
+            setattr(panel, field, value)
+    if data.voltage_v is not None and data.voltage is None:
+        panel.voltage = f"{data.voltage_v:g} V"
     now = datetime.utcnow()
     opened = db.query(AlarmModel).filter(AlarmModel.tenant_id == credential.tenant_id, AlarmModel.panel_id == panel.id, AlarmModel.status.in_(["ACTIVE", "ACKNOWLEDGED"])).all()
     opened_types = {item.alarm_type for item in opened}
     active_conditions = []
-    if condition_is_active(data.temperature, temp_limit, rule.temperature_hysteresis, "HIGH_TEMPERATURE" in opened_types): active_conditions.append(("HIGH_TEMPERATURE", f"Temperatura {data.temperature} °C acima do limite configurado de {temp_limit} °C."))
-    if condition_is_active(data.current, current_limit, rule.current_hysteresis, "HIGH_CURRENT" in opened_types): active_conditions.append(("HIGH_CURRENT", f"Corrente {data.current} A acima do limite configurado de {current_limit} A."))
-    panel.status = "CRITICO" if active_conditions else "NORMAL"
-    panel.recommendation = "ALERTA: " + "; ".join(message for _, message in active_conditions) if active_conditions else "Sistema a operar dentro dos parâmetros configurados."
+    if data.temperature is not None and condition_is_active(data.temperature, temp_limit, rule.temperature_hysteresis, "HIGH_TEMPERATURE" in opened_types): active_conditions.append(("HIGH_TEMPERATURE", f"Temperatura {data.temperature} °C acima do limite configurado de {temp_limit} °C."))
+    if data.current is not None and condition_is_active(data.current, current_limit, rule.current_hysteresis, "HIGH_CURRENT" in opened_types): active_conditions.append(("HIGH_CURRENT", f"Corrente {data.current} A acima do limite configurado de {current_limit} A."))
     active_types = {item[0] for item in active_conditions}
     for alarm_type, message in active_conditions:
         existing = next((x for x in opened if x.alarm_type == alarm_type), None)
         if existing: existing.last_triggered_at = now; existing.message = message
         else: db.add(AlarmModel(tenant_id=credential.tenant_id, panel_id=panel.id, alarm_type=alarm_type, severity="CRITICAL", message=message, status="ACTIVE", first_triggered_at=now, last_triggered_at=now))
     for alarm in opened:
-        if alarm.alarm_type in {"HIGH_TEMPERATURE", "HIGH_CURRENT"} and alarm.alarm_type not in active_types:
+        measurement_received = (alarm.alarm_type == "HIGH_TEMPERATURE" and data.temperature is not None) or (alarm.alarm_type == "HIGH_CURRENT" and data.current is not None)
+        if measurement_received and alarm.alarm_type not in active_types:
             alarm.status = "CLEARED"; alarm.cleared_at = now
+    remaining_open = [alarm for alarm in opened if alarm.status in {"ACTIVE", "ACKNOWLEDGED"}]
+    panel.status = "CRITICO" if active_conditions or remaining_open else "NORMAL"
+    panel.recommendation = "ALERTA: " + "; ".join(message for _, message in active_conditions) if active_conditions else ("Há alarmes abertos; consulte a Central de Alarmes." if remaining_open else ("Leitura recebida; temperatura e corrente não foram informadas nesta amostra." if data.temperature is None and data.current is None else "Sistema a operar dentro dos parâmetros configurados."))
     credential.last_used_at = now
-    db.add(PanelHistoryModel(panel_id=panel.id, tenant_id=credential.tenant_id, timestamp=now.isoformat(timespec="seconds") + "Z", temperature=panel.temperature, current=panel.current, voltage=panel.voltage))
+    db.add(PanelHistoryModel(
+        panel_id=panel.id, tenant_id=credential.tenant_id,
+        timestamp=now.isoformat(timespec="seconds") + "Z", temperature=panel.temperature,
+        temperature_measured=data.temperature is not None,
+        current=data.current,
+        voltage=data.voltage[:80] if data.voltage is not None else (f"{data.voltage_v:g} V" if data.voltage_v is not None else None),
+        voltage_v=data.voltage_v,
+        active_power_kw=data.active_power_kw, active_energy_kwh=data.active_energy_kwh,
+        frequency_hz=data.frequency_hz, power_factor=data.power_factor,
+    ))
     db.commit()
-    return {"status": "success", "panel_id": panel.id, "received_at": now.isoformat() + "Z", "active_alarms": len(active_conditions)}
+    received_measurements = [field for field, (value, *_rest) in measurements.items() if value is not None]
+    if data.voltage is not None:
+        received_measurements.append("voltage")
+    return {"status": "success", "panel_id": panel.id, "received_at": now.isoformat() + "Z", "active_alarms": len(active_conditions), "measurements_received": received_measurements}
 
 @app.get("/")
 def serve_index():

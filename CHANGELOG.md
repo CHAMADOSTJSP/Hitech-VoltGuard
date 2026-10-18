@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.39.0 — Telemetria elétrica ampliada
+- A API de dispositivo aceita leituras parciais de tensão, potência, energia, frequência e fator de potência, além de temperatura e corrente.
+- Novas grandezas são armazenadas no painel e no histórico; medições ausentes preservam os valores atuais e não limpam alarmes de temperatura/corrente.
+- Mantida a compatibilidade com gateways que enviam o payload anterior.
+- Iniciada a preparação documentada da integração de referência com PowerLogic PM5320; driver e validação física continuam pendentes.
+
 ## v0.38.1 — Tradução completa do leitor QR
 - Expandida a localização para traduzir textos renderizados como nós de texto, incluindo a leitura de QR por imagem.
 

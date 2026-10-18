@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.39.0 — Telemetria elétrica ampliada para gateway Modbus
+
+O endpoint de dispositivo aceita leituras parciais de temperatura, corrente, tensão, potência ativa (kW), energia ativa acumulada (kWh), frequência (Hz) e fator de potência. As novas grandezas são persistidas no painel e no histórico; leituras sem temperatura não disparam nem limpam alarmes térmicos. Os gateways existentes continuam compatíveis. O gateway Modbus para o PowerLogic PM5320 e o mapa específico do medidor ainda precisam ser implementados e validados com o equipamento.
+
 ## v0.38.1 — Tradução completa do leitor QR
 
 A tradução dos controles do leitor agora alcança também textos inseridos em nós de texto da biblioteca, incluindo a opção para ler um QR a partir de imagem.
@@ -204,10 +208,10 @@ O histórico agora registra temperatura, corrente e tensão por amostra, além d
 curl -X POST "https://SEU-SERVICO.onrender.com/api/device/telemetry" \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"panel_id":"PANEL_ID","temperature":42.5,"current":118.4,"voltage":"380V AC"}'
+  -d '{"panel_id":"PANEL_ID","current":118.4,"voltage_v":380,"active_power_kw":76.2,"active_energy_kwh":1842.7,"frequency_hz":60,"power_factor":0.96}'
 ```
 
-3. A resposta deve conter `status: success`. Consulte o painel e o histórico para confirmar temperatura, corrente e tensão. Uma leitura acima dos limites configurados deve gerar/atualizar o alarme correspondente; uma leitura normal deve limpar automaticamente a condição ativa.
+3. A resposta deve conter `status: success` e listar `measurements_received`. Consulte o painel e o histórico para confirmar as grandezas recebidas. Alarmes de temperatura e corrente só são avaliados quando a leitura inclui o respectivo campo; a ausência de uma medição não limpa um alarme existente.
 4. Em **Dispositivos**, confirme que “Último uso” foi atualizado. Revogue a credencial e repita a chamada: a API deve responder `401`.
 
 Validações locais nesta versão: 11 testes automatizados aprovados. O teste foi executado com um stub de `slowapi` porque essa dependência não estava disponível no ambiente local; portanto, o rate limiting deve ser confirmado com as dependências completas no Render. A atualização não foi publicada automaticamente no serviço do usuário.
@@ -289,7 +293,7 @@ Endpoints autenticados: `GET/POST /api/maintenance/plans`, `GET/POST /api/mainte
 ### Credenciais dedicadas de dispositivo
 A aba **Dispositivos** permite emitir um token exclusivo vinculado a um painel. A API guarda somente o hash SHA-256 do token; o valor bruto aparece uma única vez na criação. Credenciais podem ser revogadas. Use HTTPS, armazene o token em cofre de segredos no gateway e nunca no JavaScript do navegador.
 
-Envie telemetria com `POST /api/device/telemetry`, cabeçalho `Authorization: Bearer <device-token>` e JSON contendo `panel_id`, `temperature`, `current` e opcionalmente `voltage`. Cada token só pode enviar dados ao painel ao qual foi vinculado. Isso implementa o endpoint de ingestão autenticada, mas não instala driver Modbus/OPC UA nem conecta automaticamente equipamento físico.
+Envie telemetria com `POST /api/device/telemetry`, cabeçalho `Authorization: Bearer <device-token>` e JSON com `panel_id` e ao menos uma grandeza. Campos numéricos aceitos: `temperature` (°C), `current` (A), `voltage_v` (V), `active_power_kw` (kW), `active_energy_kwh` (kWh), `frequency_hz` (Hz) e `power_factor` (-1 a 1). `voltage` textual continua aceito para compatibilidade. Cada token só pode enviar dados ao painel ao qual foi vinculado. A API não instala driver Modbus/OPC UA nem conecta automaticamente equipamento físico.
 
 ## Central de Alarmes (v0.4.1)
 Acesse a aba **Central de Alarmes** depois de entrar. Os alarmes de temperatura/corrente são criados quando a telemetria autenticada excede os limites da organização. O ciclo de vida inclui `ACTIVE`, `ACKNOWLEDGED` e `CLEARED`. Para gerar um alarme de teste, use um painel da própria organização e envie telemetria pelo endpoint autenticado `POST /api/telemetry` com valores acima dos limites configurados. Dados de teste não devem ser enviados a equipamentos de campo.
