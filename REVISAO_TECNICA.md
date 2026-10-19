@@ -49,6 +49,13 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 - A autorização verifica a sessão ativa em cada requisição autenticada. O endpoint `/api/logout` revoga a sessão atual, e a interface limpa o token e interrompe o polling.
 - A atualização invalida tokens emitidos antes da adoção do identificador de sessão; a interface solicita novo login. MFA, encerramento remoto de todas as sessões e alertas de atividade continuam pendentes.
 
+### Controles implementados na versão 0.44.0
+
+- A ingestão de dispositivo limita 600 requisições por minuto por endereço IP usando SlowAPI.
+- A rota recusa requisições que declarem `Content-Length` maior que 16 KB antes do processamento do corpo.
+- O modelo de telemetria rejeita campos desconhecidos e limita os tamanhos de `panel_id`, `voltage` e `gateway_qr`.
+- O rate limiting é em memória por processo e compartilhado por todos os dispositivos que chegam do mesmo IP. Para múltiplas instâncias, adotar armazenamento distribuído e uma política dimensionada por credencial.
+
 ### Banco e multiempresa
 
 1. `PanelModel.id` ainda é chave primária global. A aplicação não permite reutilizar o mesmo ID em duas organizações. Alterar para chave composta exige migração estrutural e testes de regressão.
@@ -60,7 +67,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 ### Telemetria e operação
 
-1. A ingestão já usa credenciais individuais por dispositivo, armazenadas como hash, com vínculo a um único painel e possibilidade de revogação. Permanecem pendentes rotação planejada, timestamps de origem confiáveis, idempotência, limites de taxa e métricas de qualidade.
+1. A ingestão já usa credenciais individuais por dispositivo, armazenadas como hash, com vínculo a um único painel e possibilidade de revogação. Permanecem pendentes rotação planejada, timestamps de origem confiáveis, idempotência, rate limiting distribuído por credencial e métricas de qualidade.
 2. Não existe integração pronta com PLCs/medidores físicos. Definir equipamentos e protocolos (p. ex. Modbus TCP/RTU ou OPC UA), validar em laboratório e separar a rede de aquisição.
 3. Criar detecção de equipamento offline, limites de stale data, reconexão, fila de eventos e observabilidade.
 4. Previsão de falhas, ESG e KPIs demonstrativos não devem ser anunciados como medições ou previsões validadas.

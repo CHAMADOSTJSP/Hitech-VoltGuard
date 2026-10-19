@@ -14,7 +14,7 @@ from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, Request, Header
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 import jwt
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Index, Text, text, or_
 from sqlalchemy.ext.declarative import declarative_base
@@ -320,7 +320,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.43.0",
+    version="0.44.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -328,7 +328,21 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
-    response = await call_next(request)
+    response = None
+    if request.url.path == "/api/device/telemetry":
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                declared_size = int(content_length)
+            except ValueError:
+                response = JSONResponse(status_code=400, content={"detail": "Content-Length inválido."})
+            else:
+                if declared_size < 0:
+                    response = JSONResponse(status_code=400, content={"detail": "Content-Length inválido."})
+                elif declared_size > 16_384:
+                    response = JSONResponse(status_code=413, content={"detail": "Payload de telemetria excede o limite de 16 KB."})
+    if response is None:
+        response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
@@ -2050,16 +2064,18 @@ class DeviceCredentialCreate(BaseModel):
     name: str
 
 class DeviceTelemetry(BaseModel):
-    panel_id: str
+    model_config = ConfigDict(extra="forbid")
+
+    panel_id: str = Field(min_length=1, max_length=160)
     temperature: Optional[float] = None
     current: Optional[float] = None
-    voltage: Optional[str] = None
+    voltage: Optional[str] = Field(default=None, max_length=80)
     voltage_v: Optional[float] = None
     active_power_kw: Optional[float] = None
     active_energy_kwh: Optional[float] = None
     frequency_hz: Optional[float] = None
     power_factor: Optional[float] = None
-    gateway_qr: Optional[str] = None
+    gateway_qr: Optional[str] = Field(default=None, max_length=160)
 
 @app.get("/api/assets")
 def list_assets(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -2249,7 +2265,8 @@ def revoke_device_credential(credential_id: int, db: Session = Depends(get_db), 
     return {"status": "revoked", "id": credential_id}
 
 @app.post("/api/device/telemetry", tags=["Device Ingestion"])
-def ingest_device_telemetry(data: DeviceTelemetry, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)):
+@limiter.limit("600/minute")
+def ingest_device_telemetry(request: Request, data: DeviceTelemetry, authorization: Optional[str] = Header(default=None), db: Session = Depends(get_db)):
     """Ingestão de telemetria com token exclusivo de dispositivo, armazenado apenas como hash."""
     import math
     if not authorization or not authorization.startswith("Bearer "):

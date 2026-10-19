@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.44.0 — Limites básicos para ingestão de telemetria
+
+A rota de telemetria agora limita cada IP a 600 requisições por minuto e recusa corpos com `Content-Length` acima de 16 KB. O payload rejeita campos desconhecidos e restringe o tamanho dos identificadores e da tensão textual. O limite de taxa é compartilhado por gateways que saem pelo mesmo IP e mantido em memória por instância; para maior escala, configurar limite distribuído por credencial no proxy/WAF ou em armazenamento compartilhado.
+
 ## v0.43.0 — Revogação de sessão no logout
 
 Cada login recebe um identificador de sessão aleatório; somente o hash é persistido. Requisições autenticadas verificam se a sessão continua ativa. O botão “Sair” chama `/api/logout` para revogar o token no servidor e limpa a sessão local; tokens antigos, sem identificador de sessão, exigem novo login após esta atualização. Os registros expirados são eliminados gradualmente no login. A revogação de outras sessões por um administrador e MFA continuam pendentes.

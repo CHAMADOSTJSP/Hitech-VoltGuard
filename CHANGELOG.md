@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.44.0 — Limites básicos para ingestão de telemetria
+- Limitada a ingestão a 600 requisições por minuto por IP com SlowAPI.
+- Recusados corpos que declarem `Content-Length` acima de 16 KB.
+- Payloads de telemetria agora rejeitam campos não reconhecidos e aplicam limites de tamanho a identificadores e tensão textual.
+- O limite é por processo/IP; controle distribuído por credencial continua necessário para instalações com várias instâncias e gateways compartilhando IP.
+
 ## v0.43.0 — Revogação de sessão no logout
 - Cada login emite um JWT com identificador aleatório; o banco armazena somente o hash e a validade da sessão.
 - Requisições protegidas verificam a sessão ativa, e `/api/logout` revoga o token atual.
