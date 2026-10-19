@@ -179,25 +179,25 @@
         }
 
         function construirAbas() {
-            let html = `<button type="button" class="tab-btn active" id="t-realtime" onclick="mudarAba('realtime')">📊 Tempo Real</button>`;
-            html += `<button type="button" class="tab-btn" id="t-commission" onclick="mudarAba('commission')">📷 Comissionamento (QR)</button>`;
+            let html = `<button type="button" class="tab-btn active" id="t-realtime" data-action="switch-tab" data-tab="realtime">📊 Tempo Real</button>`;
+            html += `<button type="button" class="tab-btn" id="t-commission" data-action="switch-tab" data-tab="commission">📷 Comissionamento (QR)</button>`;
             if (currentCargo === 'CEO' || currentCargo === 'Gerente') {
-                html += `<button type="button" class="tab-btn" id="t-predictive" onclick="mudarAba('predictive')">📈 Tendência Térmica</button>`;
-                html += `<button type="button" class="tab-btn" id="t-esg" onclick="mudarAba('esg')">🌱 ESG</button>`;
-                html += `<button type="button" class="tab-btn" id="t-inventory" onclick="mudarAba('inventory')">📦 Almoxarifado</button>`;
-                html += `<button type="button" class="tab-btn" id="t-assets" onclick="mudarAba('assets')">🏷️ Ativos</button>`;
-                html += `<button type="button" class="tab-btn" id="t-maintenance" onclick="mudarAba('maintenance')">🧰 Manutenção</button>`;
-                html += `<button type="button" class="tab-btn" id="t-devices" onclick="mudarAba('devices')">🔑 Dispositivos</button>`;
-                html += `<button type="button" class="tab-btn" id="t-rules" onclick="mudarAba('rules')">⚙️ Regras de Alarme</button>`;
+                html += `<button type="button" class="tab-btn" id="t-predictive" data-action="switch-tab" data-tab="predictive">📈 Tendência Térmica</button>`;
+                html += `<button type="button" class="tab-btn" id="t-esg" data-action="switch-tab" data-tab="esg">🌱 ESG</button>`;
+                html += `<button type="button" class="tab-btn" id="t-inventory" data-action="switch-tab" data-tab="inventory">📦 Almoxarifado</button>`;
+                html += `<button type="button" class="tab-btn" id="t-assets" data-action="switch-tab" data-tab="assets">🏷️ Ativos</button>`;
+                html += `<button type="button" class="tab-btn" id="t-maintenance" data-action="switch-tab" data-tab="maintenance">🧰 Manutenção</button>`;
+                html += `<button type="button" class="tab-btn" id="t-devices" data-action="switch-tab" data-tab="devices">🔑 Dispositivos</button>`;
+                html += `<button type="button" class="tab-btn" id="t-rules" data-action="switch-tab" data-tab="rules">⚙️ Regras de Alarme</button>`;
             }
-            html += `<button type="button" class="tab-btn" id="t-alarms" onclick="mudarAba('alarms')">🚨 Central de Alarmes</button>`;
-            html += `<button type="button" class="tab-btn" id="t-orders" onclick="mudarAba('orders')">📋 Ordens de Serviço</button>`;
+            html += `<button type="button" class="tab-btn" id="t-alarms" data-action="switch-tab" data-tab="alarms">🚨 Central de Alarmes</button>`;
+            html += `<button type="button" class="tab-btn" id="t-orders" data-action="switch-tab" data-tab="orders">📋 Ordens de Serviço</button>`;
             if (currentCargo === 'CEO') {
-                html += `<button type="button" class="tab-btn" id="t-audit" onclick="mudarAba('audit')">🛡️ Auditoria</button>`;
-                html += `<button type="button" class="tab-btn" id="t-billing" onclick="mudarAba('billing')">💳 Assinatura & Billing</button>`;
-                html += `<button type="button" class="tab-btn" id="t-executive" onclick="mudarAba('executive')">📈 Relatório Executivo</button>`;
-                html += `<button type="button" class="tab-btn" id="t-webhooks" onclick="mudarAba('webhooks')">🔔 Webhooks</button>`;
-                html += `<button type="button" class="tab-btn" id="t-demo" onclick="mudarAba('demo')" style="background:#b91c1c; color:#fff;">🎬 Demo Vendas (Simulador)</button>`;
+                html += `<button type="button" class="tab-btn" id="t-audit" data-action="switch-tab" data-tab="audit">🛡️ Auditoria</button>`;
+                html += `<button type="button" class="tab-btn" id="t-billing" data-action="switch-tab" data-tab="billing">💳 Assinatura & Billing</button>`;
+                html += `<button type="button" class="tab-btn" id="t-executive" data-action="switch-tab" data-tab="executive">📈 Relatório Executivo</button>`;
+                html += `<button type="button" class="tab-btn" id="t-webhooks" data-action="switch-tab" data-tab="webhooks">🔔 Webhooks</button>`;
+                html += `<button type="button" class="tab-btn" id="t-demo" data-action="switch-tab" data-tab="demo" style="background:#b91c1c; color:#fff;">🎬 Demo Vendas (Simulador)</button>`;
             }
             const tabsContainer = document.getElementById('nav-tabs-container');
             if(tabsContainer) tabsContainer.innerHTML = html;
@@ -1270,7 +1270,7 @@
                         <div class="os-overview-card"><span>Em manutenção</span><strong style="color:${maintenanceAssetCount ? '#fbbf24' : '#10b981'}">${maintenanceAssetCount}</strong></div>
                         <div class="os-overview-card"><span>Vinculados a painéis</span><strong>${linkedAssetCount} de ${assetsData.length}</strong></div>
                     </div>
-                    <form onsubmit="criarAtivo(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:16px">
+                    <form data-vg-submit="criarAtivo" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:16px">
                         <div class="input-group"><label for="asset-tag">Tag / patrimônio</label><input id="asset-tag" required maxlength="80"></div>
                         <div class="input-group"><label for="asset-name">Nome do ativo</label><input id="asset-name" required maxlength="160"></div>
                         <div class="input-group"><label for="asset-type">Tipo</label><select id="asset-type"><option>PAINEL_ELETRICO</option><option>MOTOR</option><option>INVERSOR</option><option>TRANSFORMADOR</option><option>MEDIDOR</option><option>OUTRO</option></select></div>
@@ -1318,7 +1318,7 @@
                     <h3 style="color:#10b981">🧰 Manutenção Preventiva</h3>
                     <div class="os-overview">${taskCounters.map(([label,count])=>`<div class="os-overview-card"><span>${label}</span><strong style="color:${label==='ATRASADAS'&&count?'#ef4444':'#10b981'}">${count}</strong></div>`).join('')}</div>
                     <h4>Criar plano recorrente</h4>
-                    <form onsubmit="criarPlanoManutencao(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+                    <form data-vg-submit="criarPlanoManutencao" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
                         <div class="input-group"><label for="mp-asset">Ativo</label><select id="mp-asset" required>${assetOptions}</select></div>
                         <div class="input-group"><label for="mp-title">Nome do plano</label><input id="mp-title" required maxlength="180" placeholder="Inspeção trimestral"></div>
                         <div class="input-group"><label for="mp-interval">Periodicidade (dias)</label><input id="mp-interval" type="number" min="1" max="3650" value="30" required></div>
@@ -1326,7 +1326,7 @@
                         <button class="btn-primary" type="submit" ${assetsData.length?'':'disabled'}>Criar plano e agendar primeira tarefa</button>
                     </form>
                     <h4>Agendar tarefa avulsa</h4>
-                    <form onsubmit="criarTarefaManutencao(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+                    <form data-vg-submit="criarTarefaManutencao" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
                         <div class="input-group"><label for="mt-new-asset">Ativo</label><select id="mt-new-asset" required>${assetOptions}</select></div>
                         <div class="input-group"><label for="mt-new-title">Tarefa</label><input id="mt-new-title" maxlength="180" required placeholder="Ex.: Inspecionar conexão"></div>
                         <div class="input-group"><label for="mt-new-due">Prazo</label><input id="mt-new-due" type="datetime-local" required></div>
@@ -1358,7 +1358,7 @@
                 const unusedCredentials = deviceCredentials.filter(d => !d.revoked && !d.last_used_at).length;
                 const revokedCredentials = deviceCredentials.filter(d => d.revoked).length;
                 const panelIdDefault = gerarIdPainelDemo();
-                container.innerHTML = `<div style="grid-column:1/-1;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:20px;border-radius:8px"><h3 style="color:#10b981">🔑 Credenciais de Telemetria por Dispositivo</h3><p>O token é exibido somente uma vez. Guarde-o num cofre de segredos; não o publique no frontend.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px">${[['ATIVAS',activeCredentials],['SEM USO',unusedCredentials],['REVOGADAS',revokedCredentials]].map(([label,count])=>`<div style="border:1px solid #075e48;border-radius:6px;padding:10px"><small>${label}</small><strong style="display:block;color:#10b981">${count}</strong></div>`).join('')}</div>${lista.length?'':`<section style="border:1px solid #075e48;border-radius:8px;padding:16px;margin:16px 0"><h3 style="margin-top:0;color:#34d399">Cadastrar painel demonstrativo</h3><p>Esta organização ainda não tem painéis. Cadastre um painel fictício para preparar a configuração do gateway; isso não representa equipamento real.</p><form onsubmit="cadastrarPainelDemo(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px"><div class="input-group"><label for="new-panel-id">ID do painel</label><input id="new-panel-id" value="${escapeHtml(panelIdDefault)}" maxlength="100" pattern="[A-Za-z0-9_-]+" required></div><div class="input-group"><label for="new-panel-name">Nome</label><input id="new-panel-name" value="Painel de teste — DEMO" maxlength="200" required></div><div class="input-group"><label for="new-panel-location">Local</label><input id="new-panel-location" value="Ambiente simulado" maxlength="200" required></div><div class="input-group"><label for="new-panel-voltage">Tensão</label><input id="new-panel-voltage" value="380V AC" maxlength="80"></div><div class="input-group"><label for="new-panel-component">Componente monitorado</label><input id="new-panel-component" value="Disjuntor principal" maxlength="160"></div><button class="btn-primary" type="submit">Cadastrar painel demonstrativo</button></form><p id="new-panel-status" aria-live="polite" style="color:#a7f3d0"></p></section>`}<form onsubmit="criarCredencialDispositivo(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px"><div class="input-group"><label>Painel autorizado</label><select id="device-panel" required onchange="const sample=document.getElementById('device-telemetry-example');if(sample)sample.textContent=exemploTelemetriaDispositivo()">${lista.length?lista.map(x=>`<option value="${escapeHtml(x.id)}">${escapeHtml(x.id)} — ${escapeHtml(x.name)}</option>`).join(''):'<option value="" selected disabled>Nenhum painel cadastrado</option>'}</select></div><div class="input-group"><label>Nome da credencial</label><input id="device-name" maxlength="120" required placeholder="Gateway sala elétrica"></div><button class="btn-primary" type="submit" ${lista.length?'':'disabled'}>Criar credencial</button></form><p>Endpoint de ingestão: <code>POST /api/device/telemetry</code>. O token deve ser enviado no cabeçalho <code>Authorization: Bearer …</code>, pelo gateway.</p><details style="margin:14px 0;padding:12px;border:1px solid #075e48;border-radius:6px"><summary style="cursor:pointer;color:#34d399;font-weight:bold">Guia rápido de integração</summary><p>Envie uma requisição HTTP POST com o ID do painel e ao menos uma grandeza numérica. Temperatura, corrente, tensão, potência ativa, energia acumulada, frequência e fator de potência são aceitos. Temperatura e corrente só criam ou normalizam seus alarmes quando incluídas na leitura. O token é segredo do dispositivo; mantenha-o no gateway e fora do navegador, do código-fonte e dos registros.</p><pre id="device-telemetry-example" style="white-space:pre-wrap;overflow-wrap:anywhere;background:#06110b;padding:12px;border-radius:6px;color:#d1fae5;font-size:12px">${escapeHtml(exemploTelemetriaDispositivo())}</pre><button type="button" class="btn-action" onclick="copiarExemploTelemetria()">Copiar exemplo HTTP</button><p id="device-example-copy-status" aria-live="polite" style="min-height:18px;color:#a7f3d0"></p><small>Temperatura: −50 a 250 °C; corrente: 0 a 100.000 A. Tensão e identificador do gateway são opcionais.</small></details><h4>Credenciais (${filteredCredentials.length} de ${deviceCredentials.length})</h4><div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:10px 0 14px"><div class="input-group"><label>Buscar</label><input id="device-search" value="${escapeHtml(deviceSearchText)}" placeholder="Nome ou painel" onchange="deviceSearchText=this.value;renderizar()"></div><button type="button" class="btn-action" onclick="deviceSearchText=document.getElementById('device-search').value;renderizar()">Buscar</button><div class="input-group"><label>Painel</label><select onchange="devicePanelFilter=this.value;renderizar()"><option value="TODOS" ${devicePanelFilter==='TODOS'?'selected':''}>Todos os painéis</option>${[...new Set(deviceCredentials.map(d=>d.panel_id))].map(panel=>`<option value="${escapeHtml(panel)}" ${devicePanelFilter===panel?'selected':''}>${escapeHtml(panel)}</option>`).join('')}</select></div><div class="input-group"><label>Estado</label><select onchange="deviceStatusFilter=this.value;renderizar()"><option value="TODOS" ${deviceStatusFilter==='TODOS'?'selected':''}>Todos os estados</option><option value="ATIVA" ${deviceStatusFilter==='ATIVA'?'selected':''}>Ativas</option><option value="REVOGADA" ${deviceStatusFilter==='REVOGADA'?'selected':''}>Revogadas</option></select></div></div><div style="overflow-x:auto"><table class="enterprise-table"><tr><th>Nome</th><th>Painel</th><th>Criada em</th><th>Último uso</th><th>Estado</th><th>Ação</th></tr>${filteredCredentials.map(d=>`<tr><td>${escapeHtml(d.name)}</td><td>${escapeHtml(d.panel_id)}</td><td>${formatarDataHora(d.created_at)}</td><td>${d.last_used_at?formatarDataHora(d.last_used_at):'Nunca utilizada'}</td><td>${d.revoked?'REVOGADA':'ATIVA'}</td><td>${d.revoked?'—':`<button type="button" class="btn-action" onclick="revogarDispositivo(${Number(d.id)})">Revogar</button>`}</td></tr>`).join('')}</table>${filteredCredentials.length?'':'<p>Nenhuma credencial corresponde aos filtros selecionados.</p>'}</div></div>`;
+                container.innerHTML = `<div style="grid-column:1/-1;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:20px;border-radius:8px"><h3 style="color:#10b981">🔑 Credenciais de Telemetria por Dispositivo</h3><p>O token é exibido somente uma vez. Guarde-o num cofre de segredos; não o publique no frontend.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px">${[['ATIVAS',activeCredentials],['SEM USO',unusedCredentials],['REVOGADAS',revokedCredentials]].map(([label,count])=>`<div style="border:1px solid #075e48;border-radius:6px;padding:10px"><small>${label}</small><strong style="display:block;color:#10b981">${count}</strong></div>`).join('')}</div>${lista.length?'':`<section style="border:1px solid #075e48;border-radius:8px;padding:16px;margin:16px 0"><h3 style="margin-top:0;color:#34d399">Cadastrar painel demonstrativo</h3><p>Esta organização ainda não tem painéis. Cadastre um painel fictício para preparar a configuração do gateway; isso não representa equipamento real.</p><form data-vg-submit="cadastrarPainelDemo" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px"><div class="input-group"><label for="new-panel-id">ID do painel</label><input id="new-panel-id" value="${escapeHtml(panelIdDefault)}" maxlength="100" pattern="[A-Za-z0-9_-]+" required></div><div class="input-group"><label for="new-panel-name">Nome</label><input id="new-panel-name" value="Painel de teste — DEMO" maxlength="200" required></div><div class="input-group"><label for="new-panel-location">Local</label><input id="new-panel-location" value="Ambiente simulado" maxlength="200" required></div><div class="input-group"><label for="new-panel-voltage">Tensão</label><input id="new-panel-voltage" value="380V AC" maxlength="80"></div><div class="input-group"><label for="new-panel-component">Componente monitorado</label><input id="new-panel-component" value="Disjuntor principal" maxlength="160"></div><button class="btn-primary" type="submit">Cadastrar painel demonstrativo</button></form><p id="new-panel-status" aria-live="polite" style="color:#a7f3d0"></p></section>`}<form data-vg-submit="criarCredencialDispositivo" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px"><div class="input-group"><label>Painel autorizado</label><select id="device-panel" required onchange="const sample=document.getElementById('device-telemetry-example');if(sample)sample.textContent=exemploTelemetriaDispositivo()">${lista.length?lista.map(x=>`<option value="${escapeHtml(x.id)}">${escapeHtml(x.id)} — ${escapeHtml(x.name)}</option>`).join(''):'<option value="" selected disabled>Nenhum painel cadastrado</option>'}</select></div><div class="input-group"><label>Nome da credencial</label><input id="device-name" maxlength="120" required placeholder="Gateway sala elétrica"></div><button class="btn-primary" type="submit" ${lista.length?'':'disabled'}>Criar credencial</button></form><p>Endpoint de ingestão: <code>POST /api/device/telemetry</code>. O token deve ser enviado no cabeçalho <code>Authorization: Bearer …</code>, pelo gateway.</p><details style="margin:14px 0;padding:12px;border:1px solid #075e48;border-radius:6px"><summary style="cursor:pointer;color:#34d399;font-weight:bold">Guia rápido de integração</summary><p>Envie uma requisição HTTP POST com o ID do painel e ao menos uma grandeza numérica. Temperatura, corrente, tensão, potência ativa, energia acumulada, frequência e fator de potência são aceitos. Temperatura e corrente só criam ou normalizam seus alarmes quando incluídas na leitura. O token é segredo do dispositivo; mantenha-o no gateway e fora do navegador, do código-fonte e dos registros.</p><pre id="device-telemetry-example" style="white-space:pre-wrap;overflow-wrap:anywhere;background:#06110b;padding:12px;border-radius:6px;color:#d1fae5;font-size:12px">${escapeHtml(exemploTelemetriaDispositivo())}</pre><button type="button" class="btn-action" onclick="copiarExemploTelemetria()">Copiar exemplo HTTP</button><p id="device-example-copy-status" aria-live="polite" style="min-height:18px;color:#a7f3d0"></p><small>Temperatura: −50 a 250 °C; corrente: 0 a 100.000 A. Tensão e identificador do gateway são opcionais.</small></details><h4>Credenciais (${filteredCredentials.length} de ${deviceCredentials.length})</h4><div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:10px 0 14px"><div class="input-group"><label>Buscar</label><input id="device-search" value="${escapeHtml(deviceSearchText)}" placeholder="Nome ou painel" onchange="deviceSearchText=this.value;renderizar()"></div><button type="button" class="btn-action" onclick="deviceSearchText=document.getElementById('device-search').value;renderizar()">Buscar</button><div class="input-group"><label>Painel</label><select onchange="devicePanelFilter=this.value;renderizar()"><option value="TODOS" ${devicePanelFilter==='TODOS'?'selected':''}>Todos os painéis</option>${[...new Set(deviceCredentials.map(d=>d.panel_id))].map(panel=>`<option value="${escapeHtml(panel)}" ${devicePanelFilter===panel?'selected':''}>${escapeHtml(panel)}</option>`).join('')}</select></div><div class="input-group"><label>Estado</label><select onchange="deviceStatusFilter=this.value;renderizar()"><option value="TODOS" ${deviceStatusFilter==='TODOS'?'selected':''}>Todos os estados</option><option value="ATIVA" ${deviceStatusFilter==='ATIVA'?'selected':''}>Ativas</option><option value="REVOGADA" ${deviceStatusFilter==='REVOGADA'?'selected':''}>Revogadas</option></select></div></div><div style="overflow-x:auto"><table class="enterprise-table"><tr><th>Nome</th><th>Painel</th><th>Criada em</th><th>Último uso</th><th>Estado</th><th>Ação</th></tr>${filteredCredentials.map(d=>`<tr><td>${escapeHtml(d.name)}</td><td>${escapeHtml(d.panel_id)}</td><td>${formatarDataHora(d.created_at)}</td><td>${d.last_used_at?formatarDataHora(d.last_used_at):'Nunca utilizada'}</td><td>${d.revoked?'REVOGADA':'ATIVA'}</td><td>${d.revoked?'—':`<button type="button" class="btn-action" onclick="revogarDispositivo(${Number(d.id)})">Revogar</button>`}</td></tr>`).join('')}</table>${filteredCredentials.length?'':'<p>Nenhuma credencial corresponde aos filtros selecionados.</p>'}</div></div>`;
                 return;
             }
 
@@ -1369,7 +1369,7 @@
                     <div style="grid-column: 1/-1; background: rgba(17, 42, 29, 0.95); border: 1px solid #10b981; padding: 25px; border-radius: 8px; max-width: 600px; margin: 0 auto;">
                         <h3 style="color:#10b981; margin-top:0;">📷 Consulta de painel por QR Code</h3>
                         <p style="font-size:13px; color:#d1d5db;">Leia o QR do gateway usando a câmera ou selecione uma imagem com o código. Se preferir, informe o código ou ID do painel abaixo. A câmera é opcional e pode pedir autorização do navegador.</p>
-                        <form onsubmit="event.preventDefault(); consultarQR(document.getElementById('qr-input-manual').value.trim())" style="margin-bottom:20px;">
+                        <form data-vg-submit="consult-qr" style="margin-bottom:20px;">
                             <div class="input-group"><label for="qr-input-manual">Código QR / ID do painel</label><input type="text" id="qr-input-manual" maxlength="160" placeholder="Ex: QR-GW-0010" required></div>
                             <button type="submit" class="btn-primary">Consultar painel</button>
                         </form>
@@ -1405,7 +1405,7 @@
                         <h3 style="color:#10b981; margin-top:0;">🔔 Webhook para alertas críticos</h3>
                         <p style="font-size:13px; color:#d1d5db;">Estado: <strong id="webhook-state-label" style="color:${webhookConfigured ? '#10b981' : '#9ca3af'}">${webhookConfigured ? 'Configurado' : 'Desativado'}</strong></p>
                         <p style="font-size:13px; color:#d1d5db;">No momento, o envio acontece quando a ação de simular falha crítica é executada. O endpoint deve ser HTTPS público. Deixe o campo vazio e salve para desativar.</p>
-                        <form onsubmit="salvarWebhook(event)" style="margin-top: 15px;">
+                        <form data-vg-submit="salvarWebhook" style="margin-top: 15px;">
                             <div class="input-group"><label for="webhook-url-input">Endpoint URL</label><input type="url" id="webhook-url-input" maxlength="2048" placeholder="https://exemplo.com/webhook" value="${escapeHtml(billingData.webhook_url || '')}"></div>
                             <button id="webhook-save-button" type="submit" class="btn-primary" style="margin-top: 10px;">Salvar configuração</button>
                             <p id="webhook-save-status" role="status" aria-live="polite" style="font-size:13px;min-height:1em"></p>
@@ -1455,7 +1455,7 @@
                     <div style="grid-column: 1/-1; background: rgba(17, 42, 29, 0.95); border: 1px solid #10b981; padding: 25px; border-radius: 8px; max-width: 600px;">
                         <h3 style="color:#10b981; margin-top:0;">⚙️ Configuração do Motor de Regras por Organização</h3>
                         <p style="font-size:13px; color:#d1d5db;">Defina os limiares de segurança térmica que acionam o estado CRÍTICO em toda a frota.</p>
-                        <form onsubmit="salvarRegrasTenant(event)" style="margin-top: 15px;">
+                        <form data-vg-submit="salvarRegrasTenant" style="margin-top: 15px;">
                             <div class="input-group"><label>Temperatura Máxima de Alerta (°C)</label><input type="number" step="0.1" min="0.1" max="250" id="rule-temp-input" value="${billingData.max_temperature || 85.0}" required></div>
                             <div class="input-group"><label>Corrente Máxima de Alerta (A)</label><input type="number" step="0.1" min="0.1" max="100000" id="rule-curr-input" value="${billingData.max_current || 500.0}" required></div>
                             <button type="submit" class="btn-primary" style="margin-top: 10px;">Guardar Regras da Organização</button>
@@ -1463,7 +1463,7 @@
                         <hr style="border-color:#065f46;margin:24px 0;">
                         <h3 style="color:#10b981;">Regras específicas por painel</h3>
                         <p style="font-size:13px;color:#d1d5db;">Regras específicas substituem os limites padrão da organização. A histerese reduz abertura e fechamento repetidos quando as leituras oscilam perto do limite.</p>
-                        <form onsubmit="salvarRegrasPainel(event)" style="margin-top:15px;">
+                        <form data-vg-submit="salvarRegrasPainel" style="margin-top:15px;">
                             <div class="input-group"><label for="panel-rule-select">Painel</label><select id="panel-rule-select" onchange="carregarRegrasPainel()" required>${Object.values(dadosGlobais).filter(p => p && p.id).map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name || p.id)} — ${escapeHtml(p.id)}</option>`).join('') || '<option value="" selected disabled>Nenhum painel disponível</option>'}</select></div>
                             <div class="input-group"><label>Temperatura máxima (°C)</label><input type="number" step="0.1" min="0.1" max="250" id="panel-rule-temp" value="85" oninput="atualizarPreviaRegrasPainel()" required></div>
                             <div class="input-group"><label>Corrente máxima (A)</label><input type="number" step="0.1" min="0.1" max="100000" id="panel-rule-current" value="500" oninput="atualizarPreviaRegrasPainel()" required></div>
@@ -1513,7 +1513,7 @@
                         <div class="os-overview-card"><span>Abaixo do estoque mínimo</span><strong style="color:${belowMinimum ? '#ef4444' : '#10b981'}">${belowMinimum}</strong></div>
                         <div class="os-overview-card"><span>Valor estimado em estoque</span><strong>${money(stockValue)}</strong></div>
                     </div>
-                    <form onsubmit="salvarItemInventario(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:18px 0;align-items:end;">
+                    <form data-vg-submit="salvarItemInventario" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:18px 0;align-items:end;">
                         <div class="input-group" style="margin:0"><label for="inventory-name">Item</label><input id="inventory-name" maxlength="160" required placeholder="Ex.: Disjuntor 60 A" oninput="preencherCamposInventarioExistente()"></div>
                         <div class="input-group" style="margin:0"><label for="inventory-category">Categoria</label><input id="inventory-category" maxlength="120" value="Elétrica"></div>
                         <div class="input-group" style="margin:0"><label for="inventory-quantity">Ajuste de quantidade</label><input id="inventory-quantity" type="number" step="1" min="-100000" max="100000" required value="1" aria-describedby="inventory-quantity-help"></div>
@@ -1627,7 +1627,7 @@
                 container.innerHTML = `
                     <div style="grid-column:1/-1; background:rgba(17,42,29,.95); border:1px solid #10b981; padding:20px; border-radius:8px;"><h3 style="color:#10b981;margin-top:0;">📋 Gestão de Ordens de Serviço</h3>
                     <div class="os-overview"><div class="os-overview-card"><span>Ordens em aberto</span><strong>${openCount}</strong></div><div class="os-overview-card"><span>Em andamento</span><strong>${inProgressCount}</strong></div><div class="os-overview-card"><span>Atrasadas</span><strong style="color:${overdueCount ? '#ef4444' : '#10b981'}">${overdueCount}</strong></div><div class="os-overview-card"><span>Concluídas</span><strong>${completedCount}</strong></div><div class="os-overview-card"><span>Originadas de alarmes</span><strong>${alarmOriginCount}</strong></div></div>
-                    <form onsubmit="criarOrdemServico(event)" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+                    <form data-vg-submit="criarOrdemServico" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
                       <div class="input-group"><label>Painel</label><select id="os-panel" required>${lista.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.id)} — ${escapeHtml(p.name)}</option>`).join('')}</select></div>
                       <div class="input-group"><label>Título</label><input id="os-title" maxlength="200" required></div>
                       <div class="input-group"><label>Prioridade</label><select id="os-priority"><option>BAIXA</option><option>MEDIA</option><option selected>ALTA</option><option>CRITICA</option></select></div>
@@ -1661,7 +1661,7 @@
             } else if (currentTab === 'audit') {
                 container.innerHTML = `<div style="grid-column: 1/-1;">
                     <h3 style="color:#10b981; margin-bottom:15px;">Registro de Auditoria</h3>
-                    <form class="os-filters" onsubmit="filtrarAuditoria(event)">
+                    <form class="os-filters" data-vg-submit="filtrarAuditoria">
                         <div class="input-group"><label for="audit-search">Buscar nos detalhes</label><input id="audit-search" value="${escapeHtml(auditFilters.search)}" maxlength="200" placeholder="Ação, detalhes ou papel"></div>
                         <div class="input-group"><label for="audit-user">Usuário</label><input id="audit-user" value="${escapeHtml(auditFilters.user_name)}" maxlength="120" placeholder="Nome do usuário"></div>
                         <div class="input-group"><label for="audit-action">Ação</label><select id="audit-action"><option value="">Todas as ações</option>${auditActions.map(action => `<option value="${escapeHtml(action)}" ${auditFilters.action===action?'selected':''}>${escapeHtml(action)}</option>`).join('')}</select></div>
@@ -1696,6 +1696,9 @@
             const target = event.target.closest('[data-action]');
             if (!target) return;
             switch (target.dataset.action) {
+                case 'switch-tab':
+                    mudarAba(target.dataset.tab || 'realtime');
+                    break;
                 case 'force-failure':
                     simularFalhaComercial(target.dataset.panelId || '');
                     break;
@@ -1713,6 +1716,27 @@
                     break;
                 case 'logout':
                     realizarLogout();
+                    break;
+            }
+        });
+        document.addEventListener('submit', (event) => {
+            const form = event.target;
+            if (!(form instanceof HTMLFormElement)) return;
+            switch (form.dataset.vgSubmit) {
+                case 'cadastrarPainelDemo': cadastrarPainelDemo(event); break;
+                case 'criarAtivo': criarAtivo(event); break;
+                case 'criarCredencialDispositivo': criarCredencialDispositivo(event); break;
+                case 'criarOrdemServico': criarOrdemServico(event); break;
+                case 'criarPlanoManutencao': criarPlanoManutencao(event); break;
+                case 'criarTarefaManutencao': criarTarefaManutencao(event); break;
+                case 'filtrarAuditoria': filtrarAuditoria(event); break;
+                case 'salvarItemInventario': salvarItemInventario(event); break;
+                case 'salvarRegrasPainel': salvarRegrasPainel(event); break;
+                case 'salvarRegrasTenant': salvarRegrasTenant(event); break;
+                case 'salvarWebhook': salvarWebhook(event); break;
+                case 'consult-qr':
+                    event.preventDefault();
+                    consultarQR(document.getElementById('qr-input-manual')?.value.trim() || '');
                     break;
             }
         });

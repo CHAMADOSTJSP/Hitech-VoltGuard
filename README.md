@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.47.0 — Migração dos eventos de navegação e envio de formulários
+
+As abas e os envios dos formulários gerados pela interface passaram a usar listeners delegados no `app.js`, com uma lista explícita de ações permitidas. Ainda há eventos inline de clique/alteração/entrada e estilos inline; a CSP restritiva continua pendente.
+
 ## v0.46.0 — Migração dos eventos da tela de autenticação
 
 Login, cadastro de organização e logout agora usam delegação de eventos no JavaScript externo. A alternância entre as telas de login e cadastro usa botões com suporte a teclado. Os handlers dinâmicos e estilos inline restantes ainda precisam ser migrados antes da ativação de CSP restritiva.

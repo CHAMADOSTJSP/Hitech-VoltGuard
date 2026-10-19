@@ -6,6 +6,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 ## Melhorias aplicadas nesta revisão
 
+- v0.47.0: navegação das abas e envios de formulários dinâmicos migrados para listeners delegados com ações permitidas explicitamente, sem `eval`. Eventos inline dinâmicos restantes e estilos inline ainda impedem CSP estrita.
 - v0.46.0: removidos os eventos inline da tela de autenticação, com delegação no JavaScript externo; as alternâncias entre login e cadastro passaram a botões acessíveis por teclado. Handlers nas telas dinâmicas e estilos inline ainda impedem uma CSP estrita.
 - v0.45.0: script principal extraído para `app.js`, servido pelo FastAPI com `Cache-Control: no-store` e incluído na imagem Docker. A CSP restritiva permanece pendente porque ainda existem handlers e estilos inline.
 - Nomes de arquivos padronizados para coincidir com os caminhos esperados pelo Render e Dockerfile.

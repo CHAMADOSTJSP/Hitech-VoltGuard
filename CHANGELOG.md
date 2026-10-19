@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.47.0 — Migração dos eventos de navegação e envio de formulários
+- Navegação das abas e envios dos formulários dinâmicos agora usam listeners delegados no JavaScript externo.
+- Os tipos de ação são selecionados por uma lista explícita; nenhum código é interpretado a partir de atributos HTML.
+- Permanecem eventos inline de clique, alteração e entrada de dados nas telas dinâmicas, além de estilos inline; CSP restritiva segue desativada.
+
 ## v0.46.0 — Migração dos eventos da tela de autenticação
 - Removidos os handlers inline de login, cadastro de organização e logout da página inicial.
 - Ações agora usam delegação de eventos no JavaScript externo; links de alternância entre telas são botões acessíveis por teclado.
