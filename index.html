@@ -154,7 +154,7 @@
                 <span class="badge-tenant" id="tenant-display">-</span>
                 <span>Usuário: <strong id="user-display">-</strong></span>
                 <span class="badge-cargo" id="cargo-display">-</span>
-                <button type="button" class="btn-logout" onclick="location.reload()">Sair</button>
+                <button type="button" class="btn-logout" onclick="realizarLogout()">Sair</button>
             </div>
         </div>
 
@@ -297,6 +297,31 @@
             }
         }
 
+        async function realizarLogout() {
+            const activeToken = tokenJwt;
+            if (activeToken) {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 3000);
+                try {
+                    await fetch('/api/logout', {
+                        method: 'POST',
+                        headers: {'Authorization': `Bearer ${activeToken}`},
+                        signal: controller.signal
+                    });
+                } catch (err) {
+                    console.warn('O servidor não confirmou a revogação da sessão:', err);
+                } finally {
+                    clearTimeout(timeout);
+                }
+            }
+            if (pollingInterval) clearInterval(pollingInterval);
+            pollingInterval = null;
+            tokenJwt = '';
+            currentUser = '';
+            currentCargo = '';
+            window.location.reload();
+        }
+
         async function baixarRelatorio() {
             try {
                 const res = await fetch('/api/export/executive-report', {
@@ -364,8 +389,24 @@
         function buscarDadosPainéis() {
             if(!tokenJwt) return;
             return fetch('/api/panels', {headers: {'Authorization': `Bearer ${tokenJwt}`}})
-                .then(res => res.json())
+                .then(res => {
+                    if (res.status === 401) {
+                        if (pollingInterval) clearInterval(pollingInterval);
+                        pollingInterval = null;
+                        tokenJwt = '';
+                        currentUser = '';
+                        currentCargo = '';
+                        document.getElementById('dashboard-screen').style.display = 'none';
+                        document.getElementById('login-screen').style.display = 'block';
+                        const error = document.getElementById('error-msg');
+                        if (error) error.textContent = 'Sua sessão expirou ou foi encerrada. Entre novamente.';
+                        return null;
+                    }
+                    if (!res.ok) throw new Error('Não foi possível atualizar os dados do painel.');
+                    return res.json();
+                })
                 .then(data => {
+                    if (!data) return;
                     if(data.panels) {
                         billingData = data.billing || {};
                         const tenantDisplay = document.getElementById('tenant-display');

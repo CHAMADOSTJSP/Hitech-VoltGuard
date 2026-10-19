@@ -280,6 +280,14 @@ class WebSocketTicketModel(Base):
     expires_at = Column(DateTime, nullable=False, index=True)
     used_at = Column(DateTime, nullable=True)
 
+class AuthSessionModel(Base):
+    __tablename__ = "auth_sessions"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_name = Column(String, index=True, nullable=False)
+    token_id_hash = Column(String, unique=True, index=True, nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    revoked_at = Column(DateTime, nullable=True)
+
 def validate_webhook_url(value: str) -> str:
     """Permite apenas HTTPS público, sem credenciais, IPs privados ou hosts locais."""
     if not value:
@@ -312,7 +320,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.42.0",
+    version="0.43.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -492,6 +500,7 @@ class User(BaseModel):
     role: str
     tenant_id: str
     plan: str
+    token_id: Optional[str] = None
 
 class TelemetryData(BaseModel):
     panel_id: str
@@ -506,7 +515,8 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username = payload.get("sub")
-        if not isinstance(username, str) or not username:
+        token_id = payload.get("jti")
+        if not isinstance(username, str) or not username or not isinstance(token_id, str) or not token_id:
             raise HTTPException(status_code=401, detail="Token inválido.")
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Token inválido ou expirado.")
@@ -516,7 +526,15 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     db_user = db.query(UserModel).filter(UserModel.username == username).first()
     if not db_user:
         raise HTTPException(status_code=401, detail="Utilizador não existe ou sessão revogada.")
-    return User(username=db_user.username, role=db_user.role, tenant_id=db_user.tenant_id, plan=db_user.plan)
+    session_record = db.query(AuthSessionModel).filter(
+        AuthSessionModel.token_id_hash == hashlib.sha256(token_id.encode()).hexdigest(),
+        AuthSessionModel.user_name == username,
+        AuthSessionModel.revoked_at.is_(None),
+        AuthSessionModel.expires_at > datetime.utcnow(),
+    ).first()
+    if not session_record:
+        raise HTTPException(status_code=401, detail="Sessão encerrada ou expirada. Entre novamente.")
+    return User(username=db_user.username, role=db_user.role, tenant_id=db_user.tenant_id, plan=db_user.plan, token_id=token_id)
 
 # --- ROTAS DA API ---
 
@@ -544,8 +562,33 @@ def login(request: Request, credentials: dict, db: Session = Depends(get_db)):
         db_user.password = hash_password(password)
         db.commit()
     
-    token = jwt.encode({"sub": db_user.username, "role": db_user.role, "tenant_id": db_user.tenant_id, "plan": db_user.plan, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)}, SECRET_KEY, algorithm=ALGORITHM)
+    now = datetime.utcnow()
+    expires_at = now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    db.query(AuthSessionModel).filter(
+        AuthSessionModel.expires_at < now - timedelta(days=30)
+    ).delete(synchronize_session=False)
+    token_id = secrets.token_urlsafe(24)
+    db.add(AuthSessionModel(
+        user_name=db_user.username,
+        token_id_hash=hashlib.sha256(token_id.encode()).hexdigest(),
+        expires_at=expires_at,
+    ))
+    db.commit()
+    token = jwt.encode({"sub": db_user.username, "role": db_user.role, "tenant_id": db_user.tenant_id, "plan": db_user.plan, "jti": token_id, "exp": expires_at}, SECRET_KEY, algorithm=ALGORITHM)
     return {"access_token": token, "token_type": "bearer", "role": db_user.role, "plan": db_user.plan}
+
+@app.post("/api/logout", tags=["Authentication"])
+def logout(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    token_hash = hashlib.sha256(current_user.token_id.encode()).hexdigest()
+    session_record = db.query(AuthSessionModel).filter(
+        AuthSessionModel.token_id_hash == token_hash,
+        AuthSessionModel.user_name == current_user.username,
+        AuthSessionModel.revoked_at.is_(None),
+    ).first()
+    if session_record:
+        session_record.revoked_at = datetime.utcnow()
+        db.commit()
+    return {"status": "success", "message": "Sessão encerrada."}
 
 @app.post("/api/ws-ticket", tags=["Authentication"])
 def create_websocket_ticket(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

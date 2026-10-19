@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.43.0 — Revogação de sessão no logout
+
+Cada login recebe um identificador de sessão aleatório; somente o hash é persistido. Requisições autenticadas verificam se a sessão continua ativa. O botão “Sair” chama `/api/logout` para revogar o token no servidor e limpa a sessão local; tokens antigos, sem identificador de sessão, exigem novo login após esta atualização. Os registros expirados são eliminados gradualmente no login. A revogação de outras sessões por um administrador e MFA continuam pendentes.
+
 ## v0.42.0 — Ticket temporário para WebSocket
 
 A rota `/api/ws-ticket` emite um ticket opaco, armazenado apenas como hash, de uso único e válido por 30 segundos. `/ws/panels` consome o ticket atomicamente, verifica o usuário e associa a conexão à organização atual; a rota rejeita origem diferente da origem do serviço. O frontend atual não abre WebSocket, então esta mudança protege e prepara a rota sem alterar a interface. O ticket ainda aparece na URL por poucos segundos; conexões também precisam de limites e monitoramento antes de produção.

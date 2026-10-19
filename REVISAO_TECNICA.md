@@ -43,6 +43,12 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 - WebSocket usa ticket opaco de uso único, armazenado como hash e válido por 30 segundos. O ticket é consumido atomicamente e a origem do navegador precisa corresponder à origem do serviço.
 - O frontend ainda não usa WebSocket. O ticket curto reduz o impacto de registros de URL, mas não remove completamente o segredo da URL; limitar conexões e monitorar tentativas continua pendente.
 
+### Controles implementados na versão 0.43.0
+
+- Cada login recebe um identificador de sessão aleatório; somente seu hash e validade são persistidos.
+- A autorização verifica a sessão ativa em cada requisição autenticada. O endpoint `/api/logout` revoga a sessão atual, e a interface limpa o token e interrompe o polling.
+- A atualização invalida tokens emitidos antes da adoção do identificador de sessão; a interface solicita novo login. MFA, encerramento remoto de todas as sessões e alertas de atividade continuam pendentes.
+
 ### Banco e multiempresa
 
 1. `PanelModel.id` ainda é chave primária global. A aplicação não permite reutilizar o mesmo ID em duas organizações. Alterar para chave composta exige migração estrutural e testes de regressão.

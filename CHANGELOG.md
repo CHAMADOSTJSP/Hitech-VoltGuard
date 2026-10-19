@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.43.0 — Revogação de sessão no logout
+- Cada login emite um JWT com identificador aleatório; o banco armazena somente o hash e a validade da sessão.
+- Requisições protegidas verificam a sessão ativa, e `/api/logout` revoga o token atual.
+- O botão “Sair” solicita a revogação, limpa o token da memória e encerra o polling.
+- Sessões de versões anteriores, sem identificador, pedem novo login após a atualização.
+
 ## v0.42.0 — Ticket temporário para WebSocket
 - Criado endpoint autenticado que emite ticket opaco, armazenado como hash, com validade de 30 segundos e uso único.
 - A rota WebSocket consome o ticket com atualização condicional, carrega a organização atual do usuário e valida a origem do navegador.
