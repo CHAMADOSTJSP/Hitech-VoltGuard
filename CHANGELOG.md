@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.49.0 — Migração dos eventos de alteração e digitação
+- Filtros, prévias de regras, seleção de histórico e atualização de checklist passaram a usar listeners delegados de `change` e `input`.
+- Removidos os atributos inline `onclick`, `onchange`, `oninput` e `onsubmit` do HTML estático e gerado.
+- Estilos inline e blocos `<style>` ainda permanecem; CSP restritiva ainda não foi ativada.
+
 ## v0.48.0 — Migração dos cliques das telas dinâmicas
 - Ações de alarmes, ordens, ativos, manutenção, auditoria, dispositivos, relatórios e configurações passaram a usar atributos `data-action` e delegação de eventos.
 - Identificadores e argumentos são lidos como dados e encaminhados por uma lista explícita de ações.

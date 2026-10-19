@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.49.0 — Migração dos eventos de alteração e digitação
+
+Filtros, prévias, histórico e checklists agora usam listeners delegados para `change` e `input`. Os atributos inline `onclick`, `onchange`, `oninput` e `onsubmit` foram removidos. Estilos inline ainda precisam ser migrados antes da CSP restritiva.
+
 ## v0.48.0 — Migração dos cliques das telas dinâmicas
 
 As ações de clique nas telas dinâmicas usam agora `data-action` e delegação de eventos, com encaminhamento por uma lista permitida no JavaScript externo. Os eventos inline de alteração/entrada e os estilos inline ainda precisam ser removidos antes da CSP restritiva.
