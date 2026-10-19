@@ -63,6 +63,7 @@ class PanelModel(Base):
     voltage = Column(String, nullable=False)
     current = Column(Float, default=0.0)
     temperature = Column(Float, default=0.0)
+    temperature_measured = Column(Boolean, nullable=False, default=True)
     voltage_v = Column(Float, nullable=True)
     active_power_kw = Column(Float, nullable=True)
     active_energy_kwh = Column(Float, nullable=True)
@@ -433,6 +434,8 @@ def init_db():
                         connection.execute(text(f"ALTER TABLE panel_history ADD COLUMN {column_name} {column_type}"))
             if "panels" in inspector.get_table_names():
                 panel_columns = {col["name"] for col in inspector.get_columns("panels")}
+                if "temperature_measured" not in panel_columns:
+                    connection.execute(text("ALTER TABLE panels ADD COLUMN temperature_measured BOOLEAN NOT NULL DEFAULT 1"))
                 telemetry_columns = {
                     "voltage_v": "FLOAT",
                     "active_power_kw": "FLOAT",
@@ -979,7 +982,7 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
                 "voltage_v": p.voltage_v, "active_power_kw": p.active_power_kw,
                 "active_energy_kwh": p.active_energy_kwh, "frequency_hz": p.frequency_hz,
                 "power_factor": p.power_factor,
-                "current": curr, "temperature": temp, "gateway_qr": p.gateway_qr,
+                "current": curr, "temperature": temp, "temperature_measured": p.temperature_measured, "gateway_qr": p.gateway_qr,
                 "status": p.status, "component": p.component, "predictive_failure_hours": p.predictive_failure_hours,
                 "recommendation": p.recommendation, "esg_waste_kwh": p.esg_waste_kwh, "assigned_to": p.assigned_to,
                 "connectivity_status": connectivity_status,
@@ -1322,6 +1325,7 @@ def get_panel_by_qr(qr_code: str, db: Session = Depends(get_db), current_user: U
         "active_energy_kwh": panel.active_energy_kwh, "frequency_hz": panel.frequency_hz,
         "power_factor": panel.power_factor,
         "current": panel.current, "temperature": panel.temperature, "gateway_qr": panel.gateway_qr,
+        "temperature_measured": panel.temperature_measured,
         "status": panel.status, "component": panel.component, "predictive_failure_hours": panel.predictive_failure_hours,
         "recommendation": panel.recommendation, "esg_waste_kwh": panel.esg_waste_kwh, "assigned_to": panel.assigned_to,
         "connectivity_status": connectivity_status, "last_seen_at": last_seen.isoformat() + "Z" if last_seen else None,
@@ -2161,6 +2165,7 @@ def ingest_device_telemetry(data: DeviceTelemetry, authorization: Optional[str] 
     rule = get_effective_alarm_rule(db, credential.tenant_id, panel.id)
     temp_limit, current_limit = rule.max_temperature, rule.max_current
     if data.temperature is not None: panel.temperature = data.temperature
+    panel.temperature_measured = data.temperature is not None
     if data.current is not None: panel.current = data.current
     if data.voltage: panel.voltage = data.voltage[:80]
     for field in ("voltage_v", "active_power_kw", "active_energy_kwh", "frequency_hz", "power_factor"):

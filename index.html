@@ -508,8 +508,12 @@
                         <h3>Cubículo Encontrado: ${escapeHtml(p.id)} - ${escapeHtml(p.name)}</h3>
                         <p><strong>Local:</strong> ${escapeHtml(p.location)}</p>
                         <p><strong>Gateway QR:</strong> ${escapeHtml(p.gateway_qr)}</p>
-                        <p><strong>Tensão:</strong> ${escapeHtml(p.voltage || 'Sem dado')} | <strong>Corrente:</strong> ${escapeHtml(formatarMedida(p.current))} A</p>
-                        <p><strong>Temperatura:</strong> ${escapeHtml(formatarMedida(p.temperature))} °C</p>
+                        <p><strong>Tensão:</strong> ${escapeHtml(p.voltage_v == null ? (p.voltage || 'Sem dado') : `${formatarMedida(p.voltage_v, 1)} V`)} | <strong>Corrente:</strong> ${escapeHtml(formatarMedida(p.current))} A</p>
+                        <p><strong>Temperatura:</strong> ${escapeHtml(formatarMedida(p.temperature))} °C${p.temperature_measured === false ? ' (última leitura preservada)' : ''}</p>
+                        ${p.active_power_kw == null ? '' : `<p><strong>Potência ativa:</strong> ${escapeHtml(formatarMedida(p.active_power_kw, 2))} kW</p>`}
+                        ${p.active_energy_kwh == null ? '' : `<p><strong>Energia acumulada:</strong> ${escapeHtml(formatarMedida(p.active_energy_kwh, 2))} kWh</p>`}
+                        ${p.frequency_hz == null ? '' : `<p><strong>Frequência:</strong> ${escapeHtml(formatarMedida(p.frequency_hz, 2))} Hz</p>`}
+                        ${p.power_factor == null ? '' : `<p><strong>Fator de potência:</strong> ${escapeHtml(formatarMedida(p.power_factor, 3))}</p>`}
                         <p><strong>Status operacional:</strong> ${escapeHtml(p.status)}</p>
                         <p><strong>Conectividade:</strong> ${escapeHtml(resumirConectividade(p))}</p>
                         <p><strong>Diagnóstico:</strong> ${escapeHtml(p.recommendation)}</p>
@@ -851,7 +855,7 @@
         }
 
         function chaveAmostraHistorico(record) {
-            return `${record.timestamp}|${record.temperature}|${record.current}|${record.voltage}`;
+            return `${record.id ?? ''}|${record.timestamp}|${record.temperature}|${record.current}|${record.voltage_v}|${record.active_power_kw}|${record.active_energy_kwh}|${record.frequency_hz}|${record.power_factor}`;
         }
 
         async function carregarHistoricoPainel(panelId, carregarMais = false) {
@@ -905,6 +909,10 @@
             });
             const tempCanvas = document.getElementById(`chart-temp-${panelId}`);
             const currentCanvas = document.getElementById(`chart-current-${panelId}`);
+            const powerCanvas = document.getElementById(`chart-power-${panelId}`);
+            const energyCanvas = document.getElementById(`chart-energy-${panelId}`);
+            const frequencyCanvas = document.getElementById(`chart-frequency-${panelId}`);
+            const powerFactorCanvas = document.getElementById(`chart-power-factor-${panelId}`);
             const statusEl = document.getElementById(`history-status-${panelId}`);
             if (statusEl) {
                 const state = historyPageState[panelId];
@@ -913,11 +921,14 @@
                     ? `${filtered.length} amostra(s) no período selecionado.`
                     : 'Sem amostras de telemetria no período selecionado. Nenhum valor foi inventado.')
                     + (!state || state.loading && !state.initialized ? ' Consultando o histórico completo…' : state.hasMore ? ' Existem registros anteriores disponíveis.' : ' Todo o histórico foi carregado.')
-                    + ' A tensão é exibida como texto na última leitura.' + detail;
+                    + ' Campos sem medição permanecem vazios no histórico.' + detail;
             }
             const createOrUpdate = (canvas, key, label, field, borderColor, fillColor, unit) => {
                 if (!canvas) return;
-                const values = filtered.map(r => r[field] == null || !Number.isFinite(Number(r[field])) ? null : Number(r[field]));
+                const values = filtered.map(r => {
+                    if (field === 'temperature' && r.temperature_measured === false) return null;
+                    return r[field] == null || !Number.isFinite(Number(r[field])) ? null : Number(r[field]);
+                });
                 if (chartInstances[key]) {
                     chartInstances[key].data.labels = labels;
                     chartInstances[key].data.datasets[0].data = values;
@@ -942,6 +953,10 @@
             };
             createOrUpdate(tempCanvas, `${panelId}:temperature`, 'Temperatura (°C)', 'temperature', '#10b981', 'rgba(16,185,129,.12)', '°C');
             createOrUpdate(currentCanvas, `${panelId}:current`, 'Corrente (A)', 'current', '#60a5fa', 'rgba(96,165,250,.12)', 'A');
+            createOrUpdate(powerCanvas, `${panelId}:power`, 'Potência ativa (kW)', 'active_power_kw', '#f59e0b', 'rgba(245,158,11,.12)', 'kW');
+            createOrUpdate(energyCanvas, `${panelId}:energy`, 'Energia acumulada (kWh)', 'active_energy_kwh', '#a78bfa', 'rgba(167,139,250,.12)', 'kWh');
+            createOrUpdate(frequencyCanvas, `${panelId}:frequency`, 'Frequência (Hz)', 'frequency_hz', '#22d3ee', 'rgba(34,211,238,.12)', 'Hz');
+            createOrUpdate(powerFactorCanvas, `${panelId}:power-factor`, 'Fator de potência', 'power_factor', '#fb7185', 'rgba(251,113,133,.12)', '');
         }
 
         function atualizarGraficosExistentes() {
@@ -1624,8 +1639,12 @@
                         <h3>${escapeHtml(p.id)} - ${escapeHtml(p.name)}</h3>
                         <p><strong>Local:</strong> ${escapeHtml(p.location)}</p>
                         <p><strong>Gateway QR:</strong> ${escapeHtml(p.gateway_qr)}</p>
-                        <p><strong>Tensão:</strong> ${escapeHtml(p.voltage || 'Sem dado')} | <strong>Corrente:</strong> ${escapeHtml(formatarMedida(p.current))} A</p>
+                        <p><strong>Tensão:</strong> ${escapeHtml(p.voltage_v == null ? (p.voltage || 'Sem dado') : `${formatarMedida(p.voltage_v, 1)} V`)} | <strong>Corrente:</strong> ${escapeHtml(formatarMedida(p.current))} A</p>
                         <p><strong>Temperatura:</strong> ${escapeHtml(formatarMedida(p.temperature))} °C</p>
+                        ${p.active_power_kw == null ? '' : `<p><strong>Potência ativa:</strong> ${escapeHtml(formatarMedida(p.active_power_kw, 2))} kW</p>`}
+                        ${p.active_energy_kwh == null ? '' : `<p><strong>Energia acumulada:</strong> ${escapeHtml(formatarMedida(p.active_energy_kwh, 2))} kWh</p>`}
+                        ${p.frequency_hz == null ? '' : `<p><strong>Frequência:</strong> ${escapeHtml(formatarMedida(p.frequency_hz, 2))} Hz</p>`}
+                        ${p.power_factor == null ? '' : `<p><strong>Fator de potência:</strong> ${escapeHtml(formatarMedida(p.power_factor, 3))}</p>`}
                         <p><strong>Status operacional:</strong> ${escapeHtml(p.status)}</p>
                         <p><strong>Conectividade:</strong> ${escapeHtml(resumirConectividade(p))}</p>
                     </div>`).join('');
@@ -1647,7 +1666,16 @@
                         <button type="button" id="history-more-${escapeHtml(p.id)}" onclick="carregarHistoricoPainel('${escapeHtml(p.id)}', true)" style="margin:6px 0;padding:7px 10px;">Carregar registros anteriores</button>
                         <div style="height:190px;margin-top:10px;"><canvas id="chart-temp-${escapeHtml(p.id)}" aria-label="Histórico de temperatura do painel ${escapeHtml(p.id)}"></canvas></div>
                         <div style="height:190px;margin-top:16px;"><canvas id="chart-current-${escapeHtml(p.id)}" aria-label="Histórico de corrente do painel ${escapeHtml(p.id)}"></canvas></div>
+                        <div style="height:190px;margin-top:16px;"><canvas id="chart-power-${escapeHtml(p.id)}" aria-label="Histórico de potência ativa do painel ${escapeHtml(p.id)}"></canvas></div>
+                        <div style="height:190px;margin-top:16px;"><canvas id="chart-energy-${escapeHtml(p.id)}" aria-label="Histórico de energia acumulada do painel ${escapeHtml(p.id)}"></canvas></div>
+                        <div style="height:190px;margin-top:16px;"><canvas id="chart-frequency-${escapeHtml(p.id)}" aria-label="Histórico de frequência do painel ${escapeHtml(p.id)}"></canvas></div>
+                        <div style="height:190px;margin-top:16px;"><canvas id="chart-power-factor-${escapeHtml(p.id)}" aria-label="Histórico do fator de potência do painel ${escapeHtml(p.id)}"></canvas></div>
                         <p><strong>Última tensão recebida:</strong> ${escapeHtml(p.voltage ?? 'Sem dado')}</p>
+                        <p><strong>Última tensão numérica:</strong> ${p.voltage_v == null ? 'Sem dado' : `${escapeHtml(formatarMedida(p.voltage_v, 1))} V`}</p>
+                        <p><strong>Última potência ativa:</strong> ${p.active_power_kw == null ? 'Sem dado' : `${escapeHtml(formatarMedida(p.active_power_kw, 2))} kW`}</p>
+                        <p><strong>Última energia acumulada:</strong> ${p.active_energy_kwh == null ? 'Sem dado' : `${escapeHtml(formatarMedida(p.active_energy_kwh, 2))} kWh`}</p>
+                        <p><strong>Última frequência:</strong> ${p.frequency_hz == null ? 'Sem dado' : `${escapeHtml(formatarMedida(p.frequency_hz, 2))} Hz`}</p>
+                        <p><strong>Último fator de potência:</strong> ${p.power_factor == null ? 'Sem dado' : escapeHtml(formatarMedida(p.power_factor, 3))}</p>
                         <p style="margin-top:10px;font-size:11px;color:#9ca3af;">${escapeHtml(p.recommendation)}</p>
                     </div>`).join('');
                 setTimeout(() => {
