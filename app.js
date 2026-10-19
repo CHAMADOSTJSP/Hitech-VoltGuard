@@ -64,8 +64,8 @@
         function escapeHtml(value) { return String(value ?? '').replace(/[&<>\"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[ch])); }
 
         function mostrarRegisto(mostrar) {
-            document.getElementById('login-screen').style.display = mostrar ? 'none' : 'block';
-            document.getElementById('register-screen').style.display = mostrar ? 'block' : 'none';
+            document.getElementById('login-screen').classList.toggle('is-hidden', mostrar);
+            document.getElementById('register-screen').classList.toggle('is-hidden', !mostrar);
         }
 
         async function registarTenant() {
@@ -118,8 +118,8 @@
 
                 document.getElementById('user-display').innerText = formatarNome(usuario);
                 document.getElementById('cargo-display').innerText = currentCargo;
-                document.getElementById('login-screen').style.display = 'none';
-                document.getElementById('dashboard-screen').style.display = 'block';
+                document.getElementById('login-screen').classList.add('is-hidden');
+                document.getElementById('dashboard-screen').classList.remove('is-hidden');
 
                 construirAbas();
                 atualizarKPIs();
@@ -197,7 +197,7 @@
                 html += `<button type="button" class="tab-btn" id="t-billing" data-action="switch-tab" data-tab="billing">💳 Assinatura & Billing</button>`;
                 html += `<button type="button" class="tab-btn" id="t-executive" data-action="switch-tab" data-tab="executive">📈 Relatório Executivo</button>`;
                 html += `<button type="button" class="tab-btn" id="t-webhooks" data-action="switch-tab" data-tab="webhooks">🔔 Webhooks</button>`;
-                html += `<button type="button" class="tab-btn" id="t-demo" data-action="switch-tab" data-tab="demo" style="background:#b91c1c; color:#fff;">🎬 Demo Vendas (Simulador)</button>`;
+                html += `<button type="button" class="tab-btn" id="t-demo" data-action="switch-tab" data-tab="demo" data-vg-style="static-0c95907cb51f">🎬 Demo Vendas (Simulador)</button>`;
             }
             const tabsContainer = document.getElementById('nav-tabs-container');
             if(tabsContainer) tabsContainer.innerHTML = html;
@@ -206,9 +206,9 @@
         function atualizarKPIs() {
             const banner = document.getElementById('kpi-banner');
             if(!banner) return;
-            banner.style.display = 'grid';
+            banner.classList.remove('is-hidden');
             banner.innerHTML = currentCargo === 'CEO' ? `
-                <div class="kpi-card"><h4>Risco</h4><span style="color:#ef4444;">Critico</span></div>
+                <div class="kpi-card"><h4>Risco</h4><span data-vg-style="static-c0b89d302c95">Critico</span></div>
                 <div class="kpi-card"><h4>Downtime (demo)</h4><span>R$ 14.500 / h</span></div>
                 <div class="kpi-card"><h4>Confiabilidade (demo)</h4><span>98.4%</span></div>
                 <div class="kpi-card"><h4>ESG (demo)</h4><span>124 kWh</span></div>
@@ -229,8 +229,8 @@
                         tokenJwt = '';
                         currentUser = '';
                         currentCargo = '';
-                        document.getElementById('dashboard-screen').style.display = 'none';
-                        document.getElementById('login-screen').style.display = 'block';
+                        document.getElementById('dashboard-screen').classList.add('is-hidden');
+                        document.getElementById('login-screen').classList.remove('is-hidden');
                         const error = document.getElementById('error-msg');
                         if (error) error.textContent = 'Sua sessão expirou ou foi encerrada. Entre novamente.';
                         return null;
@@ -369,7 +369,7 @@
             const resultBox = document.getElementById('qr-result-box');
             if(!resultBox || !qrCode || qrLookupInProgress) return;
             qrLookupInProgress = true;
-            resultBox.innerHTML = '<p role="status" style="margin-top:15px;">Consultando código…</p>';
+            resultBox.innerHTML = '<p role="status" data-vg-style="static-cf7295d9acfa">Consultando código…</p>';
             try {
                 const res = await fetch(`/api/panels/qr/${encodeURIComponent(qrCode)}`, {
                     headers: {'Authorization': `Bearer ${tokenJwt}`}
@@ -378,7 +378,7 @@
                 if(!res.ok) throw new Error(p.detail || "Painel não encontrado.");
 
                 resultBox.innerHTML = `
-                    <div class="panel-card ${p.status === 'CRITICO' ? 'critico' : ''}" style="margin-top:15px;">
+                    <div class="panel-card ${p.status === 'CRITICO' ? 'critico' : ''}" data-vg-style="static-cf7295d9acfa">
                         <h3>Cubículo Encontrado: ${escapeHtml(p.id)} - ${escapeHtml(p.name)}</h3>
                         <p><strong>Local:</strong> ${escapeHtml(p.location)}</p>
                         <p><strong>Gateway QR:</strong> ${escapeHtml(p.gateway_qr)}</p>
@@ -393,7 +393,7 @@
                         <p><strong>Diagnóstico:</strong> ${escapeHtml(p.recommendation)}</p>
                     </div>`;
             } catch (err) {
-                resultBox.innerHTML = `<p style="color:#ef4444; margin-top:15px; font-weight:bold;">${escapeHtml(err.message)}</p>`;
+                resultBox.innerHTML = `<p data-vg-style="static-791a94f3f2d2">${escapeHtml(err.message)}</p>`;
             } finally {
                 qrLookupInProgress = false;
             }
@@ -448,7 +448,7 @@
                 qrScannerLocalizationObserver = new MutationObserver(() => traduzirControlesLeitorQR(readerContainer));
                 qrScannerLocalizationObserver.observe(readerContainer, {childList:true, characterData:true, subtree:true});
             } catch(e) {
-                readerContainer.innerHTML = `<p style="color:#f59e0b; padding:15px; font-size:12px;">⚠️ Câmara indisponível.</p>`;
+                readerContainer.innerHTML = `<p data-vg-style="static-43188c225fbf">⚠️ Câmara indisponível.</p>`;
             }
         }
 
@@ -482,7 +482,7 @@
             const url = input.value.trim();
             button.disabled = true;
             status.textContent = 'Salvando configuração…';
-            status.style.color = '#9ca3af';
+            status.dataset.vgStyle = 'state-disabled';
             try {
                 const res = await fetch('/api/tenant/webhook', {
                     method: 'POST',
@@ -493,17 +493,17 @@
                 if (!res.ok) throw new Error(d.detail || 'Não foi possível salvar o webhook.');
                 billingData.webhook_url = url;
                 status.textContent = url ? 'Webhook salvo e ativo.' : 'Webhook removido e desativado.';
-                status.style.color = '#10b981';
+                status.dataset.vgStyle = 'state-configured';
                 const stateLabel = document.getElementById('webhook-state-label');
                 if (stateLabel) {
                     stateLabel.textContent = url ? 'Configurado' : 'Desativado';
-                    stateLabel.style.color = url ? '#10b981' : '#9ca3af';
+                    stateLabel.dataset.vgStyle = url ? 'state-configured' : 'state-disabled';
                 }
                 const testButton = document.getElementById('webhook-test-button');
                 if (testButton) testButton.disabled = !url;
             } catch (err) {
                 status.textContent = err.message || 'Falha ao salvar o webhook.';
-                status.style.color = '#ef4444';
+                status.dataset.vgStyle = 'metric-danger';
             } finally {
                 button.disabled = false;
             }
@@ -514,7 +514,7 @@
             const status = document.getElementById('webhook-test-status');
             button.disabled = true;
             status.textContent = 'Enviando evento de teste…';
-            status.style.color = '#9ca3af';
+            status.dataset.vgStyle = 'state-disabled';
             try {
                 const res = await fetch('/api/tenant/webhook/test', {
                     method: 'POST',
@@ -526,10 +526,10 @@
                 status.textContent = delivered
                     ? `Evento entregue (HTTP ${Number(data.http_status)}).`
                     : `Entrega não confirmada${data.http_status ? ` (HTTP ${Number(data.http_status)})` : ''}. Verifique o endpoint.`;
-                status.style.color = delivered ? '#10b981' : '#f59e0b';
+                status.dataset.vgStyle = delivered ? 'state-configured' : 'metric-warning';
             } catch (err) {
                 status.textContent = err.message || 'Falha ao testar o webhook.';
-                status.style.color = '#ef4444';
+                status.dataset.vgStyle = 'metric-danger';
             } finally {
                 button.disabled = !billingData.webhook_url;
             }
@@ -586,7 +586,7 @@
             }
             const tempReset = temperature - tempHyst;
             const currentReset = current - currentHyst;
-            preview.innerHTML = `<strong>Comportamento para os valores exibidos</strong><ul style="margin:8px 0 0;padding-left:20px"><li>Temperatura: abre quando passar de <strong>${escapeHtml(temperature)} °C</strong>; se já estiver aberto, só normaliza ao cair para <strong>${escapeHtml(tempReset)} °C</strong> ou menos.</li><li>Corrente: abre quando passar de <strong>${escapeHtml(current)} A</strong>; se já estiver aberto, só normaliza ao cair para <strong>${escapeHtml(currentReset)} A</strong> ou menos.</li></ul><small>Esses valores passam a valer após salvar. A histerese evita abre e fecha repetidos perto do limite.</small>`;
+            preview.innerHTML = `<strong>Comportamento para os valores exibidos</strong><ul data-vg-style="static-d6252b508808"><li>Temperatura: abre quando passar de <strong>${escapeHtml(temperature)} °C</strong>; se já estiver aberto, só normaliza ao cair para <strong>${escapeHtml(tempReset)} °C</strong> ou menos.</li><li>Corrente: abre quando passar de <strong>${escapeHtml(current)} A</strong>; se já estiver aberto, só normaliza ao cair para <strong>${escapeHtml(currentReset)} A</strong> ou menos.</li></ul><small>Esses valores passam a valer após salvar. A histerese evita abre e fecha repetidos perto do limite.</small>`;
         }
 
         async function salvarRegrasPainel(event) {
@@ -673,9 +673,7 @@
             const popup = window.open('', '_blank');
             if (!popup) return alert('O navegador bloqueou a janela do relatório. Permita pop-ups para este site e tente novamente.');
             popup.document.open();
-            popup.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OS #${Number(order.id)} — VoltGuard</title><style>
-                *{box-sizing:border-box}body{font:14px Arial,sans-serif;color:#17211b;margin:0;background:#f3f6f4}.page{max-width:900px;margin:28px auto;padding:34px;background:#fff;box-shadow:0 3px 18px #0002}.top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #059669;padding-bottom:16px;margin-bottom:22px}.brand{color:#047857;font-weight:800;font-size:19px}.muted,small{color:#66736b}.status{border:1px solid #059669;border-radius:16px;padding:6px 12px;font-weight:bold}.meta{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.field{border:1px solid #d7e2db;border-radius:6px;padding:10px}.field label{display:block;color:#66736b;font-size:10px;text-transform:uppercase;margin-bottom:5px}.block{margin-top:22px}.block h2{font-size:15px;color:#047857;border-bottom:1px solid #d7e2db;padding-bottom:7px}.checklist{list-style:none;padding:0}.check-item{display:flex;gap:9px;padding:8px 0;border-bottom:1px solid #edf1ee}.check-mark{font-size:18px}.check-item small{display:block;margin-top:3px}.event{padding:10px 0;border-bottom:1px solid #d7e2db}.event p{margin:5px 0}.actions{max-width:900px;margin:16px auto;text-align:right}.actions button{background:#059669;border:0;border-radius:5px;padding:10px 16px;font-weight:bold;cursor:pointer}.foot{margin-top:26px;padding-top:12px;border-top:1px solid #d7e2db;color:#66736b;font-size:11px}@media(max-width:650px){.page{margin:0;padding:18px}.meta{grid-template-columns:1fr 1fr}}@media print{body{background:#fff}.page{max-width:none;margin:0;padding:0;box-shadow:none}.actions{display:none}.block,.field,.event,.check-item{break-inside:avoid}}
-                </style></head><body><div class="actions"><button id="print-report-button" type="button">Imprimir / Salvar como PDF</button></div><main class="page"><header class="top"><div><div class="brand">HITECH VoltGuard</div><div class="muted">Relatório de Ordem de Serviço</div></div><div class="status">${escapeHtml(order.status)}</div></header><h1>OS #${Number(order.id)} — ${escapeHtml(order.title)}</h1><section class="meta"><div class="field"><label>Painel</label>${escapeHtml(order.panel_id)}</div><div class="field"><label>Prioridade</label>${escapeHtml(order.priority)}</div><div class="field"><label>Técnico atribuído</label>${escapeHtml(order.assigned_technician || '—')}</div><div class="field"><label>Criada em</label>${escapeHtml(formatarDataHora(order.created_at))}</div><div class="field"><label>Prazo</label>${escapeHtml(formatarDataHora(order.due_at))}</div><div class="field"><label>Início</label>${escapeHtml(formatarDataHora(order.started_at))}</div><div class="field"><label>Conclusão</label>${escapeHtml(formatarDataHora(order.completed_at))}</div></section><section class="block"><h2>Descrição</h2><p>${escapeHtml(order.description || 'Sem descrição.')}</p></section><section class="block"><h2>Checklist (${checklist.filter(item => item.is_completed).length}/${checklist.length})</h2><ul class="checklist">${checklistHtml}</ul></section><section class="block"><h2>Resumo de execução</h2><p>${escapeHtml(order.resolution || 'Ainda não registrado.')}</p></section><section class="block"><h2>Histórico de alterações</h2>${historyHtml}</section><footer class="foot">Gerado em ${escapeHtml(new Date().toLocaleString('pt-BR'))}. Relatório operacional do VoltGuard; confira os procedimentos e registros aplicáveis ao local antes de executar qualquer atividade.</footer></main></body></html>`);
+            popup.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OS #${Number(order.id)} — VoltGuard</title><link rel="stylesheet" href="${window.location.origin}/report.css"></head><body><div class="actions"><button id="print-report-button" type="button">Imprimir / Salvar como PDF</button></div><main class="page"><header class="top"><div><div class="brand">HITECH VoltGuard</div><div class="muted">Relatório de Ordem de Serviço</div></div><div class="status">${escapeHtml(order.status)}</div></header><h1>OS #${Number(order.id)} — ${escapeHtml(order.title)}</h1><section class="meta"><div class="field"><label>Painel</label>${escapeHtml(order.panel_id)}</div><div class="field"><label>Prioridade</label>${escapeHtml(order.priority)}</div><div class="field"><label>Técnico atribuído</label>${escapeHtml(order.assigned_technician || '—')}</div><div class="field"><label>Criada em</label>${escapeHtml(formatarDataHora(order.created_at))}</div><div class="field"><label>Prazo</label>${escapeHtml(formatarDataHora(order.due_at))}</div><div class="field"><label>Início</label>${escapeHtml(formatarDataHora(order.started_at))}</div><div class="field"><label>Conclusão</label>${escapeHtml(formatarDataHora(order.completed_at))}</div></section><section class="block"><h2>Descrição</h2><p>${escapeHtml(order.description || 'Sem descrição.')}</p></section><section class="block"><h2>Checklist (${checklist.filter(item => item.is_completed).length}/${checklist.length})</h2><ul class="checklist">${checklistHtml}</ul></section><section class="block"><h2>Resumo de execução</h2><p>${escapeHtml(order.resolution || 'Ainda não registrado.')}</p></section><section class="block"><h2>Histórico de alterações</h2>${historyHtml}</section><footer class="foot">Gerado em ${escapeHtml(new Date().toLocaleString('pt-BR'))}. Relatório operacional do VoltGuard; confira os procedimentos e registros aplicáveis ao local antes de executar qualquer atividade.</footer></main></body></html>`);
             popup.document.close();
             popup.document.getElementById('print-report-button')?.addEventListener('click', () => popup.print());
         }
@@ -1028,9 +1026,9 @@
         function renderizarLinhaAtivo(a, lista) {
             const id = Number(a.id);
             const status = a.status || 'ATIVO';
-            const row = `<tr><td>${escapeHtml(a.asset_tag)}</td><td>${escapeHtml(a.name)}</td><td>${escapeHtml(a.asset_type)}</td><td>${escapeHtml(a.location||'—')}</td><td>${escapeHtml(a.panel_id||'—')}</td><td>${escapeHtml(a.serial_number||'—')}</td><td style="color:${status==='ATIVO'?'#10b981':status==='MANUTENCAO'?'#fbbf24':'#9ca3af'};font-weight:bold">${escapeHtml(status)}</td><td><button type="button" class="btn-action" data-action="toggle-asset-edit" data-asset-id="${id}">${assetEditOpen.has(id)?'Fechar edição':'Editar'}</button></td></tr>`;
+            const row = `<tr><td>${escapeHtml(a.asset_tag)}</td><td>${escapeHtml(a.name)}</td><td>${escapeHtml(a.asset_type)}</td><td>${escapeHtml(a.location||'—')}</td><td>${escapeHtml(a.panel_id||'—')}</td><td>${escapeHtml(a.serial_number||'—')}</td><td data-vg-style="${status==='ATIVO'?'asset-status-active':status==='MANUTENCAO'?'asset-status-maintenance':'asset-status-inactive'}">${escapeHtml(status)}</td><td><button type="button" class="btn-action" data-action="toggle-asset-edit" data-asset-id="${id}">${assetEditOpen.has(id)?'Fechar edição':'Editar'}</button></td></tr>`;
             if (!assetEditOpen.has(id)) return row;
-            return row + `<tr><td colspan="8"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;padding:12px">
+            return row + `<tr><td colspan="8"><div data-vg-style="static-82267458c46d">
                 <div class="input-group"><label>Tag / patrimônio</label><input id="asset-edit-${id}-asset_tag" value="${escapeHtml(a.asset_tag)}" maxlength="80"></div>
                 <div class="input-group"><label>Nome</label><input id="asset-edit-${id}-name" value="${escapeHtml(a.name)}" maxlength="160"></div>
                 <div class="input-group"><label>Tipo</label><input id="asset-edit-${id}-asset_type" value="${escapeHtml(a.asset_type)}" maxlength="80"></div>
@@ -1040,7 +1038,7 @@
                 <div class="input-group"><label>Número de série</label><input id="asset-edit-${id}-serial_number" value="${escapeHtml(a.serial_number||'')}" maxlength="120"></div>
                 <div class="input-group"><label>Painel associado</label><select id="asset-edit-${id}-panel_id"><option value="">Nenhum</option>${lista.map(x=>`<option value="${escapeHtml(x.id)}" ${a.panel_id===x.id?'selected':''}>${escapeHtml(x.id)}</option>`).join('')}</select></div>
                 <div class="input-group"><label>Estado</label><select id="asset-edit-${id}-status">${['ATIVO','MANUTENCAO','INATIVO'].map(value=>`<option value="${value}" ${status===value?'selected':''}>${value}</option>`).join('')}</select></div>
-                <div class="input-group" style="grid-column:1/-1"><label>Observações</label><textarea id="asset-edit-${id}-notes" maxlength="2000">${escapeHtml(a.notes||'')}</textarea></div>
+                <div class="input-group" data-vg-style="static-51377a917eb3"><label>Observações</label><textarea id="asset-edit-${id}-notes" maxlength="2000">${escapeHtml(a.notes||'')}</textarea></div>
                 <button type="button" class="btn-primary" data-action="save-asset" data-asset-id="${id}">Salvar alterações</button>
             </div></td></tr>`;
         }
@@ -1135,7 +1133,7 @@
                 } else {
                     const helper = document.createElement('textarea');
                     helper.value = sample.textContent;
-                    helper.style.cssText = 'position:fixed;left:-9999px;top:0';
+                    helper.className = 'visually-hidden-copy';
                     document.body.append(helper); helper.select();
                     const copied = document.execCommand('copy'); helper.remove();
                     if (!copied) throw new Error('Selecione o exemplo e use Ctrl+C.');
@@ -1153,31 +1151,31 @@
             overlay.setAttribute('role', 'dialog');
             overlay.setAttribute('aria-modal', 'true');
             overlay.setAttribute('aria-labelledby', 'device-token-title');
-            overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;padding:18px;';
+            overlay.className = 'device-token-overlay';
             const card = document.createElement('div');
-            card.style.cssText = 'width:min(620px,100%);background:#0f2319;border:1px solid #10b981;border-radius:12px;padding:24px;color:#fff;box-shadow:0 18px 60px #000;';
+            card.className = 'device-token-card';
             const title = document.createElement('h2');
             title.id = 'device-token-title';
             title.textContent = 'Credencial criada — copie seu token';
-            title.style.cssText = 'margin:0 0 10px;color:#34d399;font-size:20px;';
+            title.className = 'device-token-title';
             const warning = document.createElement('p');
             warning.textContent = 'Este token será mostrado somente agora. Copie-o e guarde-o em um cofre de segredos. Não compartilhe nem publique no GitHub.';
-            warning.style.cssText = 'font-size:14px;line-height:1.5;color:#d1d5db;';
+            warning.className = 'device-token-warning';
             const tokenField = document.createElement('textarea');
             tokenField.readOnly = true;
             tokenField.value = String(token || '');
             tokenField.setAttribute('aria-label', 'Token de telemetria');
             tokenField.rows = 3;
-            tokenField.style.cssText = 'width:100%;box-sizing:border-box;resize:vertical;background:#06110b;border:1px solid #065f46;border-radius:6px;color:#fff;padding:12px;font:13px monospace;overflow-wrap:anywhere;';
+            tokenField.className = 'device-token-value';
             const status = document.createElement('p');
             status.setAttribute('aria-live', 'polite');
-            status.style.cssText = 'min-height:18px;font-size:13px;color:#34d399;';
+            status.className = 'device-token-status';
             const actions = document.createElement('div');
-            actions.style.cssText = 'display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end;';
+            actions.className = 'device-token-actions';
             const copyButton = document.createElement('button');
             copyButton.type = 'button';
             copyButton.textContent = 'Copiar token';
-            copyButton.style.cssText = 'background:#10b981;border:0;border-radius:6px;padding:11px 16px;font-weight:bold;cursor:pointer;color:#04110b;';
+            copyButton.className = 'device-token-copy';
             copyButton.addEventListener('click', async () => {
                 try {
                     if (navigator.clipboard && window.isSecureContext) {
@@ -1192,13 +1190,13 @@
                 } catch (error) {
                     tokenField.focus(); tokenField.select();
                     status.textContent = error.message || 'Não foi possível copiar automaticamente. Selecione o token e use Ctrl+C.';
-                    status.style.color = '#fbbf24';
+                    status.dataset.vgStyle = 'metric-warning';
                 }
             });
             const closeButton = document.createElement('button');
             closeButton.type = 'button';
             closeButton.textContent = 'Já guardei — fechar';
-            closeButton.style.cssText = 'background:#1f3b2c;border:1px solid #10b981;border-radius:6px;padding:11px 16px;font-weight:bold;cursor:pointer;color:#fff;';
+            closeButton.className = 'device-token-close';
             closeButton.addEventListener('click', () => overlay.remove());
             actions.append(copyButton, closeButton);
             card.append(title, warning, tokenField, status, actions);
@@ -1262,15 +1260,15 @@
                 const linkedAssetCount = assetsData.filter(a => a.panel_id).length;
                 const assetRows = filteredAssets.map(a => renderizarLinhaAtivo(a, lista)).join('')
                     || `<tr><td colspan="8">${assetsData.length ? 'Nenhum ativo corresponde aos filtros selecionados.' : 'Nenhum ativo cadastrado. Preencha o formulário para começar.'}</td></tr>`;
-                container.innerHTML = `<div style="grid-column:1/-1;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:20px;border-radius:8px">
-                    <h3 style="color:#10b981">🏷️ Cadastro e gestão de ativos</h3>
+                container.innerHTML = `<div data-vg-style="static-193448d00075">
+                    <h3 data-vg-style="static-4303eeffcdf9">🏷️ Cadastro e gestão de ativos</h3>
                     <div class="os-overview">
                         <div class="os-overview-card"><span>Ativos cadastrados</span><strong>${assetsData.length}</strong></div>
                         <div class="os-overview-card"><span>Em operação</span><strong>${activeAssetCount}</strong></div>
-                        <div class="os-overview-card"><span>Em manutenção</span><strong style="color:${maintenanceAssetCount ? '#fbbf24' : '#10b981'}">${maintenanceAssetCount}</strong></div>
+                        <div class="os-overview-card"><span>Em manutenção</span><strong data-vg-style="${maintenanceAssetCount ? 'metric-warning' : 'metric-normal'}">${maintenanceAssetCount}</strong></div>
                         <div class="os-overview-card"><span>Vinculados a painéis</span><strong>${linkedAssetCount} de ${assetsData.length}</strong></div>
                     </div>
-                    <form data-vg-submit="criarAtivo" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:16px">
+                    <form data-vg-submit="criarAtivo" data-vg-style="static-b8da16db9528">
                         <div class="input-group"><label for="asset-tag">Tag / patrimônio</label><input id="asset-tag" required maxlength="80"></div>
                         <div class="input-group"><label for="asset-name">Nome do ativo</label><input id="asset-name" required maxlength="160"></div>
                         <div class="input-group"><label for="asset-type">Tipo</label><select id="asset-type"><option>PAINEL_ELETRICO</option><option>MOTOR</option><option>INVERSOR</option><option>TRANSFORMADOR</option><option>MEDIDOR</option><option>OUTRO</option></select></div>
@@ -1279,16 +1277,16 @@
                         <div class="input-group"><label for="asset-model">Modelo</label><input id="asset-model" maxlength="120"></div>
                         <div class="input-group"><label for="asset-serial">Número de série</label><input id="asset-serial" maxlength="120"></div>
                         <div class="input-group"><label for="asset-panel">Painel associado</label><select id="asset-panel"><option value="">Nenhum</option>${assetPanels}</select></div>
-                        <div class="input-group" style="grid-column:1/-1"><label for="asset-notes">Observações</label><textarea id="asset-notes" maxlength="2000"></textarea></div>
+                        <div class="input-group" data-vg-style="static-51377a917eb3"><label for="asset-notes">Observações</label><textarea id="asset-notes" maxlength="2000"></textarea></div>
                         <button class="btn-primary" type="submit">Cadastrar ativo</button>
                     </form>
                     <h4>Ativos cadastrados (${filteredAssets.length} de ${assetsData.length})</h4>
-                    <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:10px 0 14px">
+                    <div data-vg-style="static-03286a93516d">
                         <div class="input-group"><label for="asset-search">Buscar ativo</label><input id="asset-search" value="${escapeHtml(assetSearchText)}" placeholder="Tag, nome, tipo, local ou série" data-vg-change="update-asset-search"></div>
                         <button type="button" class="btn-action" data-action="search-assets">Buscar</button>
                         <div class="input-group"><label>Estado</label><select data-vg-change="filter-asset-status"><option value="TODOS" ${assetStatusFilter==='TODOS'?'selected':''}>Todos os estados</option><option value="ATIVO" ${assetStatusFilter==='ATIVO'?'selected':''}>ATIVO</option><option value="MANUTENCAO" ${assetStatusFilter==='MANUTENCAO'?'selected':''}>MANUTENCAO</option><option value="INATIVO" ${assetStatusFilter==='INATIVO'?'selected':''}>INATIVO</option></select></div>
                     </div>
-                    <div style="overflow-x:auto"><table class="enterprise-table"><thead><tr><th>Tag</th><th>Nome</th><th>Tipo</th><th>Local</th><th>Painel</th><th>Série</th><th>Estado</th><th>Ação</th></tr></thead><tbody>${assetRows}</tbody></table></div>
+                    <div data-vg-style="static-1b1d75452fbb"><table class="enterprise-table"><thead><tr><th>Tag</th><th>Nome</th><th>Tipo</th><th>Local</th><th>Painel</th><th>Série</th><th>Estado</th><th>Ação</th></tr></thead><tbody>${assetRows}</tbody></table></div>
                 </div>`;
                 return;
             }
@@ -1303,47 +1301,47 @@
                 const taskRows = filteredTasks.map(t => {
                     const terminal = ['CONCLUIDA','CANCELADA'].includes(t.status);
                     return `<tr>
-                        <td style="color:${overdueTask(t)?'#ef4444':'inherit'}">${overdueTask(t)?'ATRASADA · ':''}${formatarDataHora(t.due_at)}</td>
+                        <td data-vg-style="${overdueTask(t)?'text-danger':'text-inherit'}">${overdueTask(t)?'ATRASADA · ':''}${formatarDataHora(t.due_at)}</td>
                         <td>${escapeHtml(t.asset_name||t.asset_id)}</td>
-                        <td>${escapeHtml(t.title)}<details style="margin-top:6px"><summary>Ver checklist / observações</summary><small style="white-space:pre-wrap">${escapeHtml(t.notes||'Sem checklist ou observações registradas.')}</small></details></td>
+                        <td>${escapeHtml(t.title)}<details data-vg-style="static-301647f5065e"><summary>Ver checklist / observações</summary><small data-vg-style="static-092af903b212">${escapeHtml(t.notes||'Sem checklist ou observações registradas.')}</small></details></td>
                         <td><input id="mt-assigned-${Number(t.id)}" value="${escapeHtml(t.assigned_to||'')}" maxlength="120" placeholder="Responsável"></td>
-                        <td><select id="mt-status-${Number(t.id)}" ${terminal?'disabled title="Tarefa finalizada; reabertura não permitida."':''}>${['PENDENTE','EM_ANDAMENTO','CONCLUIDA','CANCELADA'].map(s=>`<option value="${s}" ${t.status===s?'selected':''}>${s}</option>`).join('')}</select>${terminal?'<small style="display:block;color:#9ca3af">Estado final</small>':''}</td>
+                        <td><select id="mt-status-${Number(t.id)}" ${terminal?'disabled title="Tarefa finalizada; reabertura não permitida."':''}>${['PENDENTE','EM_ANDAMENTO','CONCLUIDA','CANCELADA'].map(s=>`<option value="${s}" ${t.status===s?'selected':''}>${s}</option>`).join('')}</select>${terminal?'<small data-vg-style="static-e9905a77430a">Estado final</small>':''}</td>
                         <td>${t.completed_at?formatarDataHora(t.completed_at):'—'}</td>
                         <td><input id="mt-due-${Number(t.id)}" type="datetime-local" value="${dataHoraLocalInput(t.due_at)}"><button type="button" class="btn-action" data-action="update-maintenance-task" data-task-id="${Number(t.id)}">Salvar</button></td>
                     </tr>`;
                 }).join('') || `<tr><td colspan="7">${maintenanceTasks.length?'Nenhuma tarefa corresponde aos filtros selecionados.':'Nenhuma tarefa agendada.'}</td></tr>`;
                 const assetOptions = assetsData.map(a=>`<option value="${Number(a.id)}">${escapeHtml(a.asset_tag)} — ${escapeHtml(a.name)}</option>`).join('');
                 const taskCounters = [['PENDENTES',maintenanceTasks.filter(t=>t.status==='PENDENTE').length],['EM ANDAMENTO',maintenanceTasks.filter(t=>t.status==='EM_ANDAMENTO').length],['ATRASADAS',maintenanceTasks.filter(overdueTask).length],['CONCLUÍDAS',maintenanceTasks.filter(t=>t.status==='CONCLUIDA').length]];
-                container.innerHTML = `<div style="grid-column:1/-1;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:20px;border-radius:8px">
-                    <h3 style="color:#10b981">🧰 Manutenção Preventiva</h3>
-                    <div class="os-overview">${taskCounters.map(([label,count])=>`<div class="os-overview-card"><span>${label}</span><strong style="color:${label==='ATRASADAS'&&count?'#ef4444':'#10b981'}">${count}</strong></div>`).join('')}</div>
+                container.innerHTML = `<div data-vg-style="static-193448d00075">
+                    <h3 data-vg-style="static-4303eeffcdf9">🧰 Manutenção Preventiva</h3>
+                    <div class="os-overview">${taskCounters.map(([label,count])=>`<div class="os-overview-card"><span>${label}</span><strong data-vg-style="${label==='ATRASADAS'&&count?'metric-danger':'metric-normal'}">${count}</strong></div>`).join('')}</div>
                     <h4>Criar plano recorrente</h4>
-                    <form data-vg-submit="criarPlanoManutencao" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+                    <form data-vg-submit="criarPlanoManutencao" data-vg-style="static-fc22463955e6">
                         <div class="input-group"><label for="mp-asset">Ativo</label><select id="mp-asset" required>${assetOptions}</select></div>
                         <div class="input-group"><label for="mp-title">Nome do plano</label><input id="mp-title" required maxlength="180" placeholder="Inspeção trimestral"></div>
                         <div class="input-group"><label for="mp-interval">Periodicidade (dias)</label><input id="mp-interval" type="number" min="1" max="3650" value="30" required></div>
-                        <div class="input-group" style="grid-column:1/-1"><label for="mp-checklist">Checklist (separe os itens por ponto e vírgula)</label><textarea id="mp-checklist" maxlength="4000">Inspeção visual;Verificar conexões;Registrar observações</textarea></div>
+                        <div class="input-group" data-vg-style="static-51377a917eb3"><label for="mp-checklist">Checklist (separe os itens por ponto e vírgula)</label><textarea id="mp-checklist" maxlength="4000">Inspeção visual;Verificar conexões;Registrar observações</textarea></div>
                         <button class="btn-primary" type="submit" ${assetsData.length?'':'disabled'}>Criar plano e agendar primeira tarefa</button>
                     </form>
                     <h4>Agendar tarefa avulsa</h4>
-                    <form data-vg-submit="criarTarefaManutencao" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+                    <form data-vg-submit="criarTarefaManutencao" data-vg-style="static-fc22463955e6">
                         <div class="input-group"><label for="mt-new-asset">Ativo</label><select id="mt-new-asset" required>${assetOptions}</select></div>
                         <div class="input-group"><label for="mt-new-title">Tarefa</label><input id="mt-new-title" maxlength="180" required placeholder="Ex.: Inspecionar conexão"></div>
                         <div class="input-group"><label for="mt-new-due">Prazo</label><input id="mt-new-due" type="datetime-local" required></div>
                         <div class="input-group"><label for="mt-new-assigned">Responsável</label><input id="mt-new-assigned" maxlength="120"></div>
-                        <div class="input-group" style="grid-column:1/-1"><label for="mt-new-notes">Checklist / observações</label><textarea id="mt-new-notes" maxlength="4000" placeholder="Procedimentos, verificações e observações da tarefa"></textarea></div>
+                        <div class="input-group" data-vg-style="static-51377a917eb3"><label for="mt-new-notes">Checklist / observações</label><textarea id="mt-new-notes" maxlength="4000" placeholder="Procedimentos, verificações e observações da tarefa"></textarea></div>
                         <button class="btn-primary" type="submit" ${assetsData.length?'':'disabled'}>Agendar tarefa avulsa</button>
                     </form>
                     ${assetsData.length?'':'<p>Cadastre um ativo antes de agendar manutenção.</p>'}
                     <h4>Planos recorrentes</h4>
-                    <div style="overflow-x:auto"><table class="enterprise-table"><thead><tr><th>Ativo</th><th>Plano</th><th>Periodicidade</th><th>Checklist</th><th>Próxima execução</th></tr></thead><tbody>${maintenancePlans.map(p=>`<tr><td>${escapeHtml(p.asset_name||p.asset_id)}</td><td>${escapeHtml(p.title)}</td><td>${Number(p.interval_days)} dias</td><td>${escapeHtml(p.checklist||'—')}</td><td>${formatarDataHora(p.next_due_at)}</td></tr>`).join('')||'<tr><td colspan="5">Nenhum plano recorrente cadastrado.</td></tr>'}</tbody></table></div>
+                    <div data-vg-style="static-1b1d75452fbb"><table class="enterprise-table"><thead><tr><th>Ativo</th><th>Plano</th><th>Periodicidade</th><th>Checklist</th><th>Próxima execução</th></tr></thead><tbody>${maintenancePlans.map(p=>`<tr><td>${escapeHtml(p.asset_name||p.asset_id)}</td><td>${escapeHtml(p.title)}</td><td>${Number(p.interval_days)} dias</td><td>${escapeHtml(p.checklist||'—')}</td><td>${formatarDataHora(p.next_due_at)}</td></tr>`).join('')||'<tr><td colspan="5">Nenhum plano recorrente cadastrado.</td></tr>'}</tbody></table></div>
                     <h4>Tarefas (${filteredTasks.length} de ${maintenanceTasks.length})</h4>
                     <div class="os-filters"><div class="input-group"><label for="maintenance-search">Buscar</label><input id="maintenance-search" value="${escapeHtml(maintenanceSearchText)}" placeholder="Ativo, tarefa ou responsável" data-vg-change="update-maintenance-search"></div>
                         <button type="button" class="btn-action" data-action="search-maintenance">Buscar</button>
                         <div class="input-group"><label>Estado</label><select data-vg-change="filter-maintenance-status"><option value="TODOS" ${maintenanceStatusFilter==='TODOS'?'selected':''}>Todos os estados</option>${['PENDENTE','EM_ANDAMENTO','CONCLUIDA','CANCELADA'].map(s=>`<option value="${s}" ${maintenanceStatusFilter===s?'selected':''}>${s}</option>`).join('')}</select></div>
                         <label><input type="checkbox" ${maintenanceOnlyOverdue?'checked':''} data-vg-change="filter-maintenance-overdue"> Somente atrasadas</label>
                     </div>
-                    <div style="overflow-x:auto"><table class="enterprise-table"><thead><tr><th>Prazo</th><th>Ativo</th><th>Tarefa / detalhes</th><th>Responsável</th><th>Estado</th><th>Conclusão</th><th>Ação</th></tr></thead><tbody>${taskRows}</tbody></table></div>
+                    <div data-vg-style="static-1b1d75452fbb"><table class="enterprise-table"><thead><tr><th>Prazo</th><th>Ativo</th><th>Tarefa / detalhes</th><th>Responsável</th><th>Estado</th><th>Conclusão</th><th>Ação</th></tr></thead><tbody>${taskRows}</tbody></table></div>
                 </div>`;
                 return;
             }
@@ -1358,7 +1356,7 @@
                 const unusedCredentials = deviceCredentials.filter(d => !d.revoked && !d.last_used_at).length;
                 const revokedCredentials = deviceCredentials.filter(d => d.revoked).length;
                 const panelIdDefault = gerarIdPainelDemo();
-                container.innerHTML = `<div style="grid-column:1/-1;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:20px;border-radius:8px"><h3 style="color:#10b981">🔑 Credenciais de Telemetria por Dispositivo</h3><p>O token é exibido somente uma vez. Guarde-o num cofre de segredos; não o publique no frontend.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:16px">${[['ATIVAS',activeCredentials],['SEM USO',unusedCredentials],['REVOGADAS',revokedCredentials]].map(([label,count])=>`<div style="border:1px solid #075e48;border-radius:6px;padding:10px"><small>${label}</small><strong style="display:block;color:#10b981">${count}</strong></div>`).join('')}</div>${lista.length?'':`<section style="border:1px solid #075e48;border-radius:8px;padding:16px;margin:16px 0"><h3 style="margin-top:0;color:#34d399">Cadastrar painel demonstrativo</h3><p>Esta organização ainda não tem painéis. Cadastre um painel fictício para preparar a configuração do gateway; isso não representa equipamento real.</p><form data-vg-submit="cadastrarPainelDemo" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px"><div class="input-group"><label for="new-panel-id">ID do painel</label><input id="new-panel-id" value="${escapeHtml(panelIdDefault)}" maxlength="100" pattern="[A-Za-z0-9_-]+" required></div><div class="input-group"><label for="new-panel-name">Nome</label><input id="new-panel-name" value="Painel de teste — DEMO" maxlength="200" required></div><div class="input-group"><label for="new-panel-location">Local</label><input id="new-panel-location" value="Ambiente simulado" maxlength="200" required></div><div class="input-group"><label for="new-panel-voltage">Tensão</label><input id="new-panel-voltage" value="380V AC" maxlength="80"></div><div class="input-group"><label for="new-panel-component">Componente monitorado</label><input id="new-panel-component" value="Disjuntor principal" maxlength="160"></div><button class="btn-primary" type="submit">Cadastrar painel demonstrativo</button></form><p id="new-panel-status" aria-live="polite" style="color:#a7f3d0"></p></section>`}<form data-vg-submit="criarCredencialDispositivo" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px"><div class="input-group"><label>Painel autorizado</label><select id="device-panel" required data-vg-change="refresh-device-example">${lista.length?lista.map(x=>`<option value="${escapeHtml(x.id)}">${escapeHtml(x.id)} — ${escapeHtml(x.name)}</option>`).join(''):'<option value="" selected disabled>Nenhum painel cadastrado</option>'}</select></div><div class="input-group"><label>Nome da credencial</label><input id="device-name" maxlength="120" required placeholder="Gateway sala elétrica"></div><button class="btn-primary" type="submit" ${lista.length?'':'disabled'}>Criar credencial</button></form><p>Endpoint de ingestão: <code>POST /api/device/telemetry</code>. O token deve ser enviado no cabeçalho <code>Authorization: Bearer …</code>, pelo gateway.</p><details style="margin:14px 0;padding:12px;border:1px solid #075e48;border-radius:6px"><summary style="cursor:pointer;color:#34d399;font-weight:bold">Guia rápido de integração</summary><p>Envie uma requisição HTTP POST com o ID do painel e ao menos uma grandeza numérica. Temperatura, corrente, tensão, potência ativa, energia acumulada, frequência e fator de potência são aceitos. Temperatura e corrente só criam ou normalizam seus alarmes quando incluídas na leitura. O token é segredo do dispositivo; mantenha-o no gateway e fora do navegador, do código-fonte e dos registros.</p><pre id="device-telemetry-example" style="white-space:pre-wrap;overflow-wrap:anywhere;background:#06110b;padding:12px;border-radius:6px;color:#d1fae5;font-size:12px">${escapeHtml(exemploTelemetriaDispositivo())}</pre><button type="button" class="btn-action" data-action="copy-telemetry-example">Copiar exemplo HTTP</button><p id="device-example-copy-status" aria-live="polite" style="min-height:18px;color:#a7f3d0"></p><small>Temperatura: −50 a 250 °C; corrente: 0 a 100.000 A. Tensão e identificador do gateway são opcionais.</small></details><h4>Credenciais (${filteredCredentials.length} de ${deviceCredentials.length})</h4><div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:10px 0 14px"><div class="input-group"><label>Buscar</label><input id="device-search" value="${escapeHtml(deviceSearchText)}" placeholder="Nome ou painel" data-vg-change="update-device-search"></div><button type="button" class="btn-action" data-action="search-devices">Buscar</button><div class="input-group"><label>Painel</label><select data-vg-change="filter-device-panel"><option value="TODOS" ${devicePanelFilter==='TODOS'?'selected':''}>Todos os painéis</option>${[...new Set(deviceCredentials.map(d=>d.panel_id))].map(panel=>`<option value="${escapeHtml(panel)}" ${devicePanelFilter===panel?'selected':''}>${escapeHtml(panel)}</option>`).join('')}</select></div><div class="input-group"><label>Estado</label><select data-vg-change="filter-device-status"><option value="TODOS" ${deviceStatusFilter==='TODOS'?'selected':''}>Todos os estados</option><option value="ATIVA" ${deviceStatusFilter==='ATIVA'?'selected':''}>Ativas</option><option value="REVOGADA" ${deviceStatusFilter==='REVOGADA'?'selected':''}>Revogadas</option></select></div></div><div style="overflow-x:auto"><table class="enterprise-table"><tr><th>Nome</th><th>Painel</th><th>Criada em</th><th>Último uso</th><th>Estado</th><th>Ação</th></tr>${filteredCredentials.map(d=>`<tr><td>${escapeHtml(d.name)}</td><td>${escapeHtml(d.panel_id)}</td><td>${formatarDataHora(d.created_at)}</td><td>${d.last_used_at?formatarDataHora(d.last_used_at):'Nunca utilizada'}</td><td>${d.revoked?'REVOGADA':'ATIVA'}</td><td>${d.revoked?'—':`<button type="button" class="btn-action" data-action="revoke-device-credential" data-credential-id="${Number(d.id)}">Revogar</button>`}</td></tr>`).join('')}</table>${filteredCredentials.length?'':'<p>Nenhuma credencial corresponde aos filtros selecionados.</p>'}</div></div>`;
+                container.innerHTML = `<div data-vg-style="static-193448d00075"><h3 data-vg-style="static-4303eeffcdf9">🔑 Credenciais de Telemetria por Dispositivo</h3><p>O token é exibido somente uma vez. Guarde-o num cofre de segredos; não o publique no frontend.</p><div data-vg-style="static-d6af650bb715">${[['ATIVAS',activeCredentials],['SEM USO',unusedCredentials],['REVOGADAS',revokedCredentials]].map(([label,count])=>`<div data-vg-style="static-f55e039d0393"><small>${label}</small><strong data-vg-style="static-9f1e0c6c4e91">${count}</strong></div>`).join('')}</div>${lista.length?'':`<section data-vg-style="static-9f08327a77f4"><h3 data-vg-style="static-8d28e72a95b3">Cadastrar painel demonstrativo</h3><p>Esta organização ainda não tem painéis. Cadastre um painel fictício para preparar a configuração do gateway; isso não representa equipamento real.</p><form data-vg-submit="cadastrarPainelDemo" data-vg-style="static-fc22463955e6"><div class="input-group"><label for="new-panel-id">ID do painel</label><input id="new-panel-id" value="${escapeHtml(panelIdDefault)}" maxlength="100" pattern="[A-Za-z0-9_-]+" required></div><div class="input-group"><label for="new-panel-name">Nome</label><input id="new-panel-name" value="Painel de teste — DEMO" maxlength="200" required></div><div class="input-group"><label for="new-panel-location">Local</label><input id="new-panel-location" value="Ambiente simulado" maxlength="200" required></div><div class="input-group"><label for="new-panel-voltage">Tensão</label><input id="new-panel-voltage" value="380V AC" maxlength="80"></div><div class="input-group"><label for="new-panel-component">Componente monitorado</label><input id="new-panel-component" value="Disjuntor principal" maxlength="160"></div><button class="btn-primary" type="submit">Cadastrar painel demonstrativo</button></form><p id="new-panel-status" aria-live="polite" data-vg-style="static-bf2699b70d44"></p></section>`}<form data-vg-submit="criarCredencialDispositivo" data-vg-style="static-fc22463955e6"><div class="input-group"><label>Painel autorizado</label><select id="device-panel" required data-vg-change="refresh-device-example">${lista.length?lista.map(x=>`<option value="${escapeHtml(x.id)}">${escapeHtml(x.id)} — ${escapeHtml(x.name)}</option>`).join(''):'<option value="" selected disabled>Nenhum painel cadastrado</option>'}</select></div><div class="input-group"><label>Nome da credencial</label><input id="device-name" maxlength="120" required placeholder="Gateway sala elétrica"></div><button class="btn-primary" type="submit" ${lista.length?'':'disabled'}>Criar credencial</button></form><p>Endpoint de ingestão: <code>POST /api/device/telemetry</code>. O token deve ser enviado no cabeçalho <code>Authorization: Bearer …</code>, pelo gateway.</p><details data-vg-style="static-d0fd22aac602"><summary data-vg-style="static-d20f7e4975c3">Guia rápido de integração</summary><p>Envie uma requisição HTTP POST com o ID do painel e ao menos uma grandeza numérica. Temperatura, corrente, tensão, potência ativa, energia acumulada, frequência e fator de potência são aceitos. Temperatura e corrente só criam ou normalizam seus alarmes quando incluídas na leitura. O token é segredo do dispositivo; mantenha-o no gateway e fora do navegador, do código-fonte e dos registros.</p><pre id="device-telemetry-example" data-vg-style="static-c1386a63ff19">${escapeHtml(exemploTelemetriaDispositivo())}</pre><button type="button" class="btn-action" data-action="copy-telemetry-example">Copiar exemplo HTTP</button><p id="device-example-copy-status" aria-live="polite" data-vg-style="static-e1d2a65ace9e"></p><small>Temperatura: −50 a 250 °C; corrente: 0 a 100.000 A. Tensão e identificador do gateway são opcionais.</small></details><h4>Credenciais (${filteredCredentials.length} de ${deviceCredentials.length})</h4><div data-vg-style="static-03286a93516d"><div class="input-group"><label>Buscar</label><input id="device-search" value="${escapeHtml(deviceSearchText)}" placeholder="Nome ou painel" data-vg-change="update-device-search"></div><button type="button" class="btn-action" data-action="search-devices">Buscar</button><div class="input-group"><label>Painel</label><select data-vg-change="filter-device-panel"><option value="TODOS" ${devicePanelFilter==='TODOS'?'selected':''}>Todos os painéis</option>${[...new Set(deviceCredentials.map(d=>d.panel_id))].map(panel=>`<option value="${escapeHtml(panel)}" ${devicePanelFilter===panel?'selected':''}>${escapeHtml(panel)}</option>`).join('')}</select></div><div class="input-group"><label>Estado</label><select data-vg-change="filter-device-status"><option value="TODOS" ${deviceStatusFilter==='TODOS'?'selected':''}>Todos os estados</option><option value="ATIVA" ${deviceStatusFilter==='ATIVA'?'selected':''}>Ativas</option><option value="REVOGADA" ${deviceStatusFilter==='REVOGADA'?'selected':''}>Revogadas</option></select></div></div><div data-vg-style="static-1b1d75452fbb"><table class="enterprise-table"><tr><th>Nome</th><th>Painel</th><th>Criada em</th><th>Último uso</th><th>Estado</th><th>Ação</th></tr>${filteredCredentials.map(d=>`<tr><td>${escapeHtml(d.name)}</td><td>${escapeHtml(d.panel_id)}</td><td>${formatarDataHora(d.created_at)}</td><td>${d.last_used_at?formatarDataHora(d.last_used_at):'Nunca utilizada'}</td><td>${d.revoked?'REVOGADA':'ATIVA'}</td><td>${d.revoked?'—':`<button type="button" class="btn-action" data-action="revoke-device-credential" data-credential-id="${Number(d.id)}">Revogar</button>`}</td></tr>`).join('')}</table>${filteredCredentials.length?'':'<p>Nenhuma credencial corresponde aos filtros selecionados.</p>'}</div></div>`;
                 return;
             }
 
@@ -1366,14 +1364,14 @@
 
             if (currentTab === 'commission') {
                 container.innerHTML = `
-                    <div style="grid-column: 1/-1; background: rgba(17, 42, 29, 0.95); border: 1px solid #10b981; padding: 25px; border-radius: 8px; max-width: 600px; margin: 0 auto;">
-                        <h3 style="color:#10b981; margin-top:0;">📷 Consulta de painel por QR Code</h3>
-                        <p style="font-size:13px; color:#d1d5db;">Leia o QR do gateway usando a câmera ou selecione uma imagem com o código. Se preferir, informe o código ou ID do painel abaixo. A câmera é opcional e pode pedir autorização do navegador.</p>
-                        <form data-vg-submit="consult-qr" style="margin-bottom:20px;">
+                    <div data-vg-style="static-f691882e54df">
+                        <h3 data-vg-style="static-4893d804f30c">📷 Consulta de painel por QR Code</h3>
+                        <p data-vg-style="static-6d0af102348d">Leia o QR do gateway usando a câmera ou selecione uma imagem com o código. Se preferir, informe o código ou ID do painel abaixo. A câmera é opcional e pode pedir autorização do navegador.</p>
+                        <form data-vg-submit="consult-qr" data-vg-style="static-3c4a3d440074">
                             <div class="input-group"><label for="qr-input-manual">Código QR / ID do painel</label><input type="text" id="qr-input-manual" maxlength="160" placeholder="Ex: QR-GW-0010" required></div>
                             <button type="submit" class="btn-primary">Consultar painel</button>
                         </form>
-                        <div id="reader" style="width: 100%; background: #06110b; border-radius: 6px; overflow: hidden; min-height: 250px;"></div>
+                        <div id="reader" data-vg-style="static-461d11ccd11d"></div>
                         <div id="qr-result-box"></div>
                     </div>`;
                 setTimeout(() => { iniciarLeitorCamera(); }, 200);
@@ -1382,15 +1380,15 @@
 
             if (currentTab === 'demo') {
                 container.innerHTML = `
-                    <div style="grid-column: 1/-1; background: rgba(42, 17, 17, 0.95); border: 1px solid #ef4444; padding: 25px; border-radius: 8px;">
-                        <h3 style="color:#ef4444; margin-top:0;">🎬 Simulação de falha crítica</h3>
-                        <p style="font-size:13px; color:#d1d5db;">Registra alarmes demonstrativos e tenta enviar um webhook se houver endpoint configurado. O resultado da entrega será informado após a ação; uma falha externa não desfaz o alarme:</p>
-                        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:15px; margin-top:20px;">
+                    <div data-vg-style="static-f1bda7ed6173">
+                        <h3 data-vg-style="static-55c0840455c1">🎬 Simulação de falha crítica</h3>
+                        <p data-vg-style="static-6d0af102348d">Registra alarmes demonstrativos e tenta enviar um webhook se houver endpoint configurado. O resultado da entrega será informado após a ação; uma falha externa não desfaz o alarme:</p>
+                        <div data-vg-style="static-b1eedbcacd42">
                             ${lista.map(p => `
-                                <div style="background:rgba(15,35,25,0.9); border:1px solid #065f46; padding:15px; border-radius:6px;">
-                                    <h4 style="color:#10b981; margin:0 0 10px 0;">${escapeHtml(p.id)} -${escapeHtml(p.name)}</h4>
-                                    <p style="font-size:11px; color:#9ca3af;">Status: ${escapeHtml(p.status)}</p>
-                                    <button type="button" class="btn-action" style="background:#ef4444; color:#fff; width:100%; margin-top:10px;" data-action="force-failure" data-panel-id="${escapeHtml(p.id)}">⚡ Disparar Alarme Crítico</button>
+                                <div data-vg-style="static-5ec15f0c49b9">
+                                    <h4 data-vg-style="static-987330981b8c">${escapeHtml(p.id)} -${escapeHtml(p.name)}</h4>
+                                    <p data-vg-style="static-651f10dd3974">Status: ${escapeHtml(p.status)}</p>
+                                    <button type="button" class="btn-action" data-vg-style="static-495e290204ce" data-action="force-failure" data-panel-id="${escapeHtml(p.id)}">⚡ Disparar Alarme Crítico</button>
                                 </div>
                             `).join('')}
                         </div>
@@ -1401,16 +1399,16 @@
             if (currentTab === 'webhooks') {
                 const webhookConfigured = Boolean(billingData.webhook_url);
                 container.innerHTML = `
-                    <div style="grid-column: 1/-1; background: rgba(17, 42, 29, 0.95); border: 1px solid #10b981; padding: 25px; border-radius: 8px; max-width: 600px;">
-                        <h3 style="color:#10b981; margin-top:0;">🔔 Webhook para alertas críticos</h3>
-                        <p style="font-size:13px; color:#d1d5db;">Estado: <strong id="webhook-state-label" style="color:${webhookConfigured ? '#10b981' : '#9ca3af'}">${webhookConfigured ? 'Configurado' : 'Desativado'}</strong></p>
-                        <p style="font-size:13px; color:#d1d5db;">No momento, o envio acontece quando a ação de simular falha crítica é executada. O endpoint deve ser HTTPS público. Deixe o campo vazio e salve para desativar.</p>
-                        <form data-vg-submit="salvarWebhook" style="margin-top: 15px;">
+                    <div data-vg-style="static-62863a260c5a">
+                        <h3 data-vg-style="static-4893d804f30c">🔔 Webhook para alertas críticos</h3>
+                        <p data-vg-style="static-6d0af102348d">Estado: <strong id="webhook-state-label" data-vg-style="${webhookConfigured ? 'state-configured' : 'state-disabled'}">${webhookConfigured ? 'Configurado' : 'Desativado'}</strong></p>
+                        <p data-vg-style="static-6d0af102348d">No momento, o envio acontece quando a ação de simular falha crítica é executada. O endpoint deve ser HTTPS público. Deixe o campo vazio e salve para desativar.</p>
+                        <form data-vg-submit="salvarWebhook" data-vg-style="static-9afdabaccbc9">
                             <div class="input-group"><label for="webhook-url-input">Endpoint URL</label><input type="url" id="webhook-url-input" maxlength="2048" placeholder="https://exemplo.com/webhook" value="${escapeHtml(billingData.webhook_url || '')}"></div>
-                            <button id="webhook-save-button" type="submit" class="btn-primary" style="margin-top: 10px;">Salvar configuração</button>
-                            <p id="webhook-save-status" role="status" aria-live="polite" style="font-size:13px;min-height:1em"></p>
-                            <button id="webhook-test-button" type="button" class="btn-primary" style="margin-top: 10px;" data-action="test-webhook" ${webhookConfigured ? '' : 'disabled'}>Enviar evento de teste</button>
-                            <p id="webhook-test-status" role="status" aria-live="polite" style="font-size:13px;min-height:1em">${webhookConfigured ? 'O teste não cria alarmes; o resultado será registrado na auditoria.' : 'Salve um endpoint para habilitar o teste.'}</p>
+                            <button id="webhook-save-button" type="submit" class="btn-primary" data-vg-style="static-3b6fad0b298d">Salvar configuração</button>
+                            <p id="webhook-save-status" role="status" aria-live="polite" data-vg-style="static-63d609018306"></p>
+                            <button id="webhook-test-button" type="button" class="btn-primary" data-vg-style="static-3b6fad0b298d" data-action="test-webhook" ${webhookConfigured ? '' : 'disabled'}>Enviar evento de teste</button>
+                            <p id="webhook-test-status" role="status" aria-live="polite" data-vg-style="static-63d609018306">${webhookConfigured ? 'O teste não cria alarmes; o resultado será registrado na auditoria.' : 'Salve um endpoint para habilitar o teste.'}</p>
                         </form>
                     </div>`;
                 return;
@@ -1424,55 +1422,55 @@
                 const panelUsagePercent = hasPanelLimit && maxPanels > 0 ? Math.min(100, Math.round(currentPanels / maxPanels * 100)) : 0;
                 const expiresAt = billingData.expires_at ? formatarDataHora(billingData.expires_at) : 'Não informada';
                 container.innerHTML = `
-                    <div style="grid-column: 1/-1; background: rgba(17, 42, 29, 0.95); border: 1px solid #10b981; padding: 25px; border-radius: 8px; max-width: 600px;">
-                        <h3 style="color:#10b981; margin-top:0;">💳 Assinatura e Dados de Faturação (Billing)</h3>
-                        <p style="font-size:13px; color:#d1d5db;">Resumo do plano e da utilização atual da organização.</p>
-                        <div style="background: rgba(6, 17, 11, 0.8); padding: 15px; border-radius: 6px; border: 1px solid #065f46; margin-top: 15px; font-size: 13px;">
+                    <div data-vg-style="static-62863a260c5a">
+                        <h3 data-vg-style="static-4893d804f30c">💳 Assinatura e Dados de Faturação (Billing)</h3>
+                        <p data-vg-style="static-6d0af102348d">Resumo do plano e da utilização atual da organização.</p>
+                        <div data-vg-style="static-925cc7ef1c93">
                             <p><strong>Plano:</strong> ${escapeHtml(billingData.plan_name || 'Não informado')}</p>
-                            <p><strong>Estado:</strong> <span style="color:#10b981;">${escapeHtml(billingData.status || 'Não informado')}</span></p>
+                            <p><strong>Estado:</strong> <span data-vg-style="static-df8aa9a1b94b">${escapeHtml(billingData.status || 'Não informado')}</span></p>
                             <p><strong>Renovação/expiração:</strong> ${escapeHtml(expiresAt)}</p>
                             <p><strong>Painéis cadastrados:</strong> ${currentPanels}${hasPanelLimit ? ` de ${maxPanels}` : ''}</p>
-                            ${hasPanelLimit ? `<div role="progressbar" aria-label="Uso do limite de painéis" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${panelUsagePercent}" style="height:8px;background:#064e3b;border-radius:5px;overflow:hidden;margin:8px 0 4px"><div style="height:100%;width:${panelUsagePercent}%;background:#10b981"></div></div><p>${remainingPanels} ${remainingPanels === 1 ? 'painel disponível' : 'painéis disponíveis'} no limite atual.</p>` : '<p>Limite de painéis não informado.</p>'}
+                            ${hasPanelLimit ? `<div role="progressbar" aria-label="Uso do limite de painéis" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${panelUsagePercent}" data-vg-style="static-c2a5046df7cd"><div class="usage-meter-fill usage-meter-width-${panelUsagePercent}"></div></div><p>${remainingPanels} ${remainingPanels === 1 ? 'painel disponível' : 'painéis disponíveis'} no limite atual.</p>` : '<p>Limite de painéis não informado.</p>'}
                         </div>
-                        <p style="font-size:12px;color:#9ca3af;margin-bottom:0">Ambiente de demonstração: pagamentos, alteração de plano e cancelamento não são processados nesta tela.</p>
+                        <p data-vg-style="static-5b1f236569eb">Ambiente de demonstração: pagamentos, alteração de plano e cancelamento não são processados nesta tela.</p>
                     </div>`;
                 return;
             }
 
             if (currentTab === 'executive') {
                 container.innerHTML = `
-                    <div style="grid-column: 1/-1; background: rgba(17, 42, 29, 0.95); border: 1px solid #10b981; padding: 25px; border-radius: 8px; max-width: 600px;">
-                        <h3 style="color:#10b981; margin-top:0;">📈 Relatório Executivo Operacional</h3>
-                        <p style="font-size:13px; color:#d1d5db;">Exporte um retrato da organização em uma pasta de trabalho Excel formatada, com abas separadas para resumo, painéis, alarmes, ordens de serviço, ativos, manutenção e estoque. As tabelas têm filtros, cabeçalhos destacados e colunas ajustadas. Os dados refletem o momento da exportação.</p>
-                        <p style="font-size:12px; color:#9ca3af;">Relatório operacional demonstrativo; não certifica conformidade com NR-10 ou outras normas.</p>
-                        <button type="button" class="btn-primary" style="margin-top:15px;" data-action="download-report">📥 Descarregar relatório executivo (.xlsx)</button>
+                    <div data-vg-style="static-62863a260c5a">
+                        <h3 data-vg-style="static-4893d804f30c">📈 Relatório Executivo Operacional</h3>
+                        <p data-vg-style="static-6d0af102348d">Exporte um retrato da organização em uma pasta de trabalho Excel formatada, com abas separadas para resumo, painéis, alarmes, ordens de serviço, ativos, manutenção e estoque. As tabelas têm filtros, cabeçalhos destacados e colunas ajustadas. Os dados refletem o momento da exportação.</p>
+                        <p data-vg-style="static-c028f172c14a">Relatório operacional demonstrativo; não certifica conformidade com NR-10 ou outras normas.</p>
+                        <button type="button" class="btn-primary" data-vg-style="static-cf7295d9acfa" data-action="download-report">📥 Descarregar relatório executivo (.xlsx)</button>
                     </div>`;
                 return;
             }
 
             if (currentTab === 'rules') {
                 container.innerHTML = `
-                    <div style="grid-column: 1/-1; background: rgba(17, 42, 29, 0.95); border: 1px solid #10b981; padding: 25px; border-radius: 8px; max-width: 600px;">
-                        <h3 style="color:#10b981; margin-top:0;">⚙️ Configuração do Motor de Regras por Organização</h3>
-                        <p style="font-size:13px; color:#d1d5db;">Defina os limiares de segurança térmica que acionam o estado CRÍTICO em toda a frota.</p>
-                        <form data-vg-submit="salvarRegrasTenant" style="margin-top: 15px;">
+                    <div data-vg-style="static-62863a260c5a">
+                        <h3 data-vg-style="static-4893d804f30c">⚙️ Configuração do Motor de Regras por Organização</h3>
+                        <p data-vg-style="static-6d0af102348d">Defina os limiares de segurança térmica que acionam o estado CRÍTICO em toda a frota.</p>
+                        <form data-vg-submit="salvarRegrasTenant" data-vg-style="static-9afdabaccbc9">
                             <div class="input-group"><label>Temperatura Máxima de Alerta (°C)</label><input type="number" step="0.1" min="0.1" max="250" id="rule-temp-input" value="${billingData.max_temperature || 85.0}" required></div>
                             <div class="input-group"><label>Corrente Máxima de Alerta (A)</label><input type="number" step="0.1" min="0.1" max="100000" id="rule-curr-input" value="${billingData.max_current || 500.0}" required></div>
-                            <button type="submit" class="btn-primary" style="margin-top: 10px;">Guardar Regras da Organização</button>
+                            <button type="submit" class="btn-primary" data-vg-style="static-3b6fad0b298d">Guardar Regras da Organização</button>
                         </form>
-                        <hr style="border-color:#065f46;margin:24px 0;">
-                        <h3 style="color:#10b981;">Regras específicas por painel</h3>
-                        <p style="font-size:13px;color:#d1d5db;">Regras específicas substituem os limites padrão da organização. A histerese reduz abertura e fechamento repetidos quando as leituras oscilam perto do limite.</p>
-                        <form data-vg-submit="salvarRegrasPainel" style="margin-top:15px;">
+                        <hr data-vg-style="static-d2f1193b37fa">
+                        <h3 data-vg-style="static-df8aa9a1b94b">Regras específicas por painel</h3>
+                        <p data-vg-style="static-bbfd7d233bbf">Regras específicas substituem os limites padrão da organização. A histerese reduz abertura e fechamento repetidos quando as leituras oscilam perto do limite.</p>
+                        <form data-vg-submit="salvarRegrasPainel" data-vg-style="static-cf7295d9acfa">
                             <div class="input-group"><label for="panel-rule-select">Painel</label><select id="panel-rule-select" data-vg-change="load-panel-rules" required>${Object.values(dadosGlobais).filter(p => p && p.id).map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name || p.id)} — ${escapeHtml(p.id)}</option>`).join('') || '<option value="" selected disabled>Nenhum painel disponível</option>'}</select></div>
                             <div class="input-group"><label>Temperatura máxima (°C)</label><input type="number" step="0.1" min="0.1" max="250" id="panel-rule-temp" value="85" data-vg-input="preview-panel-rules" required></div>
                             <div class="input-group"><label>Corrente máxima (A)</label><input type="number" step="0.1" min="0.1" max="100000" id="panel-rule-current" value="500" data-vg-input="preview-panel-rules" required></div>
                             <div class="input-group"><label>Histerese de temperatura (°C)</label><input type="number" step="0.1" min="0" id="panel-rule-temp-hyst" value="3" data-vg-input="preview-panel-rules" required></div>
                             <div class="input-group"><label>Histerese de corrente (A)</label><input type="number" step="0.1" min="0" id="panel-rule-current-hyst" value="10" data-vg-input="preview-panel-rules" required></div>
-                            <p id="panel-rule-mode" style="font-size:12px;color:#9ca3af;">Selecione um painel para carregar as regras.</p>
-                            <div id="panel-rule-preview" aria-live="polite" style="font-size:13px;line-height:1.6;color:#d1fae5;background:#06110b;border:1px solid #065f46;border-radius:6px;padding:12px;margin:10px 0;">Carregando os limites e a histerese efetivos deste painel…</div>
-                            <button type="submit" class="btn-primary" style="margin-top:10px;">Salvar regras deste painel</button>
-                            <button type="button" id="panel-rule-reset" class="btn-action" style="margin-top:10px;" data-action="restore-panel-rules" disabled>Restaurar padrões da organização</button>
+                            <p id="panel-rule-mode" data-vg-style="static-9411b6b19e8c">Selecione um painel para carregar as regras.</p>
+                            <div id="panel-rule-preview" aria-live="polite" data-vg-style="static-3eeb0e65bfbc">Carregando os limites e a histerese efetivos deste painel…</div>
+                            <button type="submit" class="btn-primary" data-vg-style="static-726e8b317f32">Salvar regras deste painel</button>
+                            <button type="button" id="panel-rule-reset" class="btn-action" data-vg-style="static-726e8b317f32" data-action="restore-panel-rules" disabled>Restaurar padrões da organização</button>
                         </form>
                     </div>`;
                 setTimeout(() => carregarRegrasPainel(), 0);
@@ -1491,12 +1489,12 @@
                         && (alarmStatusFilter === 'TODAS' || a.status === alarmStatusFilter)
                         && (alarmSeverityFilter === 'TODAS' || a.severity === alarmSeverityFilter);
                 });
-                container.innerHTML = `<div style="grid-column:1/-1;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:20px;border-radius:8px;">
-                  <h3 style="color:#10b981;margin-top:0;">🚨 Central de Alarmes</h3>
+                container.innerHTML = `<div data-vg-style="static-370b3cb5604e">
+                  <h3 data-vg-style="static-9c38dde7ed06">🚨 Central de Alarmes</h3>
                   <p>Alarmes são gerados a partir da telemetria recebida e dos limites configurados. A duração conta desde a primeira ocorrência; alarmes abertos continuam contando até serem encerrados.</p>
-                  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0 18px">${[['ATIVOS',activeCount],['RECONHECIDOS',acknowledgedCount],['ENCERRADOS',closedCount],['EM ABERTO',openCount]].map(([label,count])=>`<div style="border:1px solid #075e48;border-radius:6px;padding:10px"><small>${label}</small><strong style="display:block;color:${label==='ATIVOS'&&count?'#ef4444':'#10b981'}">${count}</strong></div>`).join('')}</div>
+                  <div data-vg-style="static-d64df4483d57">${[['ATIVOS',activeCount],['RECONHECIDOS',acknowledgedCount],['ENCERRADOS',closedCount],['EM ABERTO',openCount]].map(([label,count])=>`<div data-vg-style="static-f55e039d0393"><small>${label}</small><strong class="metric-number ${label==='ATIVOS'&&count?'metric-danger':'metric-normal'}">${count}</strong></div>`).join('')}</div>
                   <div class="os-filters"><div class="input-group"><label for="alarm-search">Buscar alarme</label><input id="alarm-search" value="${escapeHtml(alarmSearchText)}" data-vg-input="filter-alarms" placeholder="Painel, tipo ou mensagem"></div><div class="input-group"><label for="alarm-status-filter">Estado</label><select id="alarm-status-filter" data-vg-change="filter-alarms"><option value="TODAS" ${alarmStatusFilter==='TODAS'?'selected':''}>Todos os estados</option><option value="ACTIVE" ${alarmStatusFilter==='ACTIVE'?'selected':''}>Ativo</option><option value="ACKNOWLEDGED" ${alarmStatusFilter==='ACKNOWLEDGED'?'selected':''}>Reconhecido</option><option value="CLEARED" ${alarmStatusFilter==='CLEARED'?'selected':''}>Encerrado</option></select></div><div class="input-group"><label for="alarm-severity-filter">Severidade</label><select id="alarm-severity-filter" data-vg-change="filter-alarms"><option value="TODAS" ${alarmSeverityFilter==='TODAS'?'selected':''}>Todas</option><option value="CRITICAL" ${alarmSeverityFilter==='CRITICAL'?'selected':''}>Crítica</option></select></div><span id="alarm-filter-count">${filteredAlarms.length} alarme(s) exibido(s)</span></div>
-                  <div style="overflow-x:auto;"><table class="enterprise-table"><tr><th>Primeira ocorrência</th><th>Última ocorrência</th><th>Duração</th><th>Painel</th><th>Tipo</th><th>Severidade</th><th>Mensagem</th><th>Estado</th><th>Ações</th></tr>
+                  <div data-vg-style="static-fbff25e9fc50"><table class="enterprise-table"><tr><th>Primeira ocorrência</th><th>Última ocorrência</th><th>Duração</th><th>Painel</th><th>Tipo</th><th>Severidade</th><th>Mensagem</th><th>Estado</th><th>Ações</th></tr>
                   ${filteredAlarms.map(a => `<tr data-alarm-row data-status="${escapeHtml(a.status)}" data-severity="${escapeHtml(a.severity)}" data-search="${escapeHtml([a.panel_id, a.alarm_type, a.severity, a.message, a.acknowledged_by].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR'))}"><td>${escapeHtml(formatarDataHora(a.first_triggered_at))}</td><td>${escapeHtml(formatarDataHora(a.last_triggered_at))}</td><td>${escapeHtml(duracaoAlarme(a))}</td><td>${escapeHtml(a.panel_id)}</td><td>${escapeHtml(a.alarm_type)}</td><td>${escapeHtml(a.severity)}</td><td>${escapeHtml(a.message)}</td><td>${escapeHtml(a.status)}${a.acknowledged_by ? `<br><small>Por ${escapeHtml(a.acknowledged_by)}</small>` : ''}${a.acknowledged_at ? `<br><small>Reconhecido em ${escapeHtml(formatarDataHora(a.acknowledged_at))}</small>` : ''}${a.cleared_at ? `<br><small>Encerrado em ${escapeHtml(formatarDataHora(a.cleared_at))}</small>` : ''}</td><td>${a.work_order_id ? `<span>OS #${Number(a.work_order_id)}</span>` : (a.status !== 'CLEARED' && ['CEO','Gerente','Técnico de Campo'].includes(currentCargo) ? `<button type="button" class="btn-primary" data-action="open-order-from-alarm" data-alarm-id="${Number(a.id)}">Abrir OS</button>` : '')} ${a.status === 'ACTIVE' && ['CEO','Gerente','Técnico de Campo'].includes(currentCargo) ? `<button type="button" class="btn-primary" data-action="acknowledge-alarm" data-alarm-id="${Number(a.id)}">Reconhecer</button>` : ''} ${a.status !== 'CLEARED' && ['CEO','Gerente','Técnico de Campo'].includes(currentCargo) ? `<button type="button" class="btn-primary" data-action="clear-alarm" data-alarm-id="${Number(a.id)}">Encerrar</button>` : ''}</td></tr>`).join('') || (alarmsData.length ? '' : '<tr><td colspan="9">Nenhum alarme registrado. Ao receber telemetria fora dos limites, os alarmes aparecerão aqui.</td></tr>')}
                   </table><p id="alarm-no-results" ${alarmsData.length && !filteredAlarms.length ? '' : 'hidden'}>Nenhum alarme corresponde aos filtros selecionados.</p></div></div>`;
                 return;
@@ -1506,34 +1504,34 @@
                 const belowMinimum = inventoryData.filter(i => Number(i.quantity_in_stock) < Number(i.min_threshold)).length;
                 const stockValue = inventoryData.reduce((sum, i) => sum + Number(i.quantity_in_stock || 0) * Number(i.unit_cost || 0), 0);
                 const money = value => Number(value || 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
-                container.innerHTML = `<section style="grid-column:1/-1;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:18px;border-radius:8px;">
-                    <h3 style="color:#10b981;margin:0 0 14px;">📦 Gestão de Inventário e Almoxarifado</h3>
+                container.innerHTML = `<section data-vg-style="static-3ea8e22c3813">
+                    <h3 data-vg-style="static-2a43bc62729a">📦 Gestão de Inventário e Almoxarifado</h3>
                     <div class="os-overview">
                         <div class="os-overview-card"><span>Itens cadastrados</span><strong>${inventoryData.length}</strong></div>
-                        <div class="os-overview-card"><span>Abaixo do estoque mínimo</span><strong style="color:${belowMinimum ? '#ef4444' : '#10b981'}">${belowMinimum}</strong></div>
+                        <div class="os-overview-card"><span>Abaixo do estoque mínimo</span><strong data-vg-style="${belowMinimum ? 'metric-danger' : 'metric-normal'}">${belowMinimum}</strong></div>
                         <div class="os-overview-card"><span>Valor estimado em estoque</span><strong>${money(stockValue)}</strong></div>
                     </div>
-                    <form data-vg-submit="salvarItemInventario" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:18px 0;align-items:end;">
-                        <div class="input-group" style="margin:0"><label for="inventory-name">Item</label><input id="inventory-name" maxlength="160" required placeholder="Ex.: Disjuntor 60 A" data-vg-input="fill-existing-inventory"></div>
-                        <div class="input-group" style="margin:0"><label for="inventory-category">Categoria</label><input id="inventory-category" maxlength="120" value="Elétrica"></div>
-                        <div class="input-group" style="margin:0"><label for="inventory-quantity">Ajuste de quantidade</label><input id="inventory-quantity" type="number" step="1" min="-100000" max="100000" required value="1" aria-describedby="inventory-quantity-help"></div>
-                        <div class="input-group" style="margin:0"><label for="inventory-minimum">Estoque mínimo</label><input id="inventory-minimum" type="number" step="1" min="0" max="100000" required value="3"></div>
-                        <div class="input-group" style="margin:0"><label for="inventory-cost">Custo unitário (R$)</label><input id="inventory-cost" type="number" step="0.01" min="0" max="100000000" required value="0"></div>
-                        <button type="submit" class="btn-primary" style="min-height:36px;">Registrar movimentação</button>
-                        <small id="inventory-quantity-help" style="grid-column:1/-1;color:#9ca3af;">Use quantidade positiva para entrada e negativa para saída. Para atualizar um item existente, informe o mesmo nome cadastrado.</small>
+                    <form data-vg-submit="salvarItemInventario" data-vg-style="static-455163eebd66">
+                        <div class="input-group" data-vg-style="static-ab79ea2b8573"><label for="inventory-name">Item</label><input id="inventory-name" maxlength="160" required placeholder="Ex.: Disjuntor 60 A" data-vg-input="fill-existing-inventory"></div>
+                        <div class="input-group" data-vg-style="static-ab79ea2b8573"><label for="inventory-category">Categoria</label><input id="inventory-category" maxlength="120" value="Elétrica"></div>
+                        <div class="input-group" data-vg-style="static-ab79ea2b8573"><label for="inventory-quantity">Ajuste de quantidade</label><input id="inventory-quantity" type="number" step="1" min="-100000" max="100000" required value="1" aria-describedby="inventory-quantity-help"></div>
+                        <div class="input-group" data-vg-style="static-ab79ea2b8573"><label for="inventory-minimum">Estoque mínimo</label><input id="inventory-minimum" type="number" step="1" min="0" max="100000" required value="3"></div>
+                        <div class="input-group" data-vg-style="static-ab79ea2b8573"><label for="inventory-cost">Custo unitário (R$)</label><input id="inventory-cost" type="number" step="0.01" min="0" max="100000000" required value="0"></div>
+                        <button type="submit" class="btn-primary" data-vg-style="static-da982660a1d2">Registrar movimentação</button>
+                        <small id="inventory-quantity-help" data-vg-style="static-e8696ccd3f08">Use quantidade positiva para entrada e negativa para saída. Para atualizar um item existente, informe o mesmo nome cadastrado.</small>
                     </form>
-                    <div class="os-filters"><div class="input-group" style="margin:0"><label for="inventory-search">Buscar item</label><input id="inventory-search" data-vg-input="filter-inventory" placeholder="Nome ou categoria"></div><span id="inventory-filter-count">${inventoryData.length} de ${inventoryData.length} item(ns)</span></div>
-                    <div style="overflow-x:auto;"><table class="enterprise-table"><thead><tr><th>Item</th><th>Categoria</th><th>Quantidade</th><th>Mínimo</th><th>Custo unitário</th><th>Valor em estoque</th><th>Estado</th></tr></thead>
+                    <div class="os-filters"><div class="input-group" data-vg-style="static-ab79ea2b8573"><label for="inventory-search">Buscar item</label><input id="inventory-search" data-vg-input="filter-inventory" placeholder="Nome ou categoria"></div><span id="inventory-filter-count">${inventoryData.length} de ${inventoryData.length} item(ns)</span></div>
+                    <div data-vg-style="static-fbff25e9fc50"><table class="enterprise-table"><thead><tr><th>Item</th><th>Categoria</th><th>Quantidade</th><th>Mínimo</th><th>Custo unitário</th><th>Valor em estoque</th><th>Estado</th></tr></thead>
                         <tbody>${inventoryData.map(i => {
                             const quantity = Number(i.quantity_in_stock || 0);
                             const minimum = Number(i.min_threshold || 0);
                             const unitCost = Number(i.unit_cost || 0);
                             const low = quantity < minimum;
                             const search = `${i.part_name || ''} ${i.category || ''}`.toLocaleLowerCase('pt-BR');
-                            return `<tr data-inventory-row data-search="${escapeHtml(search)}"><td>${escapeHtml(i.part_name)}</td><td>${escapeHtml(i.category)}</td><td>${quantity}</td><td>${minimum}</td><td>${money(unitCost)}</td><td>${money(quantity * unitCost)}</td><td style="color:${low ? '#fca5a5' : '#10b981'};font-weight:bold">${low ? 'ABAIXO DO MÍNIMO' : 'REGULAR'}</td></tr>`;
+                            return `<tr data-inventory-row data-search="${escapeHtml(search)}"><td>${escapeHtml(i.part_name)}</td><td>${escapeHtml(i.category)}</td><td>${quantity}</td><td>${minimum}</td><td>${money(unitCost)}</td><td>${money(quantity * unitCost)}</td><td data-vg-style="${low ? 'inventory-low' : 'inventory-ok'}">${low ? 'ABAIXO DO MÍNIMO' : 'REGULAR'}</td></tr>`;
                         }).join('') || '<tr><td colspan="7">Nenhum item cadastrado. Use o formulário para registrar o estoque inicial.</td></tr>'}</tbody>
                     </table></div>
-                    <p style="font-size:11px;color:#9ca3af;margin-bottom:0;">O valor em estoque é uma estimativa calculada pela quantidade atual multiplicada pelo custo unitário informado.</p>
+                    <p data-vg-style="static-b24868868a0d">O valor em estoque é uma estimativa calculada pela quantidade atual multiplicada pelo custo unitário informado.</p>
                 </section>`;
                 return;
             }
@@ -1554,34 +1552,34 @@
                         <p><strong>Conectividade:</strong> ${escapeHtml(resumirConectividade(p))}</p>
                     </div>`).join('');
             } else if (currentTab === 'predictive') {
-                container.innerHTML = `<div style="grid-column:1/-1;display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:12px;border-radius:8px;">
+                container.innerHTML = `<div data-vg-style="static-b718b6694ed2">
                     <strong>Período do histórico:</strong>
-                    <select aria-label="Período do histórico" data-vg-change="set-history-window" style="max-width:220px;background:#071b13;color:#fff;border:1px solid #10b981;padding:8px;border-radius:5px;">
+                    <select aria-label="Período do histórico" data-vg-change="set-history-window" data-vg-style="static-a766043ac854">
                         <option value="1" ${historyWindowHours===1?'selected':''}>Última hora</option>
                         <option value="24" ${historyWindowHours===24?'selected':''}>Últimas 24 horas</option>
                         <option value="168" ${historyWindowHours===168?'selected':''}>Últimos 7 dias</option>
                         <option value="0" ${historyWindowHours===0?'selected':''}>Todo o histórico carregado</option>
                     </select>
-                    <span style="font-size:11px;color:#9ca3af">Gráficos usam apenas amostras registradas. O painel carrega até 500 amostras por dispositivo.</span>
+                    <span data-vg-style="static-765becb77e44">Gráficos usam apenas amostras registradas. O painel carrega até 500 amostras por dispositivo.</span>
                 </div>` + lista.map(p => `
                     <div class="panel-card ${p.status === 'CRITICO' ? 'critico' : ''}">
                         <h3>📈 Histórico de telemetria — ${escapeHtml(p.id)}</h3>
                         <p><strong>Componente:</strong> ${escapeHtml(p.component)}</p>
-                        <p id="history-status-${escapeHtml(p.id)}" style="font-size:11px;color:#9ca3af;">Carregando amostras...</p>
-                        <button type="button" id="history-more-${escapeHtml(p.id)}" data-action="load-panel-history" data-panel-id="${escapeHtml(p.id)}" style="margin:6px 0;padding:7px 10px;">Carregar registros anteriores</button>
-                        <div style="height:190px;margin-top:10px;"><canvas id="chart-temp-${escapeHtml(p.id)}" aria-label="Histórico de temperatura do painel ${escapeHtml(p.id)}"></canvas></div>
-                        <div style="height:190px;margin-top:16px;"><canvas id="chart-current-${escapeHtml(p.id)}" aria-label="Histórico de corrente do painel ${escapeHtml(p.id)}"></canvas></div>
-                        <div style="height:190px;margin-top:16px;"><canvas id="chart-power-${escapeHtml(p.id)}" aria-label="Histórico de potência ativa do painel ${escapeHtml(p.id)}"></canvas></div>
-                        <div style="height:190px;margin-top:16px;"><canvas id="chart-energy-${escapeHtml(p.id)}" aria-label="Histórico de energia acumulada do painel ${escapeHtml(p.id)}"></canvas></div>
-                        <div style="height:190px;margin-top:16px;"><canvas id="chart-frequency-${escapeHtml(p.id)}" aria-label="Histórico de frequência do painel ${escapeHtml(p.id)}"></canvas></div>
-                        <div style="height:190px;margin-top:16px;"><canvas id="chart-power-factor-${escapeHtml(p.id)}" aria-label="Histórico do fator de potência do painel ${escapeHtml(p.id)}"></canvas></div>
+                        <p id="history-status-${escapeHtml(p.id)}" data-vg-style="static-89b3bc41743d">Carregando amostras...</p>
+                        <button type="button" id="history-more-${escapeHtml(p.id)}" data-action="load-panel-history" data-panel-id="${escapeHtml(p.id)}" data-vg-style="static-f95cd371f584">Carregar registros anteriores</button>
+                        <div data-vg-style="static-280052cd7fa2"><canvas id="chart-temp-${escapeHtml(p.id)}" aria-label="Histórico de temperatura do painel ${escapeHtml(p.id)}"></canvas></div>
+                        <div data-vg-style="static-86816ffa2691"><canvas id="chart-current-${escapeHtml(p.id)}" aria-label="Histórico de corrente do painel ${escapeHtml(p.id)}"></canvas></div>
+                        <div data-vg-style="static-86816ffa2691"><canvas id="chart-power-${escapeHtml(p.id)}" aria-label="Histórico de potência ativa do painel ${escapeHtml(p.id)}"></canvas></div>
+                        <div data-vg-style="static-86816ffa2691"><canvas id="chart-energy-${escapeHtml(p.id)}" aria-label="Histórico de energia acumulada do painel ${escapeHtml(p.id)}"></canvas></div>
+                        <div data-vg-style="static-86816ffa2691"><canvas id="chart-frequency-${escapeHtml(p.id)}" aria-label="Histórico de frequência do painel ${escapeHtml(p.id)}"></canvas></div>
+                        <div data-vg-style="static-86816ffa2691"><canvas id="chart-power-factor-${escapeHtml(p.id)}" aria-label="Histórico do fator de potência do painel ${escapeHtml(p.id)}"></canvas></div>
                         <p><strong>Última tensão recebida:</strong> ${escapeHtml(p.voltage ?? 'Sem dado')}</p>
                         <p><strong>Última tensão numérica:</strong> ${p.voltage_v == null ? 'Sem dado' : `${escapeHtml(formatarMedida(p.voltage_v, 1))} V`}</p>
                         <p><strong>Última potência ativa:</strong> ${p.active_power_kw == null ? 'Sem dado' : `${escapeHtml(formatarMedida(p.active_power_kw, 2))} kW`}</p>
                         <p><strong>Última energia acumulada:</strong> ${p.active_energy_kwh == null ? 'Sem dado' : `${escapeHtml(formatarMedida(p.active_energy_kwh, 2))} kWh`}</p>
                         <p><strong>Última frequência:</strong> ${p.frequency_hz == null ? 'Sem dado' : `${escapeHtml(formatarMedida(p.frequency_hz, 2))} Hz`}</p>
                         <p><strong>Último fator de potência:</strong> ${p.power_factor == null ? 'Sem dado' : escapeHtml(formatarMedida(p.power_factor, 3))}</p>
-                        <p style="margin-top:10px;font-size:11px;color:#9ca3af;">${escapeHtml(p.recommendation)}</p>
+                        <p data-vg-style="static-ac44bfc7d750">${escapeHtml(p.recommendation)}</p>
                     </div>`).join('');
                 setTimeout(() => {
                     lista.forEach(p => {
@@ -1598,15 +1596,15 @@
                 }));
                 const availableEstimates = estimates.filter(item => item.value !== null);
                 const totalEstimate = availableEstimates.reduce((sum, item) => sum + item.value, 0);
-                container.innerHTML = `<section style="grid-column:1/-1;background:rgba(17,42,29,.95);border:1px solid #10b981;padding:18px;border-radius:8px;">
-                    <h3 style="color:#10b981;margin:0 0 8px;">🌱 Indicadores ESG demonstrativos</h3>
-                    <p style="font-size:12px;color:#9ca3af;margin:0 0 16px;">Estimativas informativas cadastradas por painel. Não são medições de consumo, cálculo de emissões ou indicadores auditados.</p>
+                container.innerHTML = `<section data-vg-style="static-3ea8e22c3813">
+                    <h3 data-vg-style="static-b6bcbb798691">🌱 Indicadores ESG demonstrativos</h3>
+                    <p data-vg-style="static-5c58cfcd5413">Estimativas informativas cadastradas por painel. Não são medições de consumo, cálculo de emissões ou indicadores auditados.</p>
                     <div class="os-overview">
                         <div class="os-overview-card"><span>Painéis na organização</span><strong>${lista.length}</strong></div>
                         <div class="os-overview-card"><span>Estimativas disponíveis</span><strong>${availableEstimates.length} de ${lista.length}</strong></div>
                         <div class="os-overview-card"><span>Soma das estimativas</span><strong>${formatarMedida(totalEstimate)} kWh/dia</strong></div>
                     </div>
-                    <div style="overflow-x:auto;margin-top:16px;">
+                    <div data-vg-style="static-fa4a9f6a3d61">
                         <table class="enterprise-table">
                             <thead><tr><th>Painel</th><th>Local</th><th>Estimativa informada</th><th>Observação</th></tr></thead>
                             <tbody>${estimates.map(({panel, value}) => `<tr>
@@ -1625,21 +1623,21 @@
                 const completedCount = workOrders.filter(w => w.status === 'CONCLUIDA').length;
                 const alarmOriginCount = workOrders.filter(w => w.alarm_id).length;
                 container.innerHTML = `
-                    <div style="grid-column:1/-1; background:rgba(17,42,29,.95); border:1px solid #10b981; padding:20px; border-radius:8px;"><h3 style="color:#10b981;margin-top:0;">📋 Gestão de Ordens de Serviço</h3>
-                    <div class="os-overview"><div class="os-overview-card"><span>Ordens em aberto</span><strong>${openCount}</strong></div><div class="os-overview-card"><span>Em andamento</span><strong>${inProgressCount}</strong></div><div class="os-overview-card"><span>Atrasadas</span><strong style="color:${overdueCount ? '#ef4444' : '#10b981'}">${overdueCount}</strong></div><div class="os-overview-card"><span>Concluídas</span><strong>${completedCount}</strong></div><div class="os-overview-card"><span>Originadas de alarmes</span><strong>${alarmOriginCount}</strong></div></div>
-                    <form data-vg-submit="criarOrdemServico" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+                    <div data-vg-style="static-5ce313828479"><h3 data-vg-style="static-9c38dde7ed06">📋 Gestão de Ordens de Serviço</h3>
+                    <div class="os-overview"><div class="os-overview-card"><span>Ordens em aberto</span><strong>${openCount}</strong></div><div class="os-overview-card"><span>Em andamento</span><strong>${inProgressCount}</strong></div><div class="os-overview-card"><span>Atrasadas</span><strong data-vg-style="${overdueCount ? 'metric-danger' : 'metric-normal'}">${overdueCount}</strong></div><div class="os-overview-card"><span>Concluídas</span><strong>${completedCount}</strong></div><div class="os-overview-card"><span>Originadas de alarmes</span><strong>${alarmOriginCount}</strong></div></div>
+                    <form data-vg-submit="criarOrdemServico" data-vg-style="static-1058606e2a0e">
                       <div class="input-group"><label>Painel</label><select id="os-panel" required>${lista.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.id)} — ${escapeHtml(p.name)}</option>`).join('')}</select></div>
                       <div class="input-group"><label>Título</label><input id="os-title" maxlength="200" required></div>
                       <div class="input-group"><label>Prioridade</label><select id="os-priority"><option>BAIXA</option><option>MEDIA</option><option selected>ALTA</option><option>CRITICA</option></select></div>
                       <div class="input-group"><label>Técnico atribuído</label><input id="os-tech" maxlength="120"></div>
                       <div class="input-group"><label>Prazo (opcional)</label><input id="os-due-at" type="datetime-local"></div>
-                      <div class="input-group" style="grid-column:1/-1"><label>Descrição</label><input id="os-description" maxlength="4000"></div>
-                      <div class="input-group" style="grid-column:1/-1"><label>Modelo de checklist</label><div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><select id="os-checklist-template" data-vg-change="apply-checklist-preview" style="flex:1;min-width:220px"><option value="">Selecionar modelo...</option></select><button type="button" class="btn-action" data-action="apply-checklist-template">Usar modelo</button>${['CEO','Gerente'].includes(currentCargo) ? '<input id="os-checklist-template-name" maxlength="120" placeholder="Nome do novo modelo" style="flex:1;min-width:180px"><button type="button" class="btn-action" data-action="save-checklist-template">Salvar checklist como modelo</button><button type="button" class="btn-action" data-action="remove-checklist-template">Remover selecionado</button>' : ''}</div></div>
-                      <div class="input-group" style="grid-column:1/-1"><label>Checklist (opcional, um item por linha; até 20)</label><textarea id="os-checklist" maxlength="5000" rows="3" placeholder="Ex.: Inspecionar visualmente\nVerificar conexões\nRegistrar medições"></textarea></div>
+                      <div class="input-group" data-vg-style="static-51377a917eb3"><label>Descrição</label><input id="os-description" maxlength="4000"></div>
+                      <div class="input-group" data-vg-style="static-51377a917eb3"><label>Modelo de checklist</label><div data-vg-style="static-14bb9141330a"><select id="os-checklist-template" data-vg-change="apply-checklist-preview" data-vg-style="static-42636e83b671"><option value="">Selecionar modelo...</option></select><button type="button" class="btn-action" data-action="apply-checklist-template">Usar modelo</button>${['CEO','Gerente'].includes(currentCargo) ? '<input id="os-checklist-template-name" maxlength="120" placeholder="Nome do novo modelo" data-vg-style="static-5a5048952d24"><button type="button" class="btn-action" data-action="save-checklist-template">Salvar checklist como modelo</button><button type="button" class="btn-action" data-action="remove-checklist-template">Remover selecionado</button>' : ''}</div></div>
+                      <div class="input-group" data-vg-style="static-51377a917eb3"><label>Checklist (opcional, um item por linha; até 20)</label><textarea id="os-checklist" maxlength="5000" rows="3" placeholder="Ex.: Inspecionar visualmente\nVerificar conexões\nRegistrar medições"></textarea></div>
                       <button class="btn-primary" type="submit">Criar ordem de serviço</button>
                     </form>
                     <div class="os-filters"><div class="input-group"><label for="os-search">Buscar OS</label><input id="os-search" value="${escapeHtml(workOrderSearchText)}" data-vg-input="filter-work-orders" placeholder="Painel, título, técnico ou alarme"></div><div class="input-group"><label for="os-filter-status">Estado</label><select id="os-filter-status" data-vg-change="filter-work-orders"><option value="TODAS" ${workOrderStatusFilter==='TODAS'?'selected':''}>Todos os estados</option><option value="ABERTA" ${workOrderStatusFilter==='ABERTA'?'selected':''}>Aberta</option><option value="EM_ANDAMENTO" ${workOrderStatusFilter==='EM_ANDAMENTO'?'selected':''}>Em andamento</option><option value="AGUARDANDO_PECA" ${workOrderStatusFilter==='AGUARDANDO_PECA'?'selected':''}>Aguardando peça</option><option value="CONCLUIDA" ${workOrderStatusFilter==='CONCLUIDA'?'selected':''}>Concluída</option><option value="CANCELADA" ${workOrderStatusFilter==='CANCELADA'?'selected':''}>Cancelada</option></select></div><div class="input-group"><label for="os-filter-origin">Origem</label><select id="os-filter-origin" data-vg-change="filter-work-orders"><option value="TODAS" ${workOrderOriginFilter==='TODAS'?'selected':''}>Todas as origens</option><option value="ALARME" ${workOrderOriginFilter==='ALARME'?'selected':''}>Criada de alarme</option><option value="MANUAL" ${workOrderOriginFilter==='MANUAL'?'selected':''}>Criada manualmente</option></select></div><label><input id="os-filter-overdue" type="checkbox" ${workOrderOnlyOverdue?'checked':''} data-vg-change="filter-work-orders"> Somente atrasadas</label></div>
-                    <div style="overflow-x:auto;margin-top:12px"><table class="enterprise-table"><thead><tr><th>ID</th><th>Painel</th><th>Título</th><th>Prioridade</th><th>Estado</th><th>Técnico</th><th>Prazo</th><th>Início</th><th>Conclusão</th><th>Checklist</th><th>Resumo de execução</th><th>Ação</th><th>Histórico</th></tr></thead><tbody id="os-table-body">
+                    <div data-vg-style="static-a825de92443e"><table class="enterprise-table"><thead><tr><th>ID</th><th>Painel</th><th>Título</th><th>Prioridade</th><th>Estado</th><th>Técnico</th><th>Prazo</th><th>Início</th><th>Conclusão</th><th>Checklist</th><th>Resumo de execução</th><th>Ação</th><th>Histórico</th></tr></thead><tbody id="os-table-body">
                     ${workOrders.map(w => {
                         const events = Array.isArray(w.history) ? w.history : [];
                         const checklist = Array.isArray(w.checklist) ? w.checklist : [];
@@ -1652,15 +1650,15 @@
                         const checklistHtml = checklist.length
                             ? checklist.map(item => `<label class="os-checklist-item"><input type="checkbox" ${item.is_completed ? 'checked' : ''} ${terminal ? 'disabled' : ''} data-vg-change="update-checklist-item" data-order-id="${Number(w.id)}" data-checklist-item-id="${Number(item.id)}"><span>${escapeHtml(item.label)}${item.is_completed ? `<small>Concluído por ${escapeHtml(item.completed_by || '—')} em ${escapeHtml(formatarDataHora(item.completed_at))}</small>` : ''}</span></label>`).join('')
                             : '<span>Sem itens de checklist</span>';
-                        return `<tr data-os-row data-status="${escapeHtml(w.status)}" data-origin="${origin}" data-overdue="${overdue}" data-search="${escapeHtml(search)}"><td>${escapeHtml(w.id)}</td><td>${escapeHtml(w.panel_id)}</td><td>${escapeHtml(w.title)}${w.alarm_id ? `<br><small style="color:#fbbf24">Origem: Alarme #${Number(w.alarm_id)}</small>` : ''}<details class="os-edit" data-os-edit="${orderId}" ${workOrderEditOpen.has(orderId) ? 'open' : ''}><summary>Editar dados</summary><div class="os-edit-fields"><label>Título<input id="os-edit-title-${Number(w.id)}" maxlength="200" value="${escapeHtml(w.title)}"></label><label>Prioridade<select id="os-edit-priority-${Number(w.id)}"><option ${w.priority==='BAIXA'?'selected':''}>BAIXA</option><option ${['MEDIA','MÉDIA'].includes(w.priority)?'selected':''}>MEDIA</option><option ${w.priority==='ALTA'?'selected':''}>ALTA</option><option ${['CRITICA','CRÍTICA'].includes(w.priority)?'selected':''}>CRITICA</option></select></label><label>Técnico<input id="os-edit-tech-${Number(w.id)}" maxlength="120" value="${escapeHtml(w.assigned_technician || '')}"></label><label>Prazo<input id="os-edit-due-${Number(w.id)}" type="datetime-local" value="${dataParaInputLocal(w.due_at)}"></label><label>Descrição<textarea id="os-edit-description-${Number(w.id)}" maxlength="4000">${escapeHtml(w.description || '')}</textarea></label><button type="button" class="btn-action" data-action="update-order-details" data-order-id="${Number(w.id)}">Salvar dados</button></div></details></td><td>${escapeHtml(w.priority)}</td><td>${escapeHtml(w.status)}</td><td>${escapeHtml(w.assigned_technician || '—')}</td><td>${overdue ? '<span class="os-overdue">ATRASADA · </span>' : ''}${escapeHtml(formatarDataHora(w.due_at))}</td><td>${escapeHtml(formatarDataHora(w.started_at))}</td><td>${escapeHtml(formatarDataHora(w.completed_at))}</td><td class="os-checklist"><details><summary>Checklist (${checklistDone}/${checklist.length})</summary>${checklistHtml}</details></td><td><input id="os-resolution-${Number(w.id)}" maxlength="4000" value="${escapeHtml(w.resolution || '')}" placeholder="Obrigatório para concluir" style="min-width:180px"></td><td><select id="os-status-${Number(w.id)}"><option ${w.status==='ABERTA'?'selected':''}>ABERTA</option><option ${w.status==='EM_ANDAMENTO'?'selected':''}>EM_ANDAMENTO</option><option ${w.status==='AGUARDANDO_PECA'?'selected':''}>AGUARDANDO_PECA</option><option ${w.status==='CONCLUIDA'?'selected':''}>CONCLUIDA</option><option ${w.status==='CANCELADA'?'selected':''}>CANCELADA</option></select><button type="button" class="btn-action" data-action="update-order" data-order-id="${Number(w.id)}">Guardar</button><button type="button" class="btn-action" data-action="print-order-report" data-order-id="${Number(w.id)}">Relatório PDF</button></td><td class="os-history"><details data-os-history="${orderId}" ${workOrderHistoryOpen.has(orderId) ? 'open' : ''}><summary>Ver histórico (${events.length})</summary>${events.length ? events.map(event => `<div class="os-history-event"><strong>${escapeHtml(formatarDataHora(event.timestamp))}</strong><br>${escapeHtml(event.user_name)} (${escapeHtml(event.role)}) · ${escapeHtml(event.action)}<br>${escapeHtml(event.details)}${event.resolution ? `<br><strong>Resumo registrado:</strong> ${escapeHtml(event.resolution)}` : ''}</div>`).join('') : '<div class="os-history-event">Sem eventos anteriores. O histórico começa a ser registrado a partir desta versão.</div>'}</details></td></tr>`;
+                        return `<tr data-os-row data-status="${escapeHtml(w.status)}" data-origin="${origin}" data-overdue="${overdue}" data-search="${escapeHtml(search)}"><td>${escapeHtml(w.id)}</td><td>${escapeHtml(w.panel_id)}</td><td>${escapeHtml(w.title)}${w.alarm_id ? `<br><small data-vg-style="static-383cae387b10">Origem: Alarme #${Number(w.alarm_id)}</small>` : ''}<details class="os-edit" data-os-edit="${orderId}" ${workOrderEditOpen.has(orderId) ? 'open' : ''}><summary>Editar dados</summary><div class="os-edit-fields"><label>Título<input id="os-edit-title-${Number(w.id)}" maxlength="200" value="${escapeHtml(w.title)}"></label><label>Prioridade<select id="os-edit-priority-${Number(w.id)}"><option ${w.priority==='BAIXA'?'selected':''}>BAIXA</option><option ${['MEDIA','MÉDIA'].includes(w.priority)?'selected':''}>MEDIA</option><option ${w.priority==='ALTA'?'selected':''}>ALTA</option><option ${['CRITICA','CRÍTICA'].includes(w.priority)?'selected':''}>CRITICA</option></select></label><label>Técnico<input id="os-edit-tech-${Number(w.id)}" maxlength="120" value="${escapeHtml(w.assigned_technician || '')}"></label><label>Prazo<input id="os-edit-due-${Number(w.id)}" type="datetime-local" value="${dataParaInputLocal(w.due_at)}"></label><label>Descrição<textarea id="os-edit-description-${Number(w.id)}" maxlength="4000">${escapeHtml(w.description || '')}</textarea></label><button type="button" class="btn-action" data-action="update-order-details" data-order-id="${Number(w.id)}">Salvar dados</button></div></details></td><td>${escapeHtml(w.priority)}</td><td>${escapeHtml(w.status)}</td><td>${escapeHtml(w.assigned_technician || '—')}</td><td>${overdue ? '<span class="os-overdue">ATRASADA · </span>' : ''}${escapeHtml(formatarDataHora(w.due_at))}</td><td>${escapeHtml(formatarDataHora(w.started_at))}</td><td>${escapeHtml(formatarDataHora(w.completed_at))}</td><td class="os-checklist"><details><summary>Checklist (${checklistDone}/${checklist.length})</summary>${checklistHtml}</details></td><td><input id="os-resolution-${Number(w.id)}" maxlength="4000" value="${escapeHtml(w.resolution || '')}" placeholder="Obrigatório para concluir" data-vg-style="static-43459be14cf5"></td><td><select id="os-status-${Number(w.id)}"><option ${w.status==='ABERTA'?'selected':''}>ABERTA</option><option ${w.status==='EM_ANDAMENTO'?'selected':''}>EM_ANDAMENTO</option><option ${w.status==='AGUARDANDO_PECA'?'selected':''}>AGUARDANDO_PECA</option><option ${w.status==='CONCLUIDA'?'selected':''}>CONCLUIDA</option><option ${w.status==='CANCELADA'?'selected':''}>CANCELADA</option></select><button type="button" class="btn-action" data-action="update-order" data-order-id="${Number(w.id)}">Guardar</button><button type="button" class="btn-action" data-action="print-order-report" data-order-id="${Number(w.id)}">Relatório PDF</button></td><td class="os-history"><details data-os-history="${orderId}" ${workOrderHistoryOpen.has(orderId) ? 'open' : ''}><summary>Ver histórico (${events.length})</summary>${events.length ? events.map(event => `<div class="os-history-event"><strong>${escapeHtml(formatarDataHora(event.timestamp))}</strong><br>${escapeHtml(event.user_name)} (${escapeHtml(event.role)}) · ${escapeHtml(event.action)}<br>${escapeHtml(event.details)}${event.resolution ? `<br><strong>Resumo registrado:</strong> ${escapeHtml(event.resolution)}` : ''}</div>`).join('') : '<div class="os-history-event">Sem eventos anteriores. O histórico começa a ser registrado a partir desta versão.</div>'}</details></td></tr>`;
                     }).join('')}
                     </tbody></table><p id="os-no-results" hidden>Nenhuma ordem corresponde aos filtros selecionados.</p></div></div>`;
                 filtrarOrdensServico();
                 // Rebuild the model options after the form HTML is replaced.
                 atualizarSeletorModelosChecklistOS();
             } else if (currentTab === 'audit') {
-                container.innerHTML = `<div style="grid-column: 1/-1;">
-                    <h3 style="color:#10b981; margin-bottom:15px;">Registro de Auditoria</h3>
+                container.innerHTML = `<div data-vg-style="static-bf8e9f7e240e">
+                    <h3 data-vg-style="static-c0f00e062a3d">Registro de Auditoria</h3>
                     <form class="os-filters" data-vg-submit="filtrarAuditoria">
                         <div class="input-group"><label for="audit-search">Buscar nos detalhes</label><input id="audit-search" value="${escapeHtml(auditFilters.search)}" maxlength="200" placeholder="Ação, detalhes ou papel"></div>
                         <div class="input-group"><label for="audit-user">Usuário</label><input id="audit-user" value="${escapeHtml(auditFilters.user_name)}" maxlength="120" placeholder="Nome do usuário"></div>
@@ -1670,7 +1668,7 @@
                         <button class="btn-primary" type="submit">Filtrar</button><button class="btn-action" type="button" data-action="clear-audit-filters">Limpar</button>
                     </form>
                     <p>${auditLoading ? 'Carregando registros…' : `${auditPageLogs.length} de ${auditTotal} registro(s)`}</p>
-                    ${auditError ? `<p style="color:#fca5a5">${escapeHtml(auditError)} <button type="button" class="btn-action" data-action="load-audit" data-reset="true">Tentar novamente</button></p>` : ''}
+                    ${auditError ? `<p data-vg-style="static-de6e20e39901">${escapeHtml(auditError)} <button type="button" class="btn-action" data-action="load-audit" data-reset="true">Tentar novamente</button></p>` : ''}
                     <table class="enterprise-table">
                         <tr><th>Data/Hora</th><th>Usuário</th><th>Ação</th><th>Detalhes</th></tr>
                         ${auditPageLogs.map(l => `<tr><td>${escapeHtml(formatarDataHora(l.timestamp))}</td><td>${escapeHtml(l.user_name)}<br><small>${escapeHtml(l.role)}</small></td><td>${escapeHtml(l.action)}</td><td>${escapeHtml(l.details)}</td></tr>`).join('') || `<tr><td colspan="4">${auditError ? 'Não foi possível carregar os registros.' : auditLoading ? 'Carregando…' : 'Nenhum registro corresponde aos filtros.'}</td></tr>`}

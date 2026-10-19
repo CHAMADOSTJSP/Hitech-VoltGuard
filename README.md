@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.51.0 — Preparação CSP e estilos externos
+
+Os estilos do HTML e das telas geradas pelo JavaScript agora ficam em `styles.css`; o relatório de ordem de serviço usa `report.css`. O backend serve ambos sem cache e os inclui na imagem Docker. A política CSP está em `Content-Security-Policy-Report-Only`: observe o Console do navegador depois do deploy para identificar dependências que ainda tentam usar estilos inline antes de ativar o bloqueio.
+
 ## v0.50.0 — Folha de estilos externa
 
 O CSS principal da página agora está em `styles.css`, servido em `/styles.css` sem cache e empacotado no Docker. Atributos de estilo gerados pelo JavaScript e o CSS do relatório de OS permanecem pendentes, então CSP restritiva não foi ativada.

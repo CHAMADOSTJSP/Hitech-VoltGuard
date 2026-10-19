@@ -320,7 +320,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.50.0",
+    version="0.51.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -347,7 +347,15 @@ async def security_headers(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=()"
-    if request.url.path.startswith("/api/") or request.url.path in {"/health", "/app.js", "/styles.css"}:
+    response.headers["Content-Security-Policy-Report-Only"] = (
+        "default-src 'self'; "
+        "script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
+        "style-src 'self'; style-src-elem 'self'; style-src-attr 'none'; "
+        "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; "
+        "worker-src 'self' blob:; object-src 'none'; base-uri 'self'; "
+        "form-action 'self'; frame-ancestors 'none'"
+    )
+    if request.url.path.startswith("/api/") or request.url.path in {"/health", "/app.js", "/styles.css", "/report.css"}:
         response.headers["Cache-Control"] = "no-store"
     response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
     if request.url.scheme == "https":
@@ -2368,3 +2376,11 @@ def serve_styles_css():
     if os.path.exists(styles_path):
         return FileResponse(styles_path, media_type="text/css")
     raise HTTPException(status_code=404, detail=f"styles.css não encontrado no caminho: {styles_path}")
+
+@app.get("/report.css")
+def serve_report_css():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    report_path = os.path.join(base_dir, "report.css")
+    if os.path.exists(report_path):
+        return FileResponse(report_path, media_type="text/css")
+    raise HTTPException(status_code=404, detail=f"report.css não encontrado no caminho: {report_path}")

@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.51.0 — Preparação CSP e estilos externos
+- Estilos inline do HTML e dos conteúdos dinâmicos migrados para seletores e classes em `styles.css`; CSS do relatório de OS extraído para `report.css`.
+- Backend serve os dois CSS e publica uma política CSP em modo Report-Only, sem bloquear recursos durante a primeira verificação no navegador.
+- Incluído `report.css` na imagem Docker; a CSP ainda precisa ser observada antes de passar para modo de bloqueio.
+
 ## v0.50.0 — Folha de estilos externa
 - O CSS principal foi extraído de `index.html` para `styles.css`, servido pelo backend sem cache e incluído na imagem Docker.
 - Permanecem atributos `style` dinâmicos e CSS inline no relatório de ordem; CSP estrita continua desativada.
