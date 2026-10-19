@@ -314,3 +314,9 @@ Consulte `REVISAO_TECNICA.md`. A aplicação permanece candidata a demonstraçã
 - Histerese configurável para temperatura e corrente, reduzindo oscilação de alarmes.
 - Auditoria de alterações de regras e validação de isolamento multi-tenant.
 - UI de configuração por painel na aba Regras de Alarme.
+## v0.40.0 — Protótipo de gateway Modbus TCP
+
+- Criado coletor local configurável e somente leitura, com envio HTTPS autenticado ao endpoint de dispositivo.
+- Endereços Modbus permanecem sem preencher até validação do mapa do modelo e firmware reais.
+- Sem validação física, buffer offline ou uso operacional; ver `gateway/README.md`.
+

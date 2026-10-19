@@ -49,7 +49,7 @@ Não fixar endereços Modbus neste documento. A Schneider publica mapas associad
 
 1. Confirmar o código completo do PM5320, firmware e grandezas habilitadas.
 2. Obter o mapa Modbus correspondente e testar leitura somente na rede de bancada.
-3. Criar no gateway o fluxo de leitura, normalização e envio HTTPS com token exclusivo.
+3. Protótipo criado em `gateway/`: coletor Modbus TCP configurável, somente leitura, com envio HTTPS e token exclusivo. Continua sem perfil de registradores PM5320 homologado.
 4. Implementado nesta etapa: ampliar e documentar o schema de telemetria do VoltGuard sem quebrar os gateways já existentes.
 5. Validar leituras, escala/unidades, perda de conexão, reconexão, timestamps e alarmes com equipamento real.
 6. Fazer um piloto isolado, de monitoramento, sem qualquer comando, intertravamento ou função de proteção.

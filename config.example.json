@@ -1,0 +1,20 @@
+{
+  "panel_id": "ID_DO_PAINEL_NO_VOLTGARD",
+  "gateway_qr": "IDENTIFICADOR_DO_GATEWAY",
+  "voltguard_url": "https://SEU_SERVICO.onrender.com",
+  "modbus": {
+    "host": "192.168.1.50",
+    "port": 502,
+    "device_id": 1,
+    "timeout_seconds": 3
+  },
+  "poll_interval_seconds": 10,
+  "metrics": {
+    "current": {"address": null, "register_type": "input", "data_type": "float32", "scale": 1.0, "word_order": "big"},
+    "voltage_v": {"address": null, "register_type": "input", "data_type": "float32", "scale": 1.0, "word_order": "big"},
+    "active_power_kw": {"address": null, "register_type": "input", "data_type": "float32", "scale": 1.0, "word_order": "big"},
+    "active_energy_kwh": {"address": null, "register_type": "input", "data_type": "float32", "scale": 1.0, "word_order": "big"},
+    "frequency_hz": {"address": null, "register_type": "input", "data_type": "float32", "scale": 1.0, "word_order": "big"},
+    "power_factor": {"address": null, "register_type": "input", "data_type": "float32", "scale": 1.0, "word_order": "big"}
+  }
+}

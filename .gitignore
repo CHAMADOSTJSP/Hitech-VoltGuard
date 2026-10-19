@@ -10,5 +10,6 @@ __pycache__/
 !.env.example
 *.sqlite
 *.log
+gateway/gateway-config.json
 dist/
 build/
