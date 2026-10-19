@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import json
+import argparse
 import logging
 import math
 import os
 import signal
 import struct
-import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -31,7 +31,7 @@ def stop_handler(_signum: int, _frame: Any) -> None:
     STOP = True
 
 
-def load_config(path: Path) -> dict[str, Any]:
+def load_config(path: Path, allow_unconfigured: bool = False) -> dict[str, Any]:
     config = json.loads(path.read_text(encoding="utf-8"))
     if not config.get("panel_id") or not config.get("voltguard_url"):
         raise ValueError("Configure panel_id e voltguard_url.")
@@ -52,7 +52,7 @@ def load_config(path: Path) -> dict[str, Any]:
     if config.get("gateway_qr") is not None and len(config["gateway_qr"]) > 160:
         raise ValueError("gateway_qr excede o limite de 160 caracteres da API.")
     usable = [entry for entry in config["metrics"].values() if entry.get("address") is not None]
-    if not usable:
+    if not usable and not allow_unconfigured:
         raise ValueError("Nenhum endereço Modbus configurado; use o mapa do modelo e firmware instalados.")
     for name, entry in config["metrics"].items():
         if entry.get("address") is None:
@@ -72,6 +72,37 @@ def load_config(path: Path) -> dict[str, Any]:
         if not math.isfinite(scale) or scale == 0:
             raise ValueError(f"scale precisa ser finito e diferente de zero para {name}.")
     return config
+
+
+def preflight(config_path: Path) -> int:
+    """Check config and service health without contacting Modbus or sending telemetry."""
+    config = load_config(config_path, allow_unconfigured=True)
+    base_url = config["voltguard_url"].rstrip("/")
+    configured_metrics = sum(entry.get("address") is not None for entry in config["metrics"].values())
+    total_metrics = len(config["metrics"])
+    token_configured = bool(os.environ.get("VOLTGUARD_DEVICE_TOKEN"))
+
+    print(f"Configuração lida: {config_path}")
+    print(f"Painel: {config['panel_id']}")
+    print(f"Grandezas mapeadas: {configured_metrics}/{total_metrics}")
+    print(f"Token do dispositivo: {'configurado' if token_configured else 'pendente'}")
+    if configured_metrics == 0:
+        print("Mapa Modbus: pendente; a configuração não consulta o medidor.")
+    if not token_configured:
+        print("Credencial: configure VOLTGUARD_DEVICE_TOKEN antes de iniciar o gateway.")
+
+    try:
+        response = httpx.get(base_url + "/health", timeout=10, verify=True)
+        response.raise_for_status()
+        body = response.json()
+        if body.get("status") != "ok":
+            raise RuntimeError("O endpoint /health não confirmou status ok.")
+        print(f"VoltGuard: acessível ({body.get('service', 'serviço')} / {body.get('mode', 'modo não informado')}).")
+    except (httpx.HTTPError, ValueError, RuntimeError) as exc:
+        print(f"VoltGuard: indisponível ou resposta inválida ({exc}).")
+        return 2
+    print("Pré-verificação concluída; nenhuma leitura Modbus ou telemetria foi enviada.")
+    return 0
 
 
 def decode_registers(registers: list[int], data_type: str, word_order: str) -> float:
@@ -152,8 +183,14 @@ if __name__ == "__main__":
     logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
     signal.signal(signal.SIGINT, stop_handler)
     signal.signal(signal.SIGTERM, stop_handler)
-    path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("gateway-config.json")
+    parser = argparse.ArgumentParser(description="Gateway Modbus TCP somente leitura do VoltGuard.")
+    parser.add_argument("config", nargs="?", default="gateway-config.json", help="Arquivo JSON de configuração")
+    parser.add_argument("--preflight", action="store_true", help="Validar configuração e disponibilidade do VoltGuard sem conectar ao medidor")
+    args = parser.parse_args()
+    path = Path(args.config)
     try:
+        if args.preflight:
+            raise SystemExit(preflight(path))
         run(path)
     except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
         LOG.error("Configuração/execução interrompida: %s", error)

@@ -9,7 +9,10 @@ Coletor local de leitura somente. Lê registradores Modbus TCP e envia as mediç
 3. Copie `config.example.json` para `gateway-config.json` fora do controle de versão.
 4. Preencha painel, URL do VoltGuard e IP/Unit ID do medidor. Configure os registradores somente a partir do mapa oficial do modelo e firmware instalados. Os endereços no arquivo de exemplo estão vazios de propósito.
 5. Crie uma credencial na aba **Dispositivos**, vinculada ao painel correto. Guarde o token apenas como variável de ambiente `VOLTGUARD_DEVICE_TOKEN` no gateway.
-6. Inicie com `python gateway.py gateway-config.json`.
+6. Antes do equipamento, valide o arquivo e o acesso ao painel com `python gateway.py gateway-config.json --preflight`. Essa opção não conecta ao Modbus nem envia telemetria.
+7. Com o mapa e o equipamento disponíveis, inicie com `python gateway.py gateway-config.json`.
+
+O pré-check confirma que o JSON é válido, mostra quantas grandezas ainda precisam de endereço, verifica se o segredo está configurado sem revelá-lo e consulta `GET /health`. É possível executá-lo antes de preencher o mapa Modbus; os endereços podem continuar vazios até a documentação correta estar disponível.
 
 O processo valida os principais parâmetros antes de abrir a conexão: endereço e tipo de registrador, unidade, intervalo, escala, HTTPS e limites de cada grandeza aceitos pela API. Consulta cada grandeza habilitada, normaliza o valor usando `scale` e publica somente as medições obtidas. Se uma leitura Modbus falhar ou ficar fora do intervalo, o ciclo não envia um conjunto parcial potencialmente enganoso; registra um aviso sem imprimir o token e tenta novamente no próximo intervalo. O certificado HTTPS é validado.
 
