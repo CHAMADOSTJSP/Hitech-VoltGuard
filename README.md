@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.52.0 — Exibição do dashboard após autenticação
+
+Corrigida a visibilidade do dashboard após autenticação. A tela inicia oculta por classe e a regra CSS a exibe quando a classe é removida pelo JavaScript.
+
 ## v0.51.0 — Preparação CSP e estilos externos
 
 Os estilos do HTML e das telas geradas pelo JavaScript agora ficam em `styles.css`; o relatório de ordem de serviço usa `report.css`. O backend serve ambos sem cache e os inclui na imagem Docker. A política CSP está em `Content-Security-Policy-Report-Only`: observe o Console do navegador depois do deploy para identificar dependências que ainda tentam usar estilos inline antes de ativar o bloqueio.

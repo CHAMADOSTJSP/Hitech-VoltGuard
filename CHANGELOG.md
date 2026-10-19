@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.52.0 — Exibição do dashboard após autenticação
+- Corrigida a regra de visibilidade: o dashboard começa oculto e passa a ser exibido quando o JavaScript remove `is-hidden` após autenticação.
+
 ## v0.51.0 — Preparação CSP e estilos externos
 - Estilos inline do HTML e dos conteúdos dinâmicos migrados para seletores e classes em `styles.css`; CSS do relatório de OS extraído para `report.css`.
 - Backend serve os dois CSS e publica uma política CSP em modo Report-Only, sem bloquear recursos durante a primeira verificação no navegador.

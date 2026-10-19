@@ -124,6 +124,7 @@
 .metric-number { display:block; }
 .usage-meter-fill { height:100%; background:#10b981; }
 .is-hidden { display:none !important; }
+#dashboard-screen:not(.is-hidden) { display:block; }
 [data-vg-style="static-03286a93516d"] { display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:10px 0 14px }
 [data-vg-style="static-092af903b212"] { white-space:pre-wrap }
 [data-vg-style="static-0c95907cb51f"] { background:#b91c1c; color:#fff; }
