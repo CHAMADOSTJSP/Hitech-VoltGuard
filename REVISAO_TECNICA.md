@@ -32,7 +32,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 3. Implementar Content Security Policy (CSP) depois de eliminar scripts e eventos inline.
 4. Implementar MFA para administradores, recuperação segura de senha, revogação de sessões/tokens, gestão de usuários e política de bloqueio/alerta.
 5. Migrar rate limiting para armazenamento compartilhado/edge ou WAF se houver múltiplas instâncias.
-6. Rever WebSocket: token na query string pode aparecer em logs; preferir mecanismo de autenticação que não exponha bearer token na URL e limitar conexões.
+6. Limitar conexões WebSocket, acompanhar falhas de autenticação e considerar um transporte de credencial fora da URL para ambientes de produção.
 7. O webhook ainda pode estar sujeito a DNS rebinding/TOCTOU entre validação e conexão. Para produção, usar worker isolado, política de saída de rede, destinos permitidos e logs/retries controlados.
 8. Rever a política de CORS, cookies/sessões (se forem introduzidos), CSP e configuração de proxy/HTTPS de acordo com o ambiente.
 
@@ -40,7 +40,8 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 - Tokens de acesso expiram em 8 horas.
 - A autorização HTTP usa o usuário atual do banco para obter papel, organização e plano; exclusão e mudança de papel/organização têm efeito imediato sobre tokens já emitidos.
-- WebSocket verifica o usuário atual no banco antes de associar a conexão à organização. O token ainda é passado na query string e precisa de uma solução própria para evitar exposição em logs.
+- WebSocket usa ticket opaco de uso único, armazenado como hash e válido por 30 segundos. O ticket é consumido atomicamente e a origem do navegador precisa corresponder à origem do serviço.
+- O frontend ainda não usa WebSocket. O ticket curto reduz o impacto de registros de URL, mas não remove completamente o segredo da URL; limitar conexões e monitorar tentativas continua pendente.
 
 ### Banco e multiempresa
 

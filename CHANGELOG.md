@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.42.0 — Ticket temporário para WebSocket
+- Criado endpoint autenticado que emite ticket opaco, armazenado como hash, com validade de 30 segundos e uso único.
+- A rota WebSocket consome o ticket com atualização condicional, carrega a organização atual do usuário e valida a origem do navegador.
+- O frontend não usa a conexão WebSocket atualmente; a mudança endurece a rota e prepara integração futura.
+
 ## v0.41.0 — Autorização baseada no estado atual da conta
 - Reduzida a validade dos tokens de acesso para 8 horas.
 - As rotas protegidas passam a obter papel, organização e plano diretamente do usuário persistido, em vez de confiar nesses valores antigos do JWT.

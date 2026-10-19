@@ -272,6 +272,14 @@ class UserModel(Base):
     tenant_id = Column(String, default="HITECH-DEFAULT")
     plan = Column(String, default="Enterprise")
 
+class WebSocketTicketModel(Base):
+    __tablename__ = "websocket_tickets"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_name = Column(String, index=True, nullable=False)
+    ticket_hash = Column(String, unique=True, index=True, nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    used_at = Column(DateTime, nullable=True)
+
 def validate_webhook_url(value: str) -> str:
     """Permite apenas HTTPS público, sem credenciais, IPs privados ou hosts locais."""
     if not value:
@@ -304,7 +312,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.41.0",
+    version="0.42.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -538,6 +546,22 @@ def login(request: Request, credentials: dict, db: Session = Depends(get_db)):
     
     token = jwt.encode({"sub": db_user.username, "role": db_user.role, "tenant_id": db_user.tenant_id, "plan": db_user.plan, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)}, SECRET_KEY, algorithm=ALGORITHM)
     return {"access_token": token, "token_type": "bearer", "role": db_user.role, "plan": db_user.plan}
+
+@app.post("/api/ws-ticket", tags=["Authentication"])
+def create_websocket_ticket(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Emite um segredo opaco, de uso único, para autenticar a conexão WebSocket."""
+    now = datetime.utcnow()
+    db.query(WebSocketTicketModel).filter(
+        WebSocketTicketModel.expires_at < now - timedelta(days=1)
+    ).delete(synchronize_session=False)
+    raw_ticket = secrets.token_urlsafe(32)
+    db.add(WebSocketTicketModel(
+        user_name=current_user.username,
+        ticket_hash=hashlib.sha256(raw_ticket.encode()).hexdigest(),
+        expires_at=now + timedelta(seconds=30),
+    ))
+    db.commit()
+    return {"ticket": raw_ticket, "expires_in": 30, "single_use": True}
 
 @app.post("/api/tenant/register")
 @limiter.limit("5/hour")
@@ -1386,21 +1410,61 @@ def update_inventory_item(data: dict, db: Session = Depends(get_db), current_use
 
 @app.websocket("/ws/panels")
 async def websocket_endpoint(websocket: WebSocket):
-    # WebSocket não aceita OAuth2PasswordBearer automaticamente; token via query string.
-    token = websocket.query_params.get("token", "")
-    db = SessionLocal()
+    # O JWT nunca vai na URL. O ticket na query é opaco, de uso único e dura 30 s.
+    ticket = websocket.query_params.get("ticket", "")
+    origin = websocket.headers.get("origin", "")
+    host = websocket.headers.get("host", "")
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username = payload.get("sub")
-        if not isinstance(username, str) or not username:
-            raise jwt.InvalidTokenError("claims ausentes")
-        db_user = db.query(UserModel).filter(UserModel.username == username).first()
-        if not db_user:
-            raise jwt.InvalidTokenError("utilizador inexistente")
-        tenant_id = db_user.tenant_id
-    except jwt.PyJWTError:
+        parsed_origin = urlparse(origin)
+        local_origin = parsed_origin.hostname in {"localhost", "127.0.0.1"}
+        origin_is_valid = (
+            bool(origin and host)
+            and parsed_origin.netloc.lower() == host.lower()
+            and parsed_origin.username is None
+            and parsed_origin.password is None
+            and not parsed_origin.path
+            and not parsed_origin.params
+            and not parsed_origin.query
+            and not parsed_origin.fragment
+            and (parsed_origin.scheme == "https" or (parsed_origin.scheme == "http" and local_origin))
+        )
+    except ValueError:
+        origin_is_valid = False
+    if not ticket or len(ticket) > 128 or not origin_is_valid:
         await websocket.close(code=1008)
         return
+
+    db = SessionLocal()
+    try:
+        now = datetime.utcnow()
+        ticket_hash = hashlib.sha256(ticket.encode()).hexdigest()
+        ticket_row = db.query(WebSocketTicketModel).filter(
+            WebSocketTicketModel.ticket_hash == ticket_hash,
+            WebSocketTicketModel.used_at.is_(None),
+            WebSocketTicketModel.expires_at > now,
+        ).first()
+        if not ticket_row:
+            await websocket.close(code=1008)
+            return
+
+        # UPDATE condicional garante que duas conexões concorrentes não reutilizem o ticket.
+        claimed = db.query(WebSocketTicketModel).filter(
+            WebSocketTicketModel.id == ticket_row.id,
+            WebSocketTicketModel.used_at.is_(None),
+            WebSocketTicketModel.expires_at > now,
+        ).update({WebSocketTicketModel.used_at: now}, synchronize_session=False)
+        if claimed != 1:
+            db.rollback()
+            await websocket.close(code=1008)
+            return
+
+        db_user = db.query(UserModel).filter(UserModel.username == ticket_row.user_name).first()
+        if not db_user:
+            db.commit()
+            await websocket.close(code=1008)
+            return
+        tenant_id = db_user.tenant_id
+        db.commit()
     finally:
         db.close()
     await manager.connect(websocket, tenant_id)

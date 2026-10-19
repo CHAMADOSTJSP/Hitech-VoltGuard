@@ -1,8 +1,12 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.42.0 — Ticket temporário para WebSocket
+
+A rota `/api/ws-ticket` emite um ticket opaco, armazenado apenas como hash, de uso único e válido por 30 segundos. `/ws/panels` consome o ticket atomicamente, verifica o usuário e associa a conexão à organização atual; a rota rejeita origem diferente da origem do serviço. O frontend atual não abre WebSocket, então esta mudança protege e prepara a rota sem alterar a interface. O ticket ainda aparece na URL por poucos segundos; conexões também precisam de limites e monitoramento antes de produção.
+
 ## v0.41.0 — Autorização baseada no estado atual da conta
 
-Tokens de acesso passam a expirar em 8 horas. Em cada requisição protegida, papel, organização e plano são carregados do banco, então mudanças de conta e usuários removidos passam a valer imediatamente, inclusive no WebSocket. Esta etapa reduz o tempo de exposição de sessões e impede que claims antigos preservem permissões; ainda não substitui revogação individual de sessão nem resolve a exposição do token do WebSocket na URL.
+Tokens de acesso passam a expirar em 8 horas. Em cada requisição protegida, papel, organização e plano são carregados do banco, então mudanças de conta e usuários removidos passam a valer imediatamente, inclusive no WebSocket. Esta etapa reduz o tempo de exposição de sessões e impede que claims antigos preservem permissões; ainda não substitui revogação individual de sessão.
 
 ## v0.40.0 — Protótipo de gateway Modbus TCP
 
@@ -278,7 +282,7 @@ O Blueprint está configurado para avaliação econômica. Serviços e bancos gr
 
 - A telemetria da API é autenticada com token de usuário; **ainda não existe uma identidade/credencial dedicada por dispositivo industrial**.
 - Não há driver pronto de PLC/medidor (Modbus/OPC UA), gateway de aquisição ou garantia de tempo real industrial.
-- O WebSocket autentica o token via query string, o que pode expor tokens em logs; reavaliar antes de produção.
+- O WebSocket autentica com ticket opaco, de uso único e validade de 30 segundos. A conexão ainda precisa de limites e monitoramento antes de produção.
 - Alguns KPIs, previsão de falhas e valores ESG são demonstrativos/estimativas e não constituem predição validada ou medição real.
 - A assinatura representa metadados; não há integração de cobrança, pagamentos, inadimplência ou cancelamento.
 - IDs de painéis permanecem globalmente únicos no modelo atual. A coluna `tenant_id` e os filtros de acesso protegem as consultas, mas permitir IDs iguais entre organizações requer migração de chave e revisão dos relacionamentos.
