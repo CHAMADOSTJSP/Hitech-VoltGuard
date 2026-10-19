@@ -1,5 +1,13 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.53.0 — Dependências locais e CSP
+
+Chart.js 4.5.1 e html5-qrcode 2.3.8 são entregues localmente em `vendor/`, sem chamadas a CDNs de terceiros. As licenças MIT e Apache 2.0 estão na mesma pasta. O Dockerfile copia `vendor/` para a imagem e o backend envia esses arquivos sem cache. A CSP permanece em `Report-Only`; antes de aplicar bloqueio, ainda precisamos observar o fluxo do leitor QR, que pode inserir estilos inline.
+
+### Arquivos necessários para o deploy
+
+Mantenha `vendor/chart.umd.min.js`, `vendor/html5-qrcode.min.js` e os dois arquivos de licença dentro de `vendor/`, junto aos arquivos da aplicação.
+
 ## v0.52.0 — Exibição do dashboard após autenticação
 
 Corrigida a visibilidade do dashboard após autenticação. A tela inicia oculta por classe e a regra CSS a exibe quando a classe é removida pelo JavaScript.

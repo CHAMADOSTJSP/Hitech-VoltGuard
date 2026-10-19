@@ -14,6 +14,7 @@ from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, status, WebSocket, WebSocketDisconnect, Request, Header
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 import jwt
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Index, Text, text, or_
@@ -320,11 +321,17 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.52.0",
+    version="0.53.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Bibliotecas JavaScript servidas localmente e versionadas junto ao deploy.
+VENDOR_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor")
+if not os.path.isdir(VENDOR_DIR):
+    raise RuntimeError("Pasta vendor ausente; inclua as bibliotecas locais no deploy.")
+app.mount("/vendor", StaticFiles(directory=VENDOR_DIR), name="vendor")
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
@@ -349,13 +356,13 @@ async def security_headers(request: Request, call_next):
     response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=()"
     response.headers["Content-Security-Policy-Report-Only"] = (
         "default-src 'self'; "
-        "script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
+        "script-src 'self'; "
         "style-src 'self'; style-src-elem 'self'; style-src-attr 'none'; "
         "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; "
         "worker-src 'self' blob:; object-src 'none'; base-uri 'self'; "
         "form-action 'self'; frame-ancestors 'none'"
     )
-    if request.url.path.startswith("/api/") or request.url.path in {"/health", "/app.js", "/styles.css", "/report.css"}:
+    if request.url.path.startswith("/api/") or request.url.path.startswith("/vendor/") or request.url.path in {"/health", "/app.js", "/styles.css", "/report.css"}:
         response.headers["Cache-Control"] = "no-store"
     response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
     if request.url.scheme == "https":

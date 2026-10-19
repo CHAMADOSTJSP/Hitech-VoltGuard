@@ -4,6 +4,7 @@
 
 - [ ] Repositório GitHub privado criado.
 - [ ] Arquivos do pacote extraídos diretamente na raiz do repositório.
+- [ ] Pasta `vendor/` enviada com `chart.umd.min.js`, `html5-qrcode.min.js` e as duas licenças.
 - [ ] `.env`, banco local e segredos reais não foram enviados ao Git.
 - [ ] `render.yaml` revisado; planos/região/recursos confirmados no painel do Render.
 - [ ] Dependências e testes locais executados em ambiente com as dependências de `requirements.txt` instaladas.
@@ -15,6 +16,8 @@
 - [ ] `DATABASE_URL` aponta para o banco correto.
 - [ ] Build e start terminaram sem erros.
 - [ ] `/health` responde HTTP 200.
+- [ ] `/vendor/chart.umd.min.js` e `/vendor/html5-qrcode.min.js` respondem HTTP 200; a aba Network não mostra chamadas aos CDNs.
+- [ ] CSP permanece Report-Only; observar o Console durante os fluxos comuns e QR antes de considerar bloqueio.
 
 ## Testes pós-deploy
 

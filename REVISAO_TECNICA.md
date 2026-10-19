@@ -6,6 +6,8 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 ## Melhorias aplicadas nesta revisão
 
+- v0.53.0: Chart.js 4.5.1 e html5-qrcode 2.3.8 passaram a ser servidos localmente em `vendor/`; versões fixadas e licenças distribuídas com a aplicação. CSP Report-Only não permite mais scripts de CDNs.
+- A CSP continua em modo Report-Only até ser observado o fluxo do scanner QR; a biblioteca pode aplicar estilos inline gerados em tempo de execução.
 - v0.50.0: folha de estilos principal separada em `styles.css`, servida pelo FastAPI com `Cache-Control: no-store` e incluída na imagem Docker. Atributos de estilo dinâmicos e estilos do relatório gerado ainda impedem CSP estrita.
 - v0.49.0: removidos eventos inline de clique, alteração, entrada e envio de formulário; listeners delegados encaminham ações por listas explícitas. Estilos inline restantes impedem CSP estrita.
 - v0.48.0: ações de clique das telas dinâmicas migradas para delegação baseada em `data-action` e lista explícita de operações. Eventos inline de alteração/entrada e estilos inline restantes ainda impedem CSP estrita.

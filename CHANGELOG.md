@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.53.0 — Dependências locais e CSP sem CDNs
+- Chart.js 4.5.1 e html5-qrcode 2.3.8 são servidos pela aplicação, com versões fixadas e licenças incluídas em `vendor/`.
+- A imagem Docker inclui `vendor/`; o backend disponibiliza os arquivos com `Cache-Control: no-store`.
+- CSP Report-Only agora permite scripts apenas da própria origem. A política permanece em observação porque o scanner QR ainda pode gerar estilos inline.
+
 ## v0.52.0 — Exibição do dashboard após autenticação
 - Corrigida a regra de visibilidade: o dashboard começa oculto e passa a ser exibido quando o JavaScript remove `is-hidden` após autenticação.
 
