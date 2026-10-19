@@ -18,6 +18,11 @@ from pymodbus.client import ModbusTcpClient
 
 LOG = logging.getLogger("voltguard-gateway")
 DATA_TYPES = {"uint16": 1, "int16": 1, "uint32": 2, "int32": 2, "float32": 2}
+MEASUREMENT_RANGES = {
+    "temperature": (-50, 250), "current": (0, 100000), "voltage_v": (0, 100000),
+    "active_power_kw": (-1000000, 1000000), "active_energy_kwh": (0, 1e15),
+    "frequency_hz": (0, 1000), "power_factor": (-1, 1),
+}
 STOP = False
 
 
@@ -30,24 +35,42 @@ def load_config(path: Path) -> dict[str, Any]:
     config = json.loads(path.read_text(encoding="utf-8"))
     if not config.get("panel_id") or not config.get("voltguard_url"):
         raise ValueError("Configure panel_id e voltguard_url.")
+    if len(config["panel_id"]) > 100:
+        raise ValueError("panel_id excede o limite de 100 caracteres da API.")
+    if not str(config["voltguard_url"]).startswith("https://"):
+        raise ValueError("voltguard_url precisa usar HTTPS.")
     if not isinstance(config.get("modbus"), dict) or not config["modbus"].get("host"):
         raise ValueError("Configure o host Modbus local.")
     if not isinstance(config.get("metrics"), dict):
         raise ValueError("Configure metrics conforme o mapa Modbus validado.")
+    modbus = config["modbus"]
+    device_id = int(modbus.get("device_id", 1))
+    timeout = float(modbus.get("timeout_seconds", 3))
+    interval = int(config.get("poll_interval_seconds", 10))
+    if not 0 <= device_id <= 255 or not 0.5 <= timeout <= 30 or not 2 <= interval <= 3600:
+        raise ValueError("Confira device_id (0–255), timeout_seconds (0,5–30) e poll_interval_seconds (2–3600).")
+    if config.get("gateway_qr") is not None and len(config["gateway_qr"]) > 160:
+        raise ValueError("gateway_qr excede o limite de 160 caracteres da API.")
     usable = [entry for entry in config["metrics"].values() if entry.get("address") is not None]
     if not usable:
         raise ValueError("Nenhum endereço Modbus configurado; use o mapa do modelo e firmware instalados.")
     for name, entry in config["metrics"].items():
         if entry.get("address") is None:
             continue
-        if name not in {"temperature", "current", "voltage_v", "active_power_kw", "active_energy_kwh", "frequency_hz", "power_factor"}:
+        if name not in MEASUREMENT_RANGES:
             raise ValueError(f"Grandeza não aceita pelo VoltGuard: {name}")
+        address = int(entry["address"])
+        if not 0 <= address <= 65535 or address + DATA_TYPES.get(entry.get("data_type"), 1) > 65536:
+            raise ValueError(f"Endereço Modbus inválido para {name}.")
         if entry.get("register_type", "input") not in {"input", "holding"}:
             raise ValueError(f"register_type inválido para {name}")
         if entry.get("data_type") not in DATA_TYPES:
             raise ValueError(f"data_type inválido para {name}")
         if entry.get("word_order", "big") not in {"big", "little"}:
             raise ValueError(f"word_order inválido para {name}")
+        scale = float(entry.get("scale", 1.0))
+        if not math.isfinite(scale) or scale == 0:
+            raise ValueError(f"scale precisa ser finito e diferente de zero para {name}.")
     return config
 
 
@@ -78,6 +101,9 @@ def read_measurements(client: ModbusTcpClient, config: dict[str, Any]) -> dict[s
         value *= float(entry.get("scale", 1.0))
         if not math.isfinite(value):
             raise RuntimeError(f"Leitura inválida para {name}.")
+        minimum, maximum = MEASUREMENT_RANGES[name]
+        if not minimum <= value <= maximum:
+            raise RuntimeError(f"Leitura de {name} fora do intervalo aceito pelo VoltGuard; confira mapa e escala.")
         readings[name] = value
     return readings
 
