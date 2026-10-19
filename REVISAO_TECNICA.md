@@ -6,6 +6,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 ## Melhorias aplicadas nesta revisão
 
+- v0.45.0: script principal extraído para `app.js`, servido pelo FastAPI com `Cache-Control: no-store` e incluído na imagem Docker. A CSP restritiva permanece pendente porque ainda existem handlers e estilos inline.
 - Nomes de arquivos padronizados para coincidir com os caminhos esperados pelo Render e Dockerfile.
 - Cabeçalhos HTTP básicos, política `no-store` para respostas de API/health e política de permissões para recursos do navegador.
 - Hash de senhas com scrypt e migração de hashes SHA-256 legados no login.

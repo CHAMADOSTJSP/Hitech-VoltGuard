@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.45.0 — JavaScript servido como recurso externo
+
+O script principal da interface foi separado em `app.js`, servido em `/app.js` sem cache e incluído na imagem Docker. Esta etapa prepara uma CSP mais restritiva. A CSP ainda não foi ativada porque há handlers e estilos inline que precisam ser migrados primeiro.
+
 ## v0.44.0 — Limites básicos para ingestão de telemetria
 
 A rota de telemetria agora limita cada IP a 600 requisições por minuto e recusa corpos com `Content-Length` acima de 16 KB. O payload rejeita campos desconhecidos e restringe o tamanho dos identificadores e da tensão textual. O limite de taxa é compartilhado por gateways que saem pelo mesmo IP e mantido em memória por instância; para maior escala, configurar limite distribuído por credencial no proxy/WAF ou em armazenamento compartilhado.

@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.45.0 — JavaScript servido como recurso externo
+- Movido o script principal do `index.html` para `app.js`, servido pelo backend como JavaScript.
+- Incluído `app.js` na imagem Docker e desativado o cache do recurso para manter HTML e script sincronizados após deploy.
+- Esta etapa prepara a adoção de CSP; ainda há handlers e estilos inline no HTML, portanto a CSP restritiva não está ativada.
+
 ## v0.44.0 — Limites básicos para ingestão de telemetria
 - Limitada a ingestão a 600 requisições por minuto por IP com SlowAPI.
 - Recusados corpos que declarem `Content-Length` acima de 16 KB.
