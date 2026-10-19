@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.46.0 — Migração dos eventos da tela de autenticação
+
+Login, cadastro de organização e logout agora usam delegação de eventos no JavaScript externo. A alternância entre as telas de login e cadastro usa botões com suporte a teclado. Os handlers dinâmicos e estilos inline restantes ainda precisam ser migrados antes da ativação de CSP restritiva.
+
 ## v0.45.0 — JavaScript servido como recurso externo
 
 O script principal da interface foi separado em `app.js`, servido em `/app.js` sem cache e incluído na imagem Docker. Esta etapa prepara uma CSP mais restritiva. A CSP ainda não foi ativada porque há handlers e estilos inline que precisam ser migrados primeiro.

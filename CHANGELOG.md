@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.46.0 — Migração dos eventos da tela de autenticação
+- Removidos os handlers inline de login, cadastro de organização e logout da página inicial.
+- Ações agora usam delegação de eventos no JavaScript externo; links de alternância entre telas são botões acessíveis por teclado.
+- Os handlers presentes nas telas geradas dinamicamente e os estilos inline continuam pendentes antes da adoção de CSP restritiva.
+
 ## v0.45.0 — JavaScript servido como recurso externo
 - Movido o script principal do `index.html` para `app.js`, servido pelo backend como JavaScript.
 - Incluído `app.js` na imagem Docker e desativado o cache do recurso para manter HTML e script sincronizados após deploy.

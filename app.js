@@ -1692,9 +1692,27 @@
         }, true);
         // Delegação de eventos para evitar interpolar identificadores de painéis em código JavaScript inline.
         document.addEventListener('click', (event) => {
+            if (!(event.target instanceof Element)) return;
             const target = event.target.closest('[data-action]');
             if (!target) return;
-            if (target.dataset.action === 'force-failure') {
-                simularFalhaComercial(target.dataset.panelId || '');
+            switch (target.dataset.action) {
+                case 'force-failure':
+                    simularFalhaComercial(target.dataset.panelId || '');
+                    break;
+                case 'login':
+                    realizarLogin();
+                    break;
+                case 'register':
+                    registarTenant();
+                    break;
+                case 'show-register':
+                    mostrarRegisto(true);
+                    break;
+                case 'show-login':
+                    mostrarRegisto(false);
+                    break;
+                case 'logout':
+                    realizarLogout();
+                    break;
             }
         });
