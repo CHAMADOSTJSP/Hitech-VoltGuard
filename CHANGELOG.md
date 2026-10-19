@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.48.0 — Migração dos cliques das telas dinâmicas
+- Ações de alarmes, ordens, ativos, manutenção, auditoria, dispositivos, relatórios e configurações passaram a usar atributos `data-action` e delegação de eventos.
+- Identificadores e argumentos são lidos como dados e encaminhados por uma lista explícita de ações.
+- Ainda existem eventos inline de alteração/entrada e estilos inline; CSP restritiva permanece desativada.
+
 ## v0.47.0 — Migração dos eventos de navegação e envio de formulários
 - Navegação das abas e envios dos formulários dinâmicos agora usam listeners delegados no JavaScript externo.
 - Os tipos de ação são selecionados por uma lista explícita; nenhum código é interpretado a partir de atributos HTML.

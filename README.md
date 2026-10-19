@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.48.0 — Migração dos cliques das telas dinâmicas
+
+As ações de clique nas telas dinâmicas usam agora `data-action` e delegação de eventos, com encaminhamento por uma lista permitida no JavaScript externo. Os eventos inline de alteração/entrada e os estilos inline ainda precisam ser removidos antes da CSP restritiva.
+
 ## v0.47.0 — Migração dos eventos de navegação e envio de formulários
 
 As abas e os envios dos formulários gerados pela interface passaram a usar listeners delegados no `app.js`, com uma lista explícita de ações permitidas. Ainda há eventos inline de clique/alteração/entrada e estilos inline; a CSP restritiva continua pendente.
