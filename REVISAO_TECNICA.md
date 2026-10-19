@@ -6,6 +6,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 ## Melhorias aplicadas nesta revisão
 
+- v0.50.0: folha de estilos principal separada em `styles.css`, servida pelo FastAPI com `Cache-Control: no-store` e incluída na imagem Docker. Atributos de estilo dinâmicos e estilos do relatório gerado ainda impedem CSP estrita.
 - v0.49.0: removidos eventos inline de clique, alteração, entrada e envio de formulário; listeners delegados encaminham ações por listas explícitas. Estilos inline restantes impedem CSP estrita.
 - v0.48.0: ações de clique das telas dinâmicas migradas para delegação baseada em `data-action` e lista explícita de operações. Eventos inline de alteração/entrada e estilos inline restantes ainda impedem CSP estrita.
 - v0.47.0: navegação das abas e envios de formulários dinâmicos migrados para listeners delegados com ações permitidas explicitamente, sem `eval`. Eventos inline dinâmicos restantes e estilos inline ainda impedem CSP estrita.

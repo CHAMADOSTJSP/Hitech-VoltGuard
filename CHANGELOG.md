@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.50.0 — Folha de estilos externa
+- O CSS principal foi extraído de `index.html` para `styles.css`, servido pelo backend sem cache e incluído na imagem Docker.
+- Permanecem atributos `style` dinâmicos e CSS inline no relatório de ordem; CSP estrita continua desativada.
+
 ## v0.49.0 — Migração dos eventos de alteração e digitação
 - Filtros, prévias de regras, seleção de histórico e atualização de checklist passaram a usar listeners delegados de `change` e `input`.
 - Removidos os atributos inline `onclick`, `onchange`, `oninput` e `onsubmit` do HTML estático e gerado.

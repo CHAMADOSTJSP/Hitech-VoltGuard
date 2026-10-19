@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.50.0 — Folha de estilos externa
+
+O CSS principal da página agora está em `styles.css`, servido em `/styles.css` sem cache e empacotado no Docker. Atributos de estilo gerados pelo JavaScript e o CSS do relatório de OS permanecem pendentes, então CSP restritiva não foi ativada.
+
 ## v0.49.0 — Migração dos eventos de alteração e digitação
 
 Filtros, prévias, histórico e checklists agora usam listeners delegados para `change` e `input`. Os atributos inline `onclick`, `onchange`, `oninput` e `onsubmit` foram removidos. Estilos inline ainda precisam ser migrados antes da CSP restritiva.

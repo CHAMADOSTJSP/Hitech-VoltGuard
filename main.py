@@ -320,7 +320,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.49.0",
+    version="0.50.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -347,7 +347,7 @@ async def security_headers(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=()"
-    if request.url.path.startswith("/api/") or request.url.path in {"/health", "/app.js"}:
+    if request.url.path.startswith("/api/") or request.url.path in {"/health", "/app.js", "/styles.css"}:
         response.headers["Cache-Control"] = "no-store"
     response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
     if request.url.scheme == "https":
@@ -2360,3 +2360,11 @@ def serve_app_js():
     if os.path.exists(app_js_path):
         return FileResponse(app_js_path, media_type="application/javascript")
     raise HTTPException(status_code=404, detail=f"app.js não encontrado no caminho: {app_js_path}")
+
+@app.get("/styles.css")
+def serve_styles_css():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    styles_path = os.path.join(base_dir, "styles.css")
+    if os.path.exists(styles_path):
+        return FileResponse(styles_path, media_type="text/css")
+    raise HTTPException(status_code=404, detail=f"styles.css não encontrado no caminho: {styles_path}")
