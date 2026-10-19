@@ -6,117 +6,7 @@
     <title>HITECH VoltGuard - SCADA Enterprise SaaS</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js" type="text/javascript"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body {
-            margin: 0; padding: 0;
-            font-family: Arial, sans-serif;
-            background-color: #0b1a12;
-            background-image: linear-gradient(rgba(11, 26, 18, 0.96), rgba(11, 26, 18, 0.98));
-            background-size: cover; background-position: center; background-repeat: no-repeat;
-            color: #ffffff; height: 100vh;
-            display: flex; justify-content: center; align-items: center;
-        }
-        #login-screen, #register-screen {
-            background: rgba(15, 35, 25, 0.95);
-            border: 1px solid #10b981;
-            padding: 30px; border-radius: 12px; width: 360px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.8); text-align: center;
-        }
-        h2 { margin-bottom: 5px; color: #10b981; font-size: 20px; }
-        p.sub { font-size: 11px; color: #9ca3af; margin-bottom: 20px; text-transform: uppercase; }
-        .input-group { margin-bottom: 12px; text-align: left; }
-        label { display: block; font-size: 10px; color: #9ca3af; margin-bottom: 4px; text-transform: uppercase; font-weight: bold; }
-        input, select, textarea {
-            width: 100%; padding: 8px; background: #06110b;
-            border: 1px solid #065f46; border-radius: 6px; color: #fff;
-            box-sizing: border-box; font-size: 12px; margin-top: 2px;
-        }
-        button.btn-primary {
-            width: 100%; padding: 10px; background: #10b981;
-            border: none; border-radius: 6px; color: #000;
-            font-weight: bold; cursor: pointer; margin-top: 5px;
-        }
-        button.btn-primary:hover { background: #059669; color: #fff; }
-        .link-toggle { border: 0; padding: 0; background: transparent; font-family: inherit; font-size: 11px; color: #34d399; cursor: pointer; margin-top: 15px; display: block; text-align: left; text-decoration: underline; }
-        #error-msg { color: #ef4444; font-size: 12px; margin-top: 10px; font-weight: bold; }
-        #reg-error-msg { color: #ef4444; font-size: 12px; margin-top: 10px; font-weight: bold; }
-
-        #dashboard-screen {
-            display: none; position: absolute; top: 0; left: 0;
-            width: 100vw; height: 100vh; background: rgba(11, 26, 18, 0.95);
-            box-sizing: border-box; padding: 20px 40px; overflow-y: auto;
-        }
-        .dash-header {
-            display: flex; justify-content: space-between; align-items: center;
-            border-bottom: 1px solid #10b98155; padding-bottom: 15px; margin-bottom: 20px;
-        }
-        .dash-header h1 { font-size: 18px; color: #10b981; margin: 0; }
-        .user-info { display: flex; align-items: center; gap: 15px; font-size: 13px; }
-        
-        .badge-cargo { background: #047857; color: #ffffff; border: 1px solid #34d399; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800; text-transform: uppercase; }
-        .badge-tenant { background: #1e3a8a; color: #93c5fd; border: 1px solid #3b82f6; padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: bold; }
-        .btn-logout { background: #ef4444; border: none; color: #fff; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; }
-        
-        .nav-tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-        .tab-btn { background: #06110b; border: 1px solid #065f46; color: #9ca3af; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 12px; }
-        .tab-btn.active { background: #10b981; color: #000; border-color: #10b981; }
-
-        .kpi-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
-        .kpi-card { background: rgba(17, 42, 29, 0.9); border: 1px solid #065f46; padding: 15px; border-radius: 8px; text-align: center; }
-        .kpi-card h4 { margin: 0 0 5px 0; font-size: 11px; color: #9ca3af; text-transform: uppercase; }
-        .kpi-card span { font-size: 18px; font-weight: bold; color: #10b981; }
-
-        .panels-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
-        .panel-card { background: rgba(17, 42, 29, 0.95); border: 1px solid #065f46; border-left: 5px solid #10b981; padding: 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
-        .panel-card.critico { border-left-color: #ef4444; background: rgba(42, 17, 17, 0.95); border-color: #7f1d1d; }
-        .panel-card h3 { margin: 0 0 10px 0; font-size: 15px; color: #10b981; }
-        .panel-card.critico h3 { color: #ef4444; }
-        .panel-card p { margin: 6px 0; font-size: 12px; color: #d1d5db; }
-        
-        .btn-action { background: #10b981; border: none; color: #000; padding: 6px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px; margin-right: 5px; margin-top: 5px; }
-        .btn-action:hover { background: #059669; color: #fff; }
-        .os-history { min-width: 290px; max-width: 460px; white-space: normal; }
-        .os-history summary { cursor: pointer; color: #10b981; font-weight: 700; }
-        .os-history-event { padding: 9px 0; border-bottom: 1px solid #065f46; line-height: 1.5; }
-        .os-history-event:last-child { border-bottom: 0; }
-        .os-checklist { min-width: 220px; max-width: 360px; white-space: normal; }
-        .os-checklist summary { cursor: pointer; color: #10b981; font-weight: 700; }
-        .os-checklist-item { display: flex; align-items: flex-start; gap: 7px; margin: 8px 0; line-height: 1.4; }
-        .os-checklist-item input { width: auto; margin-top: 2px; }
-        .os-checklist-item small { display: block; color: #9ca3af; margin-top: 3px; }
-        .os-edit { margin-top: 7px; min-width: 230px; white-space: normal; }
-        .os-edit summary { cursor: pointer; color: #10b981; font-weight: 700; }
-        .os-edit-fields { display: grid; gap: 7px; padding-top: 8px; }
-        .os-edit-fields label { display: grid; gap: 3px; color: #9ca3af; font-size: 10px; }
-        .os-edit-fields input, .os-edit-fields select, .os-edit-fields textarea { width: 100%; min-width: 180px; box-sizing: border-box; }
-        .os-edit-fields textarea { min-height: 58px; resize: vertical; }
-        .os-overview { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:14px 0; }
-        .os-overview-card { background:#0b2419; border:1px solid #065f46; border-radius:6px; padding:12px; }
-        .os-overview-card span { display:block; color:#9ca3af; font-size:10px; text-transform:uppercase; }
-        .os-overview-card strong { display:block; margin-top:5px; color:#10b981; font-size:18px; }
-        .os-overdue { color:#fca5a5; font-weight:bold; }
-        .os-filters { display:flex; flex-wrap:wrap; align-items:end; gap:12px; margin:14px 0; }
-        .os-filters .input-group { margin:0; }
-
-        table.enterprise-table { width: 100%; border-collapse: collapse; background: rgba(17, 42, 29, 0.95); border: 1px solid #065f46; border-radius: 8px; overflow: hidden; }
-        table.enterprise-table th, table.enterprise-table td { padding: 10px 15px; font-size: 11px; text-align: left; border-bottom: 1px solid #065f46; }
-        table.enterprise-table th { background: #065f46; color: #10b981; text-transform: uppercase; }
-
-        #modal-inventory, #modal-panel { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-box { background: #0f2319; border: 1px solid #10b981; padding: 25px; border-radius: 10px; width: min(440px, calc(100vw - 32px)); max-height: 90vh; overflow-y: auto; }
-        @media (max-width: 760px) {
-            body { min-height: 100vh; height: auto; display: block; }
-            #login-screen, #register-screen { width: auto; max-width: 420px; margin: 8vh 16px; padding: 24px; }
-            #dashboard-screen { width: 100%; min-height: 100vh; height: auto; padding: 16px; }
-            .dash-header { align-items: flex-start; flex-direction: column; gap: 14px; }
-            .user-info { flex-wrap: wrap; gap: 8px; }
-            .panels-grid { grid-template-columns: minmax(0, 1fr); }
-            .kpi-container { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
-            .nav-tabs { gap: 6px; }
-            .tab-btn { padding: 8px 10px; }
-            table.enterprise-table { display: block; overflow-x: auto; white-space: nowrap; }
-        }
-    </style>
+    <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
 
@@ -132,7 +22,7 @@
     </div>
 
     <!-- ECRÃ DE REGISTO DE TENANT -->
-    <div id="register-screen" style="display:none;">
+    <div id="register-screen" class="is-hidden">
         <h2>Nova Organização</h2>
         <p class="sub">Self-Service Onboarding SaaS</p>
         <div class="input-group"><label>ID da Organização (Tenant)</label><input type="text" id="reg-tenant" placeholder="Ex: INDUSTRIA-ABC"></div>
@@ -158,7 +48,7 @@
             </div>
         </div>
 
-        <div id="kpi-banner" class="kpi-container" style="display:none;"></div>
+        <div id="kpi-banner" class="kpi-container is-hidden"></div>
         <div class="nav-tabs" id="nav-tabs-container"></div>
         <div id="main-container" class="panels-grid"></div>
     </div>
