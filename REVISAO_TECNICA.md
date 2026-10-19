@@ -36,6 +36,12 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 7. O webhook ainda pode estar sujeito a DNS rebinding/TOCTOU entre validação e conexão. Para produção, usar worker isolado, política de saída de rede, destinos permitidos e logs/retries controlados.
 8. Rever a política de CORS, cookies/sessões (se forem introduzidos), CSP e configuração de proxy/HTTPS de acordo com o ambiente.
 
+### Controles implementados na versão 0.41.0
+
+- Tokens de acesso expiram em 8 horas.
+- A autorização HTTP usa o usuário atual do banco para obter papel, organização e plano; exclusão e mudança de papel/organização têm efeito imediato sobre tokens já emitidos.
+- WebSocket verifica o usuário atual no banco antes de associar a conexão à organização. O token ainda é passado na query string e precisa de uma solução própria para evitar exposição em logs.
+
 ### Banco e multiempresa
 
 1. `PanelModel.id` ainda é chave primária global. A aplicação não permite reutilizar o mesmo ID em duas organizações. Alterar para chave composta exige migração estrutural e testes de regressão.
@@ -47,7 +53,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 ### Telemetria e operação
 
-1. A ingestão ainda usa token de usuário. Criar identidade e credenciais individuais por dispositivo, rotação/revogação de chaves, timestamps de origem confiáveis, idempotência, limites de taxa e métricas de qualidade.
+1. A ingestão já usa credenciais individuais por dispositivo, armazenadas como hash, com vínculo a um único painel e possibilidade de revogação. Permanecem pendentes rotação planejada, timestamps de origem confiáveis, idempotência, limites de taxa e métricas de qualidade.
 2. Não existe integração pronta com PLCs/medidores físicos. Definir equipamentos e protocolos (p. ex. Modbus TCP/RTU ou OPC UA), validar em laboratório e separar a rede de aquisição.
 3. Criar detecção de equipamento offline, limites de stale data, reconexão, fila de eventos e observabilidade.
 4. Previsão de falhas, ESG e KPIs demonstrativos não devem ser anunciados como medições ou previsões validadas.

@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.41.0 — Autorização baseada no estado atual da conta
+- Reduzida a validade dos tokens de acesso para 8 horas.
+- As rotas protegidas passam a obter papel, organização e plano diretamente do usuário persistido, em vez de confiar nesses valores antigos do JWT.
+- WebSocket também valida a existência atual do usuário e obtém a organização do banco.
+
 ## v0.39.0 — Telemetria elétrica ampliada
 - A API de dispositivo aceita leituras parciais de tensão, potência, energia, frequência e fator de potência, além de temperatura e corrente.
 - Novas grandezas são armazenadas no painel e no histórico; medições ausentes preservam os valores atuais e não limpam alarmes de temperatura/corrente.

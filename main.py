@@ -33,7 +33,7 @@ SECRET_KEY = SECRET_KEY or secrets.token_urlsafe(48)
 if len(SECRET_KEY) < 32:
     raise RuntimeError("SECRET_KEY deve ter pelo menos 32 caracteres.")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 8
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/token")
 
@@ -304,7 +304,7 @@ def validate_webhook_url(value: str) -> str:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.40.0",
+    version="0.41.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -494,18 +494,21 @@ class TelemetryData(BaseModel):
 
 
 # Dependência de Autenticação JWT
-def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username = payload.get("sub")
-        role = payload.get("role")
-        tenant_id = payload.get("tenant_id")
-        plan = payload.get("plan")
-        if not username or not role or not tenant_id or not plan:
+        if not isinstance(username, str) or not username:
             raise HTTPException(status_code=401, detail="Token inválido.")
-        return User(username=username, role=role, tenant_id=tenant_id, plan=plan)
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Token inválido ou expirado.")
+
+    # Papel, plano e organização são lidos da fonte atual. Um JWT antigo não
+    # preserva privilégios depois de uma alteração na conta.
+    db_user = db.query(UserModel).filter(UserModel.username == username).first()
+    if not db_user:
+        raise HTTPException(status_code=401, detail="Utilizador não existe ou sessão revogada.")
+    return User(username=db_user.username, role=db_user.role, tenant_id=db_user.tenant_id, plan=db_user.plan)
 
 # --- ROTAS DA API ---
 
@@ -533,7 +536,7 @@ def login(request: Request, credentials: dict, db: Session = Depends(get_db)):
         db_user.password = hash_password(password)
         db.commit()
     
-    token = jwt.encode({"sub": db_user.username, "role": db_user.role, "tenant_id": db_user.tenant_id, "plan": db_user.plan, "exp": datetime.utcnow() + timedelta(days=1)}, SECRET_KEY, algorithm="HS256")
+    token = jwt.encode({"sub": db_user.username, "role": db_user.role, "tenant_id": db_user.tenant_id, "plan": db_user.plan, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)}, SECRET_KEY, algorithm=ALGORITHM)
     return {"access_token": token, "token_type": "bearer", "role": db_user.role, "plan": db_user.plan}
 
 @app.post("/api/tenant/register")
@@ -1385,14 +1388,21 @@ def update_inventory_item(data: dict, db: Session = Depends(get_db), current_use
 async def websocket_endpoint(websocket: WebSocket):
     # WebSocket não aceita OAuth2PasswordBearer automaticamente; token via query string.
     token = websocket.query_params.get("token", "")
+    db = SessionLocal()
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        tenant_id = payload.get("tenant_id")
-        if not payload.get("sub") or not tenant_id:
+        username = payload.get("sub")
+        if not isinstance(username, str) or not username:
             raise jwt.InvalidTokenError("claims ausentes")
+        db_user = db.query(UserModel).filter(UserModel.username == username).first()
+        if not db_user:
+            raise jwt.InvalidTokenError("utilizador inexistente")
+        tenant_id = db_user.tenant_id
     except jwt.PyJWTError:
         await websocket.close(code=1008)
         return
+    finally:
+        db.close()
     await manager.connect(websocket, tenant_id)
     try:
         while True:
