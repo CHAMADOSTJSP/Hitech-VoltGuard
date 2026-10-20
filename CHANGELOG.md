@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.62.2 — QR Code para configurar MFA
+
+- A configuração MFA agora exibe QR Code compatível com Microsoft Authenticator e outros aplicativos TOTP, além da chave manual.
+- O QR Code é gerado no backend e entregue diretamente à sessão autenticada; a chave não é enviada a um serviço externo.
+- Adicionada a dependência `qrcode[pil]`.
+
 ## v0.62.1 — Parar redesenho periódico da aba Minha conta
 
 - O polling de telemetria a cada três segundos deixa de reconstruir a aba Minha conta e de repetir a consulta do estado MFA.

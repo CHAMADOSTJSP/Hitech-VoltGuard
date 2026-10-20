@@ -6,6 +6,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 ## Melhorias aplicadas nesta revisão
 
+- v0.62.2: configuração MFA exibe QR Code gerado localmente com a URI TOTP; permanece disponível a chave manual e nenhuma API externa recebe o segredo.
 - v0.62.1: o polling de telemetria não reconstrói a aba Minha conta nem consulta novamente o estado MFA a cada três segundos.
 - v0.62.0: CEO e Gerente podem ativar MFA TOTP com senha + código no login; segredo cifrado em repouso, reautenticação ao alterar a configuração, rejeição atômica de códigos TOTP já usados e 10 códigos de recuperação aleatórios de uso único. Migração compatível adiciona campos opcionais em `users`. MFA fica desativado até adesão explícita nesta versão.
 - v0.61.0: rate limiting pode usar Redis/Redis TLS por `RATE_LIMIT_STORAGE_URI`; fallback em memória preserva disponibilidade se Redis falhar, mas não oferece contagem global enquanto o armazenamento compartilhado estiver fora do ar. A variável é opcional; sem Redis, o comportamento permanece por processo.

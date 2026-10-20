@@ -342,3 +342,4 @@
 .mfa-account-section form button,.mfa-account-section form p { grid-column:1/-1; }
 .mfa-recovery-codes { white-space:pre-wrap; overflow-wrap:anywhere; padding:14px; color:#d1fae5; background:#06110b; border:1px solid #065f46; border-radius:6px; }
 .mfa-setup-uri { display:block; overflow-wrap:anywhere; margin:8px 0; }
+.mfa-setup-qr { display:block; width:220px; height:220px; max-width:100%; padding:10px; margin:12px 0; background:#fff; border:1px solid #d1d5db; border-radius:8px; image-rendering:pixelated; }

@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.62.2 — QR Code para aplicativo autenticador
+
+Ao configurar MFA em **Minha conta**, o CEO ou Gerente pode escanear um QR Code com o Microsoft Authenticator ou outro aplicativo TOTP. O QR é gerado localmente no backend e enviado apenas na resposta autenticada da configuração; a chave manual continua disponível como alternativa.
+
 ## v0.62.1 — Estabilidade da tela Minha conta
 
 A atualização periódica dos painéis não redesenha mais a aba **Minha conta**. Isso evita recarregar o estado do MFA e mantém estáveis os formulários enquanto a aba permanece aberta.

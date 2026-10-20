@@ -21,6 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 import jwt
 import pyotp
+import qrcode
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Index, Text, text, or_
 from sqlalchemy.ext.declarative import declarative_base
@@ -375,7 +376,7 @@ async def post_webhook_event(value: str, payload: dict) -> int:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.62.1",
+    version="0.62.2",
 )
 # RATE_LIMIT_STORAGE_URI is optional. Leave it unset for the current per-process
 # memory store; use a managed Redis URL in the hosting provider for shared limits.
@@ -848,7 +849,12 @@ def start_mfa_setup(request: Request, data: dict, db: Session = Depends(get_db),
     db_user.totp_pending_secret_encrypted = encrypt_totp_secret(secret)
     db.commit()
     uri = pyotp.TOTP(secret).provisioning_uri(name=db_user.username, issuer_name="HITECH VoltGuard")
-    return {"secret": secret, "provisioning_uri": uri, "algorithm": "SHA1", "digits": 6, "period_seconds": 30}
+    qr_image = qrcode.make(uri)
+    qr_buffer = io.BytesIO()
+    qr_image.save(qr_buffer, format="PNG")
+    qr_data_url = "data:image/png;base64," + base64.b64encode(qr_buffer.getvalue()).decode("ascii")
+    return {"secret": secret, "provisioning_uri": uri, "qr_code_data_url": qr_data_url,
+            "algorithm": "SHA1", "digits": 6, "period_seconds": 30}
 
 @app.post("/api/account/mfa/confirm", tags=["Authentication"])
 @limiter.limit("10/hour")
