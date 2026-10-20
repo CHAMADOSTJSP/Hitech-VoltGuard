@@ -6,6 +6,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 ## Melhorias aplicadas nesta revisão
 
+- v0.54.0: envios de webhook conectam ao IP público resolvido e validado no momento da entrega, com Host/SNI originais para conservar o roteamento e a verificação TLS. Requests não seguem redirects, ignoram proxies do ambiente e não carregam corpos de resposta.
 - v0.53.0: Chart.js 4.5.1 e html5-qrcode 2.3.8 passaram a ser servidos localmente em `vendor/`; versões fixadas e licenças distribuídas com a aplicação. CSP Report-Only não permite mais scripts de CDNs.
 - A CSP continua em modo Report-Only até ser observado o fluxo do scanner QR; a biblioteca pode aplicar estilos inline gerados em tempo de execução.
 - v0.50.0: folha de estilos principal separada em `styles.css`, servida pelo FastAPI com `Cache-Control: no-store` e incluída na imagem Docker. Atributos de estilo dinâmicos e estilos do relatório gerado ainda impedem CSP estrita.
@@ -41,7 +42,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 4. Implementar MFA para administradores, recuperação segura de senha, revogação de sessões/tokens, gestão de usuários e política de bloqueio/alerta.
 5. Migrar rate limiting para armazenamento compartilhado/edge ou WAF se houver múltiplas instâncias.
 6. Limitar conexões WebSocket, acompanhar falhas de autenticação e considerar um transporte de credencial fora da URL para ambientes de produção.
-7. O webhook ainda pode estar sujeito a DNS rebinding/TOCTOU entre validação e conexão. Para produção, usar worker isolado, política de saída de rede, destinos permitidos e logs/retries controlados.
+7. O webhook agora fixa o IP público validado por envio para mitigar DNS rebinding/TOCTOU. Antes de produção, ainda usar política de saída de rede, limitar destinos, executar envios num worker isolado e definir logs/retries controlados.
 8. Rever a política de CORS, cookies/sessões (se forem introduzidos), CSP e configuração de proxy/HTTPS de acordo com o ambiente.
 
 ### Controles implementados na versão 0.41.0

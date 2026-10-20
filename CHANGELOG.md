@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.54.0 — Mitigação de DNS rebinding em webhooks
+- Os envios de webhook resolvem e validam todos os endereços e conectam diretamente ao IP público aprovado, mantendo o Host e SNI originais para validação TLS.
+- Redirecionamentos e proxies definidos por variáveis de ambiente são desativados; o corpo da resposta não é carregado.
+
 ## v0.53.0 — Dependências locais e CSP sem CDNs
 - Chart.js 4.5.1 e html5-qrcode 2.3.8 são servidos pela aplicação, com versões fixadas e licenças incluídas em `vendor/`.
 - A imagem Docker inclui `vendor/`; o backend disponibiliza os arquivos com `Cache-Control: no-store`.

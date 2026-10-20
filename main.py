@@ -1,3 +1,4 @@
+import asyncio
 import os
 import io
 import json
@@ -289,39 +290,82 @@ class AuthSessionModel(Base):
     expires_at = Column(DateTime, nullable=False, index=True)
     revoked_at = Column(DateTime, nullable=True)
 
-def validate_webhook_url(value: str) -> str:
-    """Permite apenas HTTPS público, sem credenciais, IPs privados ou hosts locais."""
-    if not value:
-        return ""
-    if len(value) > 2048:
-        raise HTTPException(status_code=422, detail="URL de webhook demasiado longa.")
+def resolve_public_webhook_target(value: str) -> tuple[str, str, str]:
+    """Valida o destino e devolve URL com IP fixado, Host original e SNI verificado."""
+    if not value or len(value) > 2048:
+        raise HTTPException(status_code=422, detail="URL de webhook vazia ou demasiado longa.")
     try:
         parsed = urlparse(value)
-        port = parsed.port or 443
+        port = parsed.port if parsed.port is not None else 443
     except ValueError:
         raise HTTPException(status_code=422, detail="URL de webhook inválida.")
-    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+    if (parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
+            or parsed.fragment or not 1 <= port <= 65535):
         raise HTTPException(status_code=422, detail="O webhook deve ser uma URL HTTPS pública válida.")
-    host = parsed.hostname.rstrip(".").lower()
+    try:
+        host = parsed.hostname.rstrip(".").encode("idna").decode("ascii").lower()
+    except UnicodeError:
+        raise HTTPException(status_code=422, detail="Nome de host do webhook inválido.")
     if host in {"localhost", "localhost.localdomain"} or host.endswith((".local", ".internal", ".localhost")):
         raise HTTPException(status_code=422, detail="Host local não permitido para webhook.")
     try:
-        addresses = {item[4][0] for item in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)}
+        resolved = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+        addresses = list(dict.fromkeys(item[4][0] for item in resolved))
     except OSError:
         raise HTTPException(status_code=422, detail="Não foi possível resolver o host do webhook.")
     if not addresses:
         raise HTTPException(status_code=422, detail="Host do webhook sem endereço válido.")
-    for address in addresses:
-        ip = ipaddress.ip_address(address)
-        if not ip.is_global:
-            raise HTTPException(status_code=422, detail="Webhooks para endereços privados ou especiais não são permitidos.")
+    parsed_addresses = []
+    try:
+        parsed_addresses = [ipaddress.ip_address(address) for address in addresses]
+    except ValueError:
+        raise HTTPException(status_code=422, detail="O DNS do webhook retornou um endereço inválido.")
+    if any(not address.is_global for address in parsed_addresses):
+        raise HTTPException(status_code=422, detail="Webhooks para endereços privados ou especiais não são permitidos.")
+
+    # A URL de conexão contém o IP validado, evitando uma segunda resolução DNS
+    # no cliente HTTP. Host e SNI continuam usando o domínio original para
+    # roteamento HTTP e validação do certificado TLS.
+    pinned_ip = parsed_addresses[0]
+    connect_host = f"[{pinned_ip.compressed}]" if pinned_ip.version == 6 else pinned_ip.compressed
+    host_header = f"[{host}]" if ":" in host else host
+    if port != 443:
+        connect_host = f"{connect_host}:{port}"
+        host_header = f"{host_header}:{port}"
+    pinned_url = parsed._replace(netloc=connect_host).geturl()
+    return pinned_url, host_header, host
+
+
+def validate_webhook_url(value: str) -> str:
+    """Permite apenas HTTPS público, sem credenciais, IPs privados ou hosts locais."""
+    if not value:
+        return ""
+    resolve_public_webhook_target(value)
     return value
+
+
+async def post_webhook_event(value: str, payload: dict) -> int:
+    """Envia apenas ao IP público resolvido, sem proxy de ambiente ou redirects."""
+    pinned_url, host_header, sni_hostname = await asyncio.to_thread(resolve_public_webhook_target, value)
+    async with httpx.AsyncClient(
+        follow_redirects=False,
+        timeout=httpx.Timeout(5.0),
+        trust_env=False,
+    ) as client:
+        async with client.stream(
+            "POST",
+            pinned_url,
+            headers={"Host": host_header},
+            extensions={"sni_hostname": sni_hostname},
+            json=payload,
+        ) as response:
+            return response.status_code
 
 # Instanciação primária da aplicação FastAPI
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.53.0",
+    version="0.54.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -716,19 +760,16 @@ async def test_webhook(db: Session = Depends(get_db), current_user: User = Depen
     if not sub or not sub.webhook_url:
         raise HTTPException(status_code=409, detail="Configure e salve um endpoint antes de enviar o teste.")
 
-    safe_url = validate_webhook_url(sub.webhook_url)
     event_id = secrets.token_urlsafe(12)
     http_status = None
     delivered = False
     try:
-        async with httpx.AsyncClient(follow_redirects=False, timeout=5.0) as client:
-            response = await client.post(safe_url, json={
-                "event": "WEBHOOK_TEST",
-                "event_id": event_id,
-                "organization_id": current_user.tenant_id,
-                "sent_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
-            })
-        http_status = response.status_code
+        http_status = await post_webhook_event(sub.webhook_url, {
+            "event": "WEBHOOK_TEST",
+            "event_id": event_id,
+            "organization_id": current_user.tenant_id,
+            "sent_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+        })
         delivered = 200 <= http_status < 300
     except Exception:
         # Não devolver exceções de rede, que podem expor dados do endpoint configurado.
@@ -1026,12 +1067,14 @@ async def force_failure(data: dict, db: Session = Depends(get_db), current_user:
     sub = db.query(TenantSubscriptionModel).filter(TenantSubscriptionModel.tenant_id == current_user.tenant_id).first()
     if sub and sub.webhook_url:
         try:
-            safe_url = validate_webhook_url(sub.webhook_url)
-            async with httpx.AsyncClient(follow_redirects=False, timeout=5.0) as client:
-                webhook_response = await client.post(safe_url, json={"event": "CRITICAL_ALERT", "panel_id": panel.id, "temperature": panel.temperature, "tenant_id": current_user.tenant_id})
-                webhook_http_status = webhook_response.status_code
-                if not 200 <= webhook_response.status_code < 300:
-                    raise RuntimeError("Webhook retornou um status HTTP sem confirmação de sucesso.")
+            webhook_http_status = await post_webhook_event(sub.webhook_url, {
+                "event": "CRITICAL_ALERT",
+                "panel_id": panel.id,
+                "temperature": panel.temperature,
+                "tenant_id": current_user.tenant_id,
+            })
+            if not 200 <= webhook_http_status < 300:
+                raise RuntimeError("Webhook retornou um status HTTP sem confirmação de sucesso.")
             webhook_delivery = "DELIVERED"
         except Exception:
             # Uma falha externa não desfaz o alarme; o retorno informa que a entrega não foi confirmada.

@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.54.0 — Proteção do destino de webhooks
+
+Antes de cada envio, o backend valida os endereços DNS e conecta ao IP público aprovado, preservando Host e SNI para a validação do certificado. Redirects e proxies definidos no ambiente não são usados. A resposta do endpoint não é carregada.
+
 ## v0.53.0 — Dependências locais e CSP
 
 Chart.js 4.5.1 e html5-qrcode 2.3.8 são entregues localmente em `vendor/`, sem chamadas a CDNs de terceiros. As licenças MIT e Apache 2.0 estão na mesma pasta. O Dockerfile copia `vendor/` para a imagem e o backend envia esses arquivos sem cache. A CSP permanece em `Report-Only`; antes de aplicar bloqueio, ainda precisamos observar o fluxo do leitor QR, que pode inserir estilos inline.
