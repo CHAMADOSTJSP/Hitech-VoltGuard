@@ -863,6 +863,35 @@ def update_tenant_user(username: str, data: dict, db: Session = Depends(get_db),
         db.commit()
     return {"username": row.username, "role": row.role, "is_active": bool(row.is_active)}
 
+@app.post("/api/users/{username}/revoke-sessions", tags=["User Management"])
+@limiter.limit("10/hour")
+def revoke_tenant_user_sessions(request: Request, username: str, db: Session = Depends(get_db),
+                                current_user: User = Depends(get_current_user)):
+    """Encerra sessões de outro usuário ativo da mesma organização; CEO é protegido."""
+    require_roles(current_user, ROLE_CEO, "Somente CEO pode encerrar sessões de usuários.")
+    if username == current_user.username:
+        raise HTTPException(status_code=409, detail="Use Sair ou altere sua senha para encerrar suas próprias sessões.")
+    row = db.query(UserModel).filter(UserModel.username == username,
+                                     UserModel.tenant_id == current_user.tenant_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado nesta organização.")
+    if row.role == "CEO":
+        raise HTTPException(status_code=409, detail="As sessões da conta CEO não podem ser encerradas por esta operação.")
+    if not row.is_active:
+        raise HTTPException(status_code=409, detail="A conta está desativada e não possui acesso.")
+    now = datetime.utcnow()
+    result = db.query(AuthSessionModel).filter(
+        AuthSessionModel.user_name == row.username,
+        AuthSessionModel.revoked_at.is_(None),
+        AuthSessionModel.expires_at > now,
+    ).update({AuthSessionModel.revoked_at: now}, synchronize_session=False)
+    revoked_count = int(result or 0)
+    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username,
+                         role=current_user.role, action="ENCERRAR_SESSOES_USUARIO",
+                         details=f"Sessões de {row.username} encerradas pelo CEO; sessões revogadas: {revoked_count}."))
+    db.commit()
+    return {"status": "success", "username": row.username, "revoked_sessions": revoked_count}
+
 @app.post("/api/tenant/webhook")
 def save_webhook(data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     require_roles(current_user, ROLE_CEO, "Acesso restrito a CEO.")

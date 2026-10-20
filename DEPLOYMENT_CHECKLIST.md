@@ -28,6 +28,7 @@
 - [ ] Em **Minha conta**, trocar a senha de uma conta de teste; confirmar que as sessões abertas são encerradas e que o novo login funciona.
 - [ ] Desativar uma conta de teste e confirmar que login/sessões anteriores deixam de funcionar; reativá-la e validar novo login.
 - [ ] Tentar abrir `/api/users` com uma conta não CEO e confirmar resposta 403; revisar que as alterações aparecem na auditoria.
+- [ ] Como CEO, encerrar as sessões de uma conta de teste; confirmar que ela precisa entrar novamente e que a ação aparece na auditoria.
 - [ ] Testar leitura QR manual; testar câmera somente em navegador/ambiente com permissão.
 - [ ] Criar ordem de serviço e alterar estado.
 - [ ] Testar exportação CSV autenticada.

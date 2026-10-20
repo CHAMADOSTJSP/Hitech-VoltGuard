@@ -1128,6 +1128,17 @@
             } catch (err) { alert(err.message || 'Não foi possível alterar o estado da conta.'); }
         }
 
+        async function encerrarSessoesUsuarioTenant(button) {
+            const username = button.dataset.username || '';
+            if (!username || !confirm(`Encerrar agora todas as sessões abertas de ${username}? O usuário precisará entrar novamente.`)) return;
+            try {
+                const result = await apiJson(`/api/users/${encodeURIComponent(username)}/revoke-sessions`, {method:'POST'});
+                alert(result.revoked_sessions
+                    ? `${result.revoked_sessions} sessão(ões) encerrada(s) para ${username}.`
+                    : `Nenhuma sessão ativa foi encontrada para ${username}.`);
+            } catch (err) { alert(err.message || 'Não foi possível encerrar as sessões.'); }
+        }
+
         async function alterarMinhaSenha(event) {
             event.preventDefault();
             const form = event.currentTarget;
@@ -1454,7 +1465,10 @@
                         ? '<span>CEO</span>'
                         : `<select id="tenant-user-role-${escapeHtml(user.username)}" aria-label="Perfil de ${escapeHtml(user.username)}"><option value="Gerente" ${user.role==='Gerente'?'selected':''}>Gerente</option><option value="Técnico de Campo" ${user.role==='Técnico de Campo'?'selected':''}>Técnico de Campo</option></select> <button type="button" class="btn-action" data-action="save-tenant-user-role" data-username="${escapeHtml(user.username)}">Salvar perfil</button>`;
                     const stateAction = user.role === 'CEO' || isSelf ? '—' : `<button type="button" class="btn-action" data-action="toggle-tenant-user" data-username="${escapeHtml(user.username)}">${user.is_active?'Desativar':'Reativar'}</button>`;
-                    return `<tr><td>${escapeHtml(user.username)}${isSelf?' (você)':''}</td><td>${roleControl}</td><td>${user.is_active?'ATIVA':'DESATIVADA'}</td><td>${stateAction}</td></tr>`;
+                    const sessionsAction = user.role !== 'CEO' && !isSelf && user.is_active
+                        ? `<button type="button" class="btn-action" data-action="revoke-tenant-user-sessions" data-username="${escapeHtml(user.username)}">Encerrar sessões</button>`
+                        : '—';
+                    return `<tr><td>${escapeHtml(user.username)}${isSelf?' (você)':''}</td><td>${roleControl}</td><td>${user.is_active?'ATIVA':'DESATIVADA'}</td><td>${stateAction}<br>${sessionsAction}</td></tr>`;
                 }).join('');
                 container.innerHTML = `<section class="user-management-card"><h3>👥 Usuários da organização</h3><p>Contas são isoladas por organização. Apenas o CEO pode criar, alterar perfil e desativar usuários. O CEO inicial não pode ser desativado nesta tela.</p><form class="user-create-form" data-vg-submit="create-tenant-user"><div class="input-group"><label for="tenant-user-name">Nome de usuário</label><input id="tenant-user-name" maxlength="120" pattern="[A-Za-z0-9_.-]{3,120}" autocomplete="off" required></div><div class="input-group"><label for="tenant-user-password">Senha inicial (mínimo 12 caracteres)</label><input id="tenant-user-password" type="password" minlength="12" maxlength="256" autocomplete="new-password" required></div><div class="input-group"><label for="tenant-user-role">Perfil</label><select id="tenant-user-role" required><option value="Gerente">Gerente</option><option value="Técnico de Campo">Técnico de Campo</option></select></div><button type="submit" class="btn-primary">Criar usuário</button></form><div class="user-management-table-wrap"><table class="enterprise-table"><thead><tr><th>Usuário</th><th>Perfil</th><th>Estado</th><th>Acesso</th></tr></thead><tbody>${rows || '<tr><td colspan="4">Nenhum usuário encontrado.</td></tr>'}</tbody></table></div></section>`;
                 return;
@@ -1847,6 +1861,9 @@
                     break;
                 case 'toggle-tenant-user':
                     alternarEstadoUsuarioTenant(target);
+                    break;
+                case 'revoke-tenant-user-sessions':
+                    encerrarSessoesUsuarioTenant(target);
                     break;
                 case 'print-order-report':
                     gerarRelatorioOrdem(Number(target.dataset.orderId));

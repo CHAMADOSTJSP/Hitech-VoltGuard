@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.58.0 — Encerramento remoto de sessões
+
+O CEO pode encerrar todas as sessões ativas de outro usuário da própria organização pela aba **Usuários**. A ação exige confirmação, mostra quantas sessões foram revogadas e registra o evento na auditoria. A conta CEO e a própria conta do operador ficam protegidas nessa ação; para encerrar as próprias sessões, use **Sair** ou troque a senha em **Minha conta**.
+
 ## v0.57.0 — Troca de senha e encerramento de sessões
 
 Todos os usuários autenticados podem abrir **Minha conta** e trocar a própria senha após informar a senha atual. A nova senha deve ter de 12 a 256 caracteres e ser diferente da atual. Após a troca, todas as sessões da conta são revogadas e o usuário precisa entrar novamente. A API limita tentativas, grava um evento de auditoria sem registrar segredos e não oferece recuperação por e-mail; a recuperação administrativa continua pendente.
@@ -64,7 +68,7 @@ A rota de telemetria agora limita cada IP a 600 requisições por minuto e recus
 
 ## v0.43.0 — Revogação de sessão no logout
 
-Cada login recebe um identificador de sessão aleatório; somente o hash é persistido. Requisições autenticadas verificam se a sessão continua ativa. O botão “Sair” chama `/api/logout` para revogar o token no servidor e limpa a sessão local; tokens antigos, sem identificador de sessão, exigem novo login após esta atualização. Os registros expirados são eliminados gradualmente no login. A revogação de outras sessões por um administrador e MFA continuam pendentes.
+Cada login recebe um identificador de sessão aleatório; somente o hash é persistido. Requisições autenticadas verificam se a sessão continua ativa. O botão “Sair” chama `/api/logout` para revogar o token no servidor e limpa a sessão local; tokens antigos, sem identificador de sessão, exigem novo login após esta atualização. O CEO pode revogar as sessões de outros usuários da organização pela aba **Usuários**. Os registros expirados são eliminados gradualmente no login; MFA e alertas de atividade continuam pendentes.
 
 ## v0.42.0 — Ticket temporário para WebSocket
 
@@ -356,10 +360,10 @@ O Blueprint está configurado para avaliação econômica. Serviços e bancos gr
 
 Leia `REVISAO_TECNICA.md` antes de usar dados reais.
 
-### Gestão de usuários (v0.56.0)
-A aba **Usuários** aparece somente para CEO. Permite criar usuários com perfil Gerente ou Técnico de Campo, alterar seus perfis e desativar/reativar contas do mesmo tenant. O sistema protege a conta CEO e impede que o CEO desative a própria sessão. Desativar uma conta impede novos logins e revoga sessões existentes; mudar um perfil também revoga sessões para exigir novo login. Ações são registradas na auditoria.
+### Gestão de usuários (v0.58.0)
+A aba **Usuários** aparece somente para CEO. Permite criar usuários com perfil Gerente ou Técnico de Campo, alterar seus perfis, desativar/reativar contas e encerrar as sessões de outros usuários ativos do mesmo tenant. A API protege todas as contas CEO e impede que o CEO altere ou encerre a própria conta por estas ações. Desativar uma conta impede novos logins e revoga sessões existentes; mudar um perfil também revoga sessões para exigir novo login. Ações são registradas na auditoria.
 
-Endpoints: `GET /api/users`, `POST /api/users` com `{ "username", "password", "role" }` e `PATCH /api/users/{username}` com `role` e/ou `is_active`. Apenas o backend concede acesso. Senhas devem ter pelo menos 12 caracteres e são armazenadas com scrypt. O endpoint `POST /api/account/password` exige senha atual e nova senha e encerra todas as sessões após a alteração. Recuperação de senha e MFA ainda não estão disponíveis.
+Endpoints: `GET /api/users`, `POST /api/users` com `{ "username", "password", "role" }`, `PATCH /api/users/{username}` com `role` e/ou `is_active`, e `POST /api/users/{username}/revoke-sessions`. Apenas o backend concede acesso. Senhas devem ter pelo menos 12 caracteres e são armazenadas com scrypt. O endpoint `POST /api/account/password` exige senha atual e nova senha e encerra todas as sessões após a alteração. Recuperação de senha e MFA ainda não estão disponíveis.
 
 ## Novos módulos (v0.5.0)
 

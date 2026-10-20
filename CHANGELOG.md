@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.58.0 — Encerramento remoto de sessões
+- CEO pode revogar todas as sessões ativas de outro usuário da própria organização pela aba Usuários.
+- A rota valida o papel, o tenant e o estado da conta; protege a conta CEO e impede autoencerramento acidental.
+- A ação exige confirmação na interface, informa a quantidade revogada e gera registro de auditoria.
+- Limite de 10 operações por hora por endereço de origem.
+
 ## v0.57.0 — Troca de senha pelo próprio usuário
 - Adicionada aba Minha conta para todos os perfis com troca autenticada de senha, confirmação no navegador e validação da senha atual no backend.
 - A nova senha exige 12 a 256 caracteres e deve diferir da atual; a rota tem limite de tentativas.

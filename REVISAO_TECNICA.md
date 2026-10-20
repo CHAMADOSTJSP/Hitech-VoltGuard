@@ -6,6 +6,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 ## Melhorias aplicadas nesta revisão
 
+- v0.58.0: CEO pode encerrar remotamente todas as sessões ativas de outro usuário do próprio tenant; a API bloqueia contas CEO, autoencerramento e contas desativadas, informa a quantidade revogada e registra auditoria.
 - v0.56.0: gestão de usuários exclusiva do CEO e isolada por tenant; criação de contas operacionais, alteração de perfil e ativação/desativação; senhas nunca retornam pela API; desativação e mudança de perfil revogam sessões; eventos de gestão são auditados. Migração compatível adiciona `users.is_active` às bases existentes. Blueprint Render alinhado a Docker.
 - v0.57.0: troca de senha autenticada pelo próprio usuário, exigindo senha atual, senha nova diferente e mínimo de 12 caracteres; todas as sessões são revogadas e a operação é auditada sem persistir segredos no evento. A rota possui limite de tentativas.
 - v0.55.0: matriz central de autorização por perfil; telemetria autenticada restrita aos papéis operacionais; módulos Ativos/Manutenção disponíveis ao Técnico de Campo, com edição de ativos ainda limitada a CEO/Gerente.
@@ -42,7 +43,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 1. Realizar revisão de segurança independente e teste de penetração.
 2. Remover os demais manipuladores inline e rever todos os pontos de inserção via `innerHTML`; preferir `textContent`, criação de nós DOM e escape contextual.
 3. Implementar Content Security Policy (CSP) depois de eliminar scripts e eventos inline.
-4. Implementar MFA para administradores, recuperação segura de senha, encerramento remoto de sessões por usuário e política de bloqueio/alerta. A gestão básica de contas e perfis já existe, mas precisa de validação independente.
+4. Implementar MFA para administradores, recuperação segura de senha, encerramento remoto de sessões do próprio usuário e política de bloqueio/alerta. A gestão básica de contas e perfis já existe, mas precisa de validação independente.
 5. Migrar rate limiting para armazenamento compartilhado/edge ou WAF se houver múltiplas instâncias.
 6. Limitar conexões WebSocket, acompanhar falhas de autenticação e considerar um transporte de credencial fora da URL para ambientes de produção.
 7. O webhook agora fixa o IP público validado por envio para mitigar DNS rebinding/TOCTOU. Antes de produção, ainda usar política de saída de rede, limitar destinos, executar envios num worker isolado e definir logs/retries controlados.
