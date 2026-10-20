@@ -1,6 +1,6 @@
         let currentTab = 'realtime';
         let currentUser = '', currentCargo = '', tokenJwt = '';
-        let dadosGlobais = {}, auditLogs = [], billingData = {}, inventoryData = {}, historyData = {}, workOrders = [], workOrderChecklistTemplates = [], alarmsData = [], assetsData = [], maintenancePlans = [], maintenanceTasks = [], deviceCredentials = [], pollingInterval = null;
+        let dadosGlobais = {}, auditLogs = [], billingData = {}, inventoryData = {}, historyData = {}, workOrders = [], workOrderChecklistTemplates = [], alarmsData = [], assetsData = [], maintenancePlans = [], maintenanceTasks = [], deviceCredentials = [], tenantUsers = [], pollingInterval = null;
         const workOrderHistoryOpen = new Set();
         const workOrderEditOpen = new Set();
         const assetEditOpen = new Set();
@@ -152,6 +152,7 @@
             tokenJwt = '';
             currentUser = '';
             currentCargo = '';
+            tenantUsers = [];
             window.location.reload();
         }
 
@@ -197,6 +198,7 @@
             html += `<button type="button" class="tab-btn" id="t-orders" data-action="switch-tab" data-tab="orders">📋 Ordens de Serviço</button>`;
             if (currentCargo === 'CEO') {
                 html += `<button type="button" class="tab-btn" id="t-audit" data-action="switch-tab" data-tab="audit">🛡️ Auditoria</button>`;
+                html += `<button type="button" class="tab-btn" id="t-users" data-action="switch-tab" data-tab="users">👥 Usuários</button>`;
                 html += `<button type="button" class="tab-btn" id="t-billing" data-action="switch-tab" data-tab="billing">💳 Assinatura & Billing</button>`;
                 html += `<button type="button" class="tab-btn" id="t-executive" data-action="switch-tab" data-tab="executive">📈 Relatório Executivo</button>`;
                 html += `<button type="button" class="tab-btn" id="t-webhooks" data-action="switch-tab" data-tab="webhooks">🔔 Webhooks</button>`;
@@ -283,6 +285,8 @@
                             // Não reconstruir os campos de tarefa durante a edição; a aba recarrega ao navegar ou salvar.
                         } else if (currentTab === 'devices') {
                             // Preserve o formulário e filtros; dados recarregam ao navegar ou criar/revogar credencial.
+                        } else if (currentTab === 'users') {
+                            // A lista de usuários tem carregamento próprio; o polling não deve redesenhá-la com dados desatualizados.
                         } else if (currentTab !== 'commission') {
                             // Não substituir formulários enquanto o usuário digita.
                             const container = document.getElementById('main-container');
@@ -356,7 +360,7 @@
         function mudarAba(aba) {
             if (currentTab === 'commission' && aba !== 'commission') pararLeitorCamera();
             currentTab = aba;
-            ['realtime', 'commission', 'predictive', 'esg', 'inventory', 'assets', 'maintenance', 'devices', 'rules', 'alarms', 'orders', 'audit', 'billing', 'executive', 'webhooks', 'demo'].forEach(t => {
+            ['realtime', 'commission', 'predictive', 'esg', 'inventory', 'assets', 'maintenance', 'devices', 'rules', 'alarms', 'orders', 'audit', 'users', 'billing', 'executive', 'webhooks', 'demo'].forEach(t => {
                 const el = document.getElementById(`t-${t}`);
                 if(el) el.className = t === aba ? 'tab-btn active' : 'tab-btn';
             });
@@ -364,6 +368,7 @@
             else if (aba === 'assets') carregarAtivos();
             else if (aba === 'maintenance') carregarManutencao();
             else if (aba === 'devices') carregarDispositivos();
+            else if (aba === 'users') carregarUsuariosTenant();
             else if (aba === 'orders') { renderizar(); carregarModelosChecklistOS(); }
             else renderizar();
         }
@@ -1083,6 +1088,44 @@
             return Number.isNaN(data.getTime()) ? '' : new Date(data.getTime() - data.getTimezoneOffset() * 60000).toISOString().slice(0,16);
         }
         async function carregarDispositivos() { try { deviceCredentials = await apiJson('/api/devices/credentials'); renderizar(); } catch(e) { alert(e.message); } }
+
+        async function carregarUsuariosTenant() {
+            try { tenantUsers = await apiJson('/api/users'); renderizar(); }
+            catch (err) { alert(err.message || 'Não foi possível carregar os usuários.'); }
+        }
+
+        async function criarUsuarioTenant(event) {
+            event.preventDefault();
+            const username = document.getElementById('tenant-user-name')?.value.trim() || '';
+            const password = document.getElementById('tenant-user-password')?.value || '';
+            const role = document.getElementById('tenant-user-role')?.value || '';
+            try {
+                await apiJson('/api/users', {method:'POST', body:JSON.stringify({username, password, role})});
+                await carregarUsuariosTenant();
+                alert('Usuário criado. Compartilhe a senha inicial por um canal seguro; a alteração de senha pelo usuário ainda não está disponível.');
+            } catch (err) { alert(err.message || 'Não foi possível criar o usuário.'); }
+        }
+
+        async function atualizarUsuarioTenant(button) {
+            const username = button.dataset.username || '';
+            const role = document.getElementById(`tenant-user-role-${username}`)?.value || '';
+            try {
+                await apiJson(`/api/users/${encodeURIComponent(username)}`, {method:'PATCH', body:JSON.stringify({role})});
+                await carregarUsuariosTenant();
+            } catch (err) { alert(err.message || 'Não foi possível atualizar o perfil.'); }
+        }
+
+        async function alternarEstadoUsuarioTenant(button) {
+            const username = button.dataset.username || '';
+            const user = tenantUsers.find(item => item.username === username);
+            if (!user) return;
+            const is_active = !user.is_active;
+            if (!confirm(`${is_active ? 'Reativar' : 'Desativar'} a conta de ${username}?${is_active ? '' : ' As sessões atuais serão encerradas.'}`)) return;
+            try {
+                await apiJson(`/api/users/${encodeURIComponent(username)}`, {method:'PATCH', body:JSON.stringify({is_active})});
+                await carregarUsuariosTenant();
+            } catch (err) { alert(err.message || 'Não foi possível alterar o estado da conta.'); }
+        }
         function gerarIdPainelDemo() {
             const organizacao = (document.getElementById('tenant-display')?.innerText || 'VOLTGUARD')
                 .replace(/^Organização:\s*/i, '').replace(/\s*\(.+\)$/, '')
@@ -1363,6 +1406,19 @@
                 const revokedCredentials = deviceCredentials.filter(d => d.revoked).length;
                 const panelIdDefault = gerarIdPainelDemo();
                 container.innerHTML = `<div data-vg-style="static-193448d00075"><h3 data-vg-style="static-4303eeffcdf9">🔑 Credenciais de Telemetria por Dispositivo</h3><p>O token é exibido somente uma vez. Guarde-o num cofre de segredos; não o publique no frontend.</p><div data-vg-style="static-d6af650bb715">${[['ATIVAS',activeCredentials],['SEM USO',unusedCredentials],['REVOGADAS',revokedCredentials]].map(([label,count])=>`<div data-vg-style="static-f55e039d0393"><small>${label}</small><strong data-vg-style="static-9f1e0c6c4e91">${count}</strong></div>`).join('')}</div>${lista.length?'':`<section data-vg-style="static-9f08327a77f4"><h3 data-vg-style="static-8d28e72a95b3">Cadastrar painel demonstrativo</h3><p>Esta organização ainda não tem painéis. Cadastre um painel fictício para preparar a configuração do gateway; isso não representa equipamento real.</p><form data-vg-submit="cadastrarPainelDemo" data-vg-style="static-fc22463955e6"><div class="input-group"><label for="new-panel-id">ID do painel</label><input id="new-panel-id" value="${escapeHtml(panelIdDefault)}" maxlength="100" pattern="[A-Za-z0-9_-]+" required></div><div class="input-group"><label for="new-panel-name">Nome</label><input id="new-panel-name" value="Painel de teste — DEMO" maxlength="200" required></div><div class="input-group"><label for="new-panel-location">Local</label><input id="new-panel-location" value="Ambiente simulado" maxlength="200" required></div><div class="input-group"><label for="new-panel-voltage">Tensão</label><input id="new-panel-voltage" value="380V AC" maxlength="80"></div><div class="input-group"><label for="new-panel-component">Componente monitorado</label><input id="new-panel-component" value="Disjuntor principal" maxlength="160"></div><button class="btn-primary" type="submit">Cadastrar painel demonstrativo</button></form><p id="new-panel-status" aria-live="polite" data-vg-style="static-bf2699b70d44"></p></section>`}<form data-vg-submit="criarCredencialDispositivo" data-vg-style="static-fc22463955e6"><div class="input-group"><label>Painel autorizado</label><select id="device-panel" required data-vg-change="refresh-device-example">${lista.length?lista.map(x=>`<option value="${escapeHtml(x.id)}">${escapeHtml(x.id)} — ${escapeHtml(x.name)}</option>`).join(''):'<option value="" selected disabled>Nenhum painel cadastrado</option>'}</select></div><div class="input-group"><label>Nome da credencial</label><input id="device-name" maxlength="120" required placeholder="Gateway sala elétrica"></div><button class="btn-primary" type="submit" ${lista.length?'':'disabled'}>Criar credencial</button></form><p>Endpoint de ingestão: <code>POST /api/device/telemetry</code>. O token deve ser enviado no cabeçalho <code>Authorization: Bearer …</code>, pelo gateway.</p><details data-vg-style="static-d0fd22aac602"><summary data-vg-style="static-d20f7e4975c3">Guia rápido de integração</summary><p>Envie uma requisição HTTP POST com o ID do painel e ao menos uma grandeza numérica. Temperatura, corrente, tensão, potência ativa, energia acumulada, frequência e fator de potência são aceitos. Temperatura e corrente só criam ou normalizam seus alarmes quando incluídas na leitura. O token é segredo do dispositivo; mantenha-o no gateway e fora do navegador, do código-fonte e dos registros.</p><pre id="device-telemetry-example" data-vg-style="static-c1386a63ff19">${escapeHtml(exemploTelemetriaDispositivo())}</pre><button type="button" class="btn-action" data-action="copy-telemetry-example">Copiar exemplo HTTP</button><p id="device-example-copy-status" aria-live="polite" data-vg-style="static-e1d2a65ace9e"></p><small>Temperatura: −50 a 250 °C; corrente: 0 a 100.000 A. Tensão e identificador do gateway são opcionais.</small></details><h4>Credenciais (${filteredCredentials.length} de ${deviceCredentials.length})</h4><div data-vg-style="static-03286a93516d"><div class="input-group"><label>Buscar</label><input id="device-search" value="${escapeHtml(deviceSearchText)}" placeholder="Nome ou painel" data-vg-change="update-device-search"></div><button type="button" class="btn-action" data-action="search-devices">Buscar</button><div class="input-group"><label>Painel</label><select data-vg-change="filter-device-panel"><option value="TODOS" ${devicePanelFilter==='TODOS'?'selected':''}>Todos os painéis</option>${[...new Set(deviceCredentials.map(d=>d.panel_id))].map(panel=>`<option value="${escapeHtml(panel)}" ${devicePanelFilter===panel?'selected':''}>${escapeHtml(panel)}</option>`).join('')}</select></div><div class="input-group"><label>Estado</label><select data-vg-change="filter-device-status"><option value="TODOS" ${deviceStatusFilter==='TODOS'?'selected':''}>Todos os estados</option><option value="ATIVA" ${deviceStatusFilter==='ATIVA'?'selected':''}>Ativas</option><option value="REVOGADA" ${deviceStatusFilter==='REVOGADA'?'selected':''}>Revogadas</option></select></div></div><div data-vg-style="static-1b1d75452fbb"><table class="enterprise-table"><tr><th>Nome</th><th>Painel</th><th>Criada em</th><th>Último uso</th><th>Estado</th><th>Ação</th></tr>${filteredCredentials.map(d=>`<tr><td>${escapeHtml(d.name)}</td><td>${escapeHtml(d.panel_id)}</td><td>${formatarDataHora(d.created_at)}</td><td>${d.last_used_at?formatarDataHora(d.last_used_at):'Nunca utilizada'}</td><td>${d.revoked?'REVOGADA':'ATIVA'}</td><td>${d.revoked?'—':`<button type="button" class="btn-action" data-action="revoke-device-credential" data-credential-id="${Number(d.id)}">Revogar</button>`}</td></tr>`).join('')}</table>${filteredCredentials.length?'':'<p>Nenhuma credencial corresponde aos filtros selecionados.</p>'}</div></div>`;
+                return;
+            }
+
+            if (currentTab === 'users') {
+                const rows = tenantUsers.map(user => {
+                    const isSelf = user.username === currentUser;
+                    const roleControl = user.role === 'CEO'
+                        ? '<span>CEO</span>'
+                        : `<select id="tenant-user-role-${escapeHtml(user.username)}" aria-label="Perfil de ${escapeHtml(user.username)}"><option value="Gerente" ${user.role==='Gerente'?'selected':''}>Gerente</option><option value="Técnico de Campo" ${user.role==='Técnico de Campo'?'selected':''}>Técnico de Campo</option></select> <button type="button" class="btn-action" data-action="save-tenant-user-role" data-username="${escapeHtml(user.username)}">Salvar perfil</button>`;
+                    const stateAction = user.role === 'CEO' || isSelf ? '—' : `<button type="button" class="btn-action" data-action="toggle-tenant-user" data-username="${escapeHtml(user.username)}">${user.is_active?'Desativar':'Reativar'}</button>`;
+                    return `<tr><td>${escapeHtml(user.username)}${isSelf?' (você)':''}</td><td>${roleControl}</td><td>${user.is_active?'ATIVA':'DESATIVADA'}</td><td>${stateAction}</td></tr>`;
+                }).join('');
+                container.innerHTML = `<section class="user-management-card"><h3>👥 Usuários da organização</h3><p>Contas são isoladas por organização. Apenas o CEO pode criar, alterar perfil e desativar usuários. O CEO inicial não pode ser desativado nesta tela.</p><form class="user-create-form" data-vg-submit="create-tenant-user"><div class="input-group"><label for="tenant-user-name">Nome de usuário</label><input id="tenant-user-name" maxlength="120" pattern="[A-Za-z0-9_.-]{3,120}" autocomplete="off" required></div><div class="input-group"><label for="tenant-user-password">Senha inicial (mínimo 12 caracteres)</label><input id="tenant-user-password" type="password" minlength="12" maxlength="256" autocomplete="new-password" required></div><div class="input-group"><label for="tenant-user-role">Perfil</label><select id="tenant-user-role" required><option value="Gerente">Gerente</option><option value="Técnico de Campo">Técnico de Campo</option></select></div><button type="submit" class="btn-primary">Criar usuário</button></form><div class="user-management-table-wrap"><table class="enterprise-table"><thead><tr><th>Usuário</th><th>Perfil</th><th>Estado</th><th>Acesso</th></tr></thead><tbody>${rows || '<tr><td colspan="4">Nenhum usuário encontrado.</td></tr>'}</tbody></table></div></section>`;
                 return;
             }
 
@@ -1748,6 +1804,12 @@
                     deviceSearchText = document.getElementById('device-search')?.value || '';
                     renderizar();
                     break;
+                case 'save-tenant-user-role':
+                    atualizarUsuarioTenant(target);
+                    break;
+                case 'toggle-tenant-user':
+                    alternarEstadoUsuarioTenant(target);
+                    break;
                 case 'print-order-report':
                     gerarRelatorioOrdem(Number(target.dataset.orderId));
                     break;
@@ -1817,6 +1879,7 @@
                 case 'salvarRegrasPainel': salvarRegrasPainel(event); break;
                 case 'salvarRegrasTenant': salvarRegrasTenant(event); break;
                 case 'salvarWebhook': salvarWebhook(event); break;
+                case 'create-tenant-user': criarUsuarioTenant(event); break;
                 case 'consult-qr':
                     event.preventDefault();
                     consultarQR(document.getElementById('qr-input-manual')?.value.trim() || '');

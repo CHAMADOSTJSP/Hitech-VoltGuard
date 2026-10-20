@@ -8,6 +8,7 @@ import secrets
 import hmac
 import socket
 import ipaddress
+import re
 from urllib.parse import urlparse
 import httpx
 from datetime import date, datetime, timedelta, timezone
@@ -273,6 +274,7 @@ class UserModel(Base):
     role = Column(String, default="CEO")
     tenant_id = Column(String, default="HITECH-DEFAULT")
     plan = Column(String, default="Enterprise")
+    is_active = Column(Boolean, nullable=False, default=True)
 
 class WebSocketTicketModel(Base):
     __tablename__ = "websocket_tickets"
@@ -365,7 +367,7 @@ async def post_webhook_event(value: str, payload: dict) -> int:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.55.0",
+    version="0.56.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -551,6 +553,10 @@ def init_db():
                     "CREATE UNIQUE INDEX IF NOT EXISTS uq_work_orders_tenant_alarm "
                     "ON work_orders (tenant_id, alarm_id)"
                 ))
+            if "users" in inspector.get_table_names():
+                user_columns = {col["name"] for col in inspector.get_columns("users")}
+                if "is_active" not in user_columns:
+                    connection.execute(text("ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE"))
         Base.metadata.create_all(bind=engine)
         
         # Não criar contas de demonstração com senhas conhecidas. Todas as contas
@@ -609,7 +615,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     # Papel, plano e organização são lidos da fonte atual. Um JWT antigo não
     # preserva privilégios depois de uma alteração na conta.
     db_user = db.query(UserModel).filter(UserModel.username == username).first()
-    if not db_user:
+    if not db_user or not db_user.is_active:
         raise HTTPException(status_code=401, detail="Utilizador não existe ou sessão revogada.")
     session_record = db.query(AuthSessionModel).filter(
         AuthSessionModel.token_id_hash == hashlib.sha256(token_id.encode()).hexdigest(),
@@ -641,7 +647,7 @@ def login(request: Request, credentials: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Utilizador ou senha incorretos.")
     
     db_user = db.query(UserModel).filter(UserModel.username == username).first()
-    if not db_user or not verify_password(password, db_user.password):
+    if not db_user or not db_user.is_active or not verify_password(password, db_user.password):
         raise HTTPException(status_code=401, detail="Utilizador ou senha incorretos.")
     if not db_user.password.startswith("scrypt$"):
         db_user.password = hash_password(password)
@@ -747,6 +753,80 @@ def register_tenant(request: Request, data: dict, db: Session = Depends(get_db))
     db.commit()
     
     return {"status": "success", "message": f"Organização {tenant_id} criada com sucesso!"}
+
+@app.get("/api/users", tags=["User Management"])
+def list_tenant_users(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Lista apenas contas da organização; nunca devolve hashes ou credenciais."""
+    require_roles(current_user, ROLE_CEO, "Somente CEO pode administrar usuários.")
+    rows = db.query(UserModel).filter(UserModel.tenant_id == current_user.tenant_id).order_by(UserModel.username).all()
+    return [{"username": row.username, "role": row.role, "is_active": bool(row.is_active)} for row in rows]
+
+@app.post("/api/users", tags=["User Management"])
+@limiter.limit("10/hour")
+def create_tenant_user(request: Request, data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_roles(current_user, ROLE_CEO, "Somente CEO pode administrar usuários.")
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=422, detail="Informe os dados do usuário.")
+    username_value = data.get("username", "")
+    username = username_value.strip() if isinstance(username_value, str) else ""
+    password = data.get("password", "")
+    role = data.get("role")
+    if not isinstance(username, str) or not re.fullmatch(r"[A-Za-z0-9_.-]{3,120}", username):
+        raise HTTPException(status_code=422, detail="Usuário inválido: use 3 a 120 letras, números, ponto, hífen ou sublinhado.")
+    if not isinstance(role, str) or role not in {"Gerente", "Técnico de Campo"}:
+        raise HTTPException(status_code=422, detail="O CEO só pode criar contas de Gerente ou Técnico de Campo.")
+    if not isinstance(password, str) or len(password) < 12 or len(password) > 256:
+        raise HTTPException(status_code=422, detail="A senha deve ter entre 12 e 256 caracteres.")
+    if db.query(UserModel).filter(UserModel.username == username).first():
+        raise HTTPException(status_code=409, detail="Este nome de usuário já está em uso.")
+    row = UserModel(username=username, password=hash_password(password), role=role,
+                    tenant_id=current_user.tenant_id, plan=current_user.plan, is_active=True)
+    db.add(row)
+    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username,
+                         role=current_user.role, action="CRIAR_USUARIO",
+                         details=f"Conta {username} criada com perfil {role}."))
+    db.commit()
+    return {"username": row.username, "role": row.role, "is_active": True}
+
+@app.patch("/api/users/{username}", tags=["User Management"])
+def update_tenant_user(username: str, data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_roles(current_user, ROLE_CEO, "Somente CEO pode administrar usuários.")
+    if not isinstance(data, dict) or set(data) - {"role", "is_active"} or not data:
+        raise HTTPException(status_code=422, detail="Informe apenas role e/ou is_active.")
+    if username == current_user.username:
+        raise HTTPException(status_code=409, detail="O CEO não pode alterar ou desativar a própria conta por esta tela.")
+    row = db.query(UserModel).filter(UserModel.username == username,
+                                     UserModel.tenant_id == current_user.tenant_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado nesta organização.")
+    if row.role == "CEO":
+        raise HTTPException(status_code=409, detail="A conta CEO não pode ser alterada por esta operação.")
+    changes = []
+    if "role" in data:
+        if not isinstance(data["role"], str) or data["role"] not in {"Gerente", "Técnico de Campo"}:
+            raise HTTPException(status_code=422, detail="Perfil inválido.")
+        if row.role != data["role"]:
+            row.role = data["role"]
+            changes.append(f"perfil alterado para {row.role}")
+            db.query(AuthSessionModel).filter(AuthSessionModel.user_name == row.username,
+                                               AuthSessionModel.revoked_at.is_(None)).update(
+                {AuthSessionModel.revoked_at: datetime.utcnow()}, synchronize_session=False)
+    if "is_active" in data:
+        if not isinstance(data["is_active"], bool):
+            raise HTTPException(status_code=422, detail="is_active deve ser verdadeiro ou falso.")
+        if bool(row.is_active) != data["is_active"]:
+            row.is_active = data["is_active"]
+            changes.append("conta ativada" if row.is_active else "conta desativada")
+            if not row.is_active:
+                db.query(AuthSessionModel).filter(AuthSessionModel.user_name == row.username,
+                                                   AuthSessionModel.revoked_at.is_(None)).update(
+                    {AuthSessionModel.revoked_at: datetime.utcnow()}, synchronize_session=False)
+    if changes:
+        db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username,
+                             role=current_user.role, action="ATUALIZAR_USUARIO",
+                             details=f"Conta {row.username}: {', '.join(changes)}."))
+        db.commit()
+    return {"username": row.username, "role": row.role, "is_active": bool(row.is_active)}
 
 @app.post("/api/tenant/webhook")
 def save_webhook(data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

@@ -1,8 +1,14 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.56.0 — Gestão de usuários e perfis por organização
+
+O CEO pode abrir **Usuários**, listar contas da própria organização, criar contas de Gerente e Técnico de Campo, alterar o perfil e desativar/reativar uma conta. A conta CEO e a própria sessão do CEO não podem ser alteradas nessa tela. A desativação encerra as sessões ativas e impede novos logins. O backend valida novamente o papel e o tenant em cada chamada; a interface não é a barreira de segurança. O banco adiciona `users.is_active` com migração compatível; contas existentes são mantidas ativas. A entrega da senha inicial deve ocorrer por canal seguro; redefinição de senha e MFA ainda não estão disponíveis.
+
+O `render.yaml` agora declara `runtime: docker` e aponta explicitamente para `./Dockerfile` e para o contexto raiz, em linha com a configuração do serviço Render.
+
 ## v0.55.0 — Permissões por perfil
 
-As permissões das rotas de escrita usam uma matriz central no backend: CEO e Gerente administram configurações e credenciais; CEO, Gerente e Técnico de Campo podem executar operações de campo, como reconhecer alarmes e manter tarefas. Técnico de Campo pode cadastrar ativos, planos e tarefas, mas não editar ativos, administrar credenciais, alterar regras, configurar webhooks ou consultar auditoria. A interface agora mostra Ativos e Manutenção para esse perfil e oculta a edição de ativos. O cadastro de organização continua criando apenas o primeiro usuário CEO; gestão de usuários e atribuição de outros perfis ainda não estão disponíveis na interface.
+As permissões das rotas de escrita usam uma matriz central no backend: CEO e Gerente administram configurações e credenciais; CEO, Gerente e Técnico de Campo podem executar operações de campo, como reconhecer alarmes e manter tarefas. Técnico de Campo pode cadastrar ativos, planos e tarefas, mas não editar ativos, administrar credenciais, alterar regras, configurar webhooks ou consultar auditoria. A interface mostra Ativos e Manutenção para esse perfil e oculta a edição de ativos.
 
 ## v0.54.0 — Proteção do destino de webhooks
 
@@ -345,6 +351,11 @@ O Blueprint está configurado para avaliação econômica. Serviços e bancos gr
 - O limitador de requisições usa armazenamento em memória por processo; não é proteção distribuída para uma implantação escalada.
 
 Leia `REVISAO_TECNICA.md` antes de usar dados reais.
+
+### Gestão de usuários (v0.56.0)
+A aba **Usuários** aparece somente para CEO. Permite criar usuários com perfil Gerente ou Técnico de Campo, alterar seus perfis e desativar/reativar contas do mesmo tenant. O sistema protege a conta CEO e impede que o CEO desative a própria sessão. Desativar uma conta impede novos logins e revoga sessões existentes; mudar um perfil também revoga sessões para exigir novo login. Ações são registradas na auditoria.
+
+Endpoints: `GET /api/users`, `POST /api/users` com `{ "username", "password", "role" }` e `PATCH /api/users/{username}` com `role` e/ou `is_active`. Apenas o backend concede acesso. Senhas devem ter pelo menos 12 caracteres e são armazenadas com scrypt. Não há ainda redefinição de senha ou MFA.
 
 ## Novos módulos (v0.5.0)
 

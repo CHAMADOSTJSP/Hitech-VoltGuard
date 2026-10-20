@@ -24,6 +24,9 @@
 - [ ] Criar organização de teste com senha de pelo menos 12 caracteres.
 - [ ] Fazer login e sair.
 - [ ] Confirmar que os painéis iniciais estão marcados como dados de demonstração.
+- [ ] Como CEO, criar um Gerente e um Técnico de Campo; confirmar que cada perfil vê apenas módulos autorizados.
+- [ ] Desativar uma conta de teste e confirmar que login/sessões anteriores deixam de funcionar; reativá-la e validar novo login.
+- [ ] Tentar abrir `/api/users` com uma conta não CEO e confirmar resposta 403; revisar que as alterações aparecem na auditoria.
 - [ ] Testar leitura QR manual; testar câmera somente em navegador/ambiente com permissão.
 - [ ] Criar ordem de serviço e alterar estado.
 - [ ] Testar exportação CSV autenticada.

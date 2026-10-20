@@ -327,3 +327,8 @@
 .device-token-actions { display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end; }
 .device-token-copy { background:#10b981; border:0; border-radius:6px; padding:11px 16px; font-weight:bold; cursor:pointer; color:#04110b; }
 .device-token-close { background:#1f3b2c; border:1px solid #10b981; border-radius:6px; padding:11px 16px; font-weight:bold; cursor:pointer; color:#fff; }
+.user-management-card { grid-column:1/-1; background:rgba(17,42,29,.95); border:1px solid #10b981; padding:20px; border-radius:8px; }
+.user-management-card h3 { color:#34d399; margin-top:0; }
+.user-create-form { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; align-items:end; margin:18px 0; }
+.user-management-table-wrap { overflow-x:auto; }
+.user-management-table-wrap .enterprise-table { min-width:620px; }

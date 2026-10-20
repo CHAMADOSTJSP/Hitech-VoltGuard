@@ -3,11 +3,11 @@
 services:
   - type: web
     name: hitech-voltguard
-    runtime: python
+    runtime: docker
     plan: free
     region: oregon
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
