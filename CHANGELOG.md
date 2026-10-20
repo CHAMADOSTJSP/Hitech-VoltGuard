@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.62.1 — Parar redesenho periódico da aba Minha conta
+
+- O polling de telemetria a cada três segundos deixa de reconstruir a aba Minha conta e de repetir a consulta do estado MFA.
+- Campos de senha, configuração TOTP e códigos de recuperação permanecem estáveis enquanto a aba está aberta.
+
 ## v0.62.0 — MFA TOTP para administradores
 
 - CEO e Gerente podem ativar MFA por aplicativo autenticador em **Minha conta**; o login exige senha e código TOTP após a ativação.

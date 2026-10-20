@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.62.1 — Estabilidade da tela Minha conta
+
+A atualização periódica dos painéis não redesenha mais a aba **Minha conta**. Isso evita recarregar o estado do MFA e mantém estáveis os formulários enquanto a aba permanece aberta.
+
 ## v0.62.0 — Autenticação em dois fatores para administradores
 
 Perfis CEO e Gerente podem ativar MFA TOTP em **Minha conta** usando aplicativo autenticador compatível. O login passa a exigir senha e código de 6 dígitos; cada código temporário é aceito apenas uma vez. Dez códigos de recuperação de uso único são exibidos uma única vez ao concluir a configuração. Guarde-os em local seguro.

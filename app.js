@@ -282,6 +282,10 @@
                         
                         if (currentTab === 'predictive') {
                             atualizarGraficosExistentes();
+                        } else if (currentTab === 'account') {
+                            // A aba Minha conta contém formulários de segurança e estado MFA.
+                            // O polling do painel não deve recriar esses campos nem repetir
+                            // a consulta do MFA a cada ciclo de três segundos.
                         } else if (currentTab === 'rules') {
                             // A aba de regras contém um seletor e campos editáveis.
                             // Não reconstruir seu HTML durante o polling: isso apagava
