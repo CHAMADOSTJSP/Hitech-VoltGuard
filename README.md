@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.59.1 — Evitar cache desatualizado do HTML
+
+A resposta da página inicial passa a usar `Cache-Control: no-store`, assim como os recursos da aplicação. Isso evita que o navegador ou uma camada intermediária mantenha um `index.html` antigo após o deploy. O HTML servido referencia Chart.js e html5-qrcode em `vendor/`, na mesma origem do serviço.
+
 ## v0.59.0 — CSP ativa e validação de bibliotecas locais
 
 A política de segurança de conteúdo agora é aplicada pelo navegador: scripts só podem vir da própria aplicação, formulários e conexões ficam limitados à origem, e conteúdo de objetos e enquadramento são bloqueados. Estilos inline continuam permitidos para preservar o leitor QR; a política Report-Only mais restritiva continua registrando possíveis violações de estilo. O backend também confere na inicialização se os dois arquivos JavaScript obrigatórios existem em `vendor/` e identifica os nomes ausentes no erro.

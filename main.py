@@ -367,7 +367,7 @@ async def post_webhook_event(value: str, payload: dict) -> int:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.59.0",
+    version="0.59.1",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -428,7 +428,7 @@ async def security_headers(request: Request, call_next):
         "worker-src 'self' blob:; object-src 'none'; base-uri 'self'; "
         "form-action 'self'; frame-ancestors 'none'"
     )
-    if request.url.path.startswith("/api/") or request.url.path.startswith("/vendor/") or request.url.path in {"/health", "/app.js", "/styles.css", "/report.css"}:
+    if request.url.path.startswith("/api/") or request.url.path.startswith("/vendor/") or request.url.path in {"/", "/health", "/app.js", "/styles.css", "/report.css"}:
         response.headers["Cache-Control"] = "no-store"
     response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
     if request.url.scheme == "https":

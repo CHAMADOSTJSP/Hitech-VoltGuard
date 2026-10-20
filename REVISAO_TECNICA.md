@@ -6,6 +6,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 ## Melhorias aplicadas nesta revisão
 
+- v0.59.1: a página inicial envia `Cache-Control: no-store` para evitar HTML antigo em cache após deploy; o pacote mantém referências às bibliotecas JavaScript locais de `vendor/`.
 - v0.59.0: CSP passou a ser aplicada; scripts, conexões e formulários ficam restritos à origem, objetos e enquadramento são bloqueados. Estilos inline seguem permitidos para manter compatibilidade com o scanner QR; a política Report-Only restritiva continua ativa para observação. A inicialização confere os arquivos JavaScript obrigatórios de `vendor/` e identifica os ausentes.
 - v0.58.0: CEO pode encerrar remotamente todas as sessões ativas de outro usuário do próprio tenant; a API bloqueia contas CEO, autoencerramento e contas desativadas, informa a quantidade revogada e registra auditoria.
 - v0.56.0: gestão de usuários exclusiva do CEO e isolada por tenant; criação de contas operacionais, alteração de perfil e ativação/desativação; senhas nunca retornam pela API; desativação e mudança de perfil revogam sessões; eventos de gestão são auditados. Migração compatível adiciona `users.is_active` às bases existentes. Blueprint Render alinhado a Docker.

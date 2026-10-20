@@ -16,6 +16,7 @@
 - [ ] `DATABASE_URL` aponta para o banco correto.
 - [ ] Build e start terminaram sem erros.
 - [ ] `/health` responde HTTP 200.
+- [ ] A página `/` e os recursos `/app.js`, `/styles.css` e `/vendor/*` enviam `Cache-Control: no-store`.
 - [ ] `/vendor/chart.umd.min.js` e `/vendor/html5-qrcode.min.js` respondem HTTP 200; a aba Network não mostra chamadas aos CDNs.
 - [ ] O cabeçalho `Content-Security-Policy` está presente; confirme que `script-src` não permite CDNs ou scripts inline.
 - [ ] A política CSP Report-Only continua gerando somente relatórios; observar o Console durante os fluxos comuns, o leitor QR e o relatório de OS.

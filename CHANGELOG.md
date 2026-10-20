@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.59.1 — Evitar cache desatualizado do HTML
+- A página inicial agora envia `Cache-Control: no-store` para evitar conteúdo HTML antigo após um deploy.
+- Confirmado no pacote que o HTML carrega Chart.js e html5-qrcode da pasta local `/vendor/`.
+
 ## v0.59.0 — CSP ativa e validação de bibliotecas locais
 - Ativada uma Content Security Policy que restringe scripts, conexões e formulários à própria origem, bloqueia objetos e impede enquadramento da aplicação.
 - Estilos inline permanecem permitidos para compatibilidade com o scanner QR; a política Report-Only mais restritiva continua disponível para observação.
