@@ -681,6 +681,41 @@ def logout(db: Session = Depends(get_db), current_user: User = Depends(get_curre
         db.commit()
     return {"status": "success", "message": "Sessão encerrada."}
 
+@app.post("/api/account/password", tags=["Authentication"])
+@limiter.limit("5/hour")
+def change_own_password(request: Request, data: dict, db: Session = Depends(get_db),
+                        current_user: User = Depends(get_current_user)):
+    """Permite troca autenticada de senha e encerra todas as sessões da conta."""
+    if not isinstance(data, dict) or set(data) != {"current_password", "new_password"}:
+        raise HTTPException(status_code=422, detail="Informe a senha atual e a nova senha.")
+    current_password = data.get("current_password")
+    new_password = data.get("new_password")
+    if not isinstance(current_password, str) or not isinstance(new_password, str):
+        raise HTTPException(status_code=422, detail="As senhas devem ser texto válido.")
+    if len(current_password) > 256 or not verify_password(current_password,
+            db.query(UserModel.password).filter(UserModel.username == current_user.username).scalar() or ""):
+        raise HTTPException(status_code=400, detail="A senha atual está incorreta.")
+    if len(new_password) < 12 or len(new_password) > 256:
+        raise HTTPException(status_code=422, detail="A nova senha deve ter entre 12 e 256 caracteres.")
+    if hmac.compare_digest(current_password, new_password):
+        raise HTTPException(status_code=422, detail="A nova senha deve ser diferente da senha atual.")
+
+    db_user = db.query(UserModel).filter(UserModel.username == current_user.username,
+                                         UserModel.is_active.is_(True)).first()
+    if not db_user:
+        raise HTTPException(status_code=401, detail="Conta indisponível. Entre novamente.")
+    now = datetime.utcnow()
+    db_user.password = hash_password(new_password)
+    db.query(AuthSessionModel).filter(
+        AuthSessionModel.user_name == current_user.username,
+        AuthSessionModel.revoked_at.is_(None),
+    ).update({AuthSessionModel.revoked_at: now}, synchronize_session=False)
+    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username,
+                         role=current_user.role, action="ALTERAR_PROPRIA_SENHA",
+                         details="Senha alterada pelo próprio usuário; sessões ativas encerradas."))
+    db.commit()
+    return {"status": "success", "message": "Senha alterada. Entre novamente com a nova senha."}
+
 @app.post("/api/ws-ticket", tags=["Authentication"])
 def create_websocket_ticket(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Emite um segredo opaco, de uso único, para autenticar a conexão WebSocket."""

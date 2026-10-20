@@ -1,8 +1,12 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.57.0 — Troca de senha e encerramento de sessões
+
+Todos os usuários autenticados podem abrir **Minha conta** e trocar a própria senha após informar a senha atual. A nova senha deve ter de 12 a 256 caracteres e ser diferente da atual. Após a troca, todas as sessões da conta são revogadas e o usuário precisa entrar novamente. A API limita tentativas, grava um evento de auditoria sem registrar segredos e não oferece recuperação por e-mail; a recuperação administrativa continua pendente.
+
 ## v0.56.0 — Gestão de usuários e perfis por organização
 
-O CEO pode abrir **Usuários**, listar contas da própria organização, criar contas de Gerente e Técnico de Campo, alterar o perfil e desativar/reativar uma conta. A conta CEO e a própria sessão do CEO não podem ser alteradas nessa tela. A desativação encerra as sessões ativas e impede novos logins. O backend valida novamente o papel e o tenant em cada chamada; a interface não é a barreira de segurança. O banco adiciona `users.is_active` com migração compatível; contas existentes são mantidas ativas. A entrega da senha inicial deve ocorrer por canal seguro; redefinição de senha e MFA ainda não estão disponíveis.
+O CEO pode abrir **Usuários**, listar contas da própria organização, criar contas de Gerente e Técnico de Campo, alterar o perfil e desativar/reativar uma conta. A conta CEO e a própria sessão do CEO não podem ser alteradas nessa tela. A desativação encerra as sessões ativas e impede novos logins. O backend valida novamente o papel e o tenant em cada chamada; a interface não é a barreira de segurança. O banco adiciona `users.is_active` com migração compatível; contas existentes são mantidas ativas. A entrega da senha inicial deve ocorrer por canal seguro; recuperação de senha e MFA ainda não estão disponíveis.
 
 O `render.yaml` agora declara `runtime: docker` e aponta explicitamente para `./Dockerfile` e para o contexto raiz, em linha com a configuração do serviço Render.
 
@@ -355,7 +359,7 @@ Leia `REVISAO_TECNICA.md` antes de usar dados reais.
 ### Gestão de usuários (v0.56.0)
 A aba **Usuários** aparece somente para CEO. Permite criar usuários com perfil Gerente ou Técnico de Campo, alterar seus perfis e desativar/reativar contas do mesmo tenant. O sistema protege a conta CEO e impede que o CEO desative a própria sessão. Desativar uma conta impede novos logins e revoga sessões existentes; mudar um perfil também revoga sessões para exigir novo login. Ações são registradas na auditoria.
 
-Endpoints: `GET /api/users`, `POST /api/users` com `{ "username", "password", "role" }` e `PATCH /api/users/{username}` com `role` e/ou `is_active`. Apenas o backend concede acesso. Senhas devem ter pelo menos 12 caracteres e são armazenadas com scrypt. Não há ainda redefinição de senha ou MFA.
+Endpoints: `GET /api/users`, `POST /api/users` com `{ "username", "password", "role" }` e `PATCH /api/users/{username}` com `role` e/ou `is_active`. Apenas o backend concede acesso. Senhas devem ter pelo menos 12 caracteres e são armazenadas com scrypt. O endpoint `POST /api/account/password` exige senha atual e nova senha e encerra todas as sessões após a alteração. Recuperação de senha e MFA ainda não estão disponíveis.
 
 ## Novos módulos (v0.5.0)
 

@@ -332,3 +332,7 @@
 .user-create-form { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; align-items:end; margin:18px 0; }
 .user-management-table-wrap { overflow-x:auto; }
 .user-management-table-wrap .enterprise-table { min-width:620px; }
+.account-security-card { max-width:760px; }
+.account-password-form { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; align-items:end; margin-top:18px; }
+.account-password-form .btn-primary { grid-column:1/-1; }
+.account-password-form #account-password-status { grid-column:1/-1; min-height:1.2em; color:#34d399; }

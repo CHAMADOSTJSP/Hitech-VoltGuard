@@ -1,12 +1,18 @@
 # Changelog
 
+## v0.57.0 — Troca de senha pelo próprio usuário
+- Adicionada aba Minha conta para todos os perfis com troca autenticada de senha, confirmação no navegador e validação da senha atual no backend.
+- A nova senha exige 12 a 256 caracteres e deve diferir da atual; a rota tem limite de tentativas.
+- Todas as sessões da conta são revogadas após a troca, e o evento é auditado sem registrar senhas.
+- Recuperação de senha e MFA continuam pendentes.
+
 ## v0.56.0 — Gestão de usuários e perfis por organização
 - CEO pode listar usuários do próprio tenant, criar contas de Gerente/Técnico de Campo, alterar perfis e desativar/reativar contas.
 - Contas desativadas não conseguem autenticar; sessões existentes são revogadas no momento da desativação.
 - Alterações de usuários são registradas na auditoria. Respostas nunca incluem hashes de senha; mudança de perfil também encerra sessões existentes para exigir novo login.
 - Adicionada migração compatível para `users.is_active`; contas existentes permanecem ativas.
 - Incluída aba Usuários visível somente para CEO e configuração Blueprint alinhada ao Dockerfile usado pelo serviço.
-- A tela ainda não oferece redefinição de senha nem MFA; senhas iniciais devem ser entregues por canal seguro.
+- Senhas iniciais devem ser entregues por canal seguro; recuperação de senha e MFA continuam pendentes.
 
 ## v0.55.0 — Autorização centralizada por perfil
 - Centralizada a matriz de papéis no backend para CEO, Gerente e Técnico de Campo; as rotas de escrita passam a compartilhar a mesma checagem de autorização.

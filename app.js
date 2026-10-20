@@ -181,6 +181,7 @@
 
         function construirAbas() {
             let html = `<button type="button" class="tab-btn active" id="t-realtime" data-action="switch-tab" data-tab="realtime">📊 Tempo Real</button>`;
+            html += `<button type="button" class="tab-btn" id="t-account" data-action="switch-tab" data-tab="account">🔐 Minha conta</button>`;
             html += `<button type="button" class="tab-btn" id="t-commission" data-action="switch-tab" data-tab="commission">📷 Comissionamento (QR)</button>`;
             if (currentCargo === 'CEO' || currentCargo === 'Gerente') {
                 html += `<button type="button" class="tab-btn" id="t-predictive" data-action="switch-tab" data-tab="predictive">📈 Tendência Térmica</button>`;
@@ -360,7 +361,7 @@
         function mudarAba(aba) {
             if (currentTab === 'commission' && aba !== 'commission') pararLeitorCamera();
             currentTab = aba;
-            ['realtime', 'commission', 'predictive', 'esg', 'inventory', 'assets', 'maintenance', 'devices', 'rules', 'alarms', 'orders', 'audit', 'users', 'billing', 'executive', 'webhooks', 'demo'].forEach(t => {
+            ['realtime', 'account', 'commission', 'predictive', 'esg', 'inventory', 'assets', 'maintenance', 'devices', 'rules', 'alarms', 'orders', 'audit', 'users', 'billing', 'executive', 'webhooks', 'demo'].forEach(t => {
                 const el = document.getElementById(`t-${t}`);
                 if(el) el.className = t === aba ? 'tab-btn active' : 'tab-btn';
             });
@@ -1102,7 +1103,7 @@
             try {
                 await apiJson('/api/users', {method:'POST', body:JSON.stringify({username, password, role})});
                 await carregarUsuariosTenant();
-                alert('Usuário criado. Compartilhe a senha inicial por um canal seguro; a alteração de senha pelo usuário ainda não está disponível.');
+                alert('Usuário criado. Compartilhe a senha inicial por um canal seguro. O usuário poderá trocá-la em Minha conta.');
             } catch (err) { alert(err.message || 'Não foi possível criar o usuário.'); }
         }
 
@@ -1125,6 +1126,38 @@
                 await apiJson(`/api/users/${encodeURIComponent(username)}`, {method:'PATCH', body:JSON.stringify({is_active})});
                 await carregarUsuariosTenant();
             } catch (err) { alert(err.message || 'Não foi possível alterar o estado da conta.'); }
+        }
+
+        async function alterarMinhaSenha(event) {
+            event.preventDefault();
+            const form = event.currentTarget;
+            const current_password = document.getElementById('account-current-password')?.value || '';
+            const new_password = document.getElementById('account-new-password')?.value || '';
+            const confirm_password = document.getElementById('account-confirm-password')?.value || '';
+            const status = document.getElementById('account-password-status');
+            if (new_password !== confirm_password) {
+                if (status) status.textContent = 'A confirmação não corresponde à nova senha.';
+                document.getElementById('account-confirm-password')?.focus();
+                return;
+            }
+            try {
+                await apiJson('/api/account/password', {
+                    method:'POST', body:JSON.stringify({current_password, new_password})
+                });
+                form.reset();
+                if (status) status.textContent = 'Senha alterada. Redirecionando para o login…';
+                tokenJwt = '';
+                if (pollingInterval) clearInterval(pollingInterval);
+                pollingInterval = null;
+                setTimeout(() => window.location.reload(), 600);
+            } catch (err) {
+                const newPassword = document.getElementById('account-new-password');
+                const confirmPassword = document.getElementById('account-confirm-password');
+                if (newPassword) newPassword.value = '';
+                if (confirmPassword) confirmPassword.value = '';
+                if (status) status.textContent = err.message || 'Não foi possível alterar a senha.';
+                newPassword?.focus();
+            }
         }
         function gerarIdPainelDemo() {
             const organizacao = (document.getElementById('tenant-display')?.innerText || 'VOLTGUARD')
@@ -1295,6 +1328,11 @@
         function renderizar() {
             const container = document.getElementById('main-container');
             if(!container) return;
+
+            if (currentTab === 'account') {
+                container.innerHTML = `<section class="user-management-card account-security-card"><h3>🔐 Segurança da conta</h3><p>Usuário: <strong>${escapeHtml(currentUser)}</strong> · Perfil: <strong>${escapeHtml(currentCargo)}</strong></p><p>Use uma senha exclusiva com pelo menos 12 caracteres. Ao alterá-la, todas as sessões abertas desta conta serão encerradas.</p><form class="account-password-form" data-vg-submit="change-password"><div class="input-group"><label for="account-current-password">Senha atual</label><input id="account-current-password" type="password" autocomplete="current-password" maxlength="256" required></div><div class="input-group"><label for="account-new-password">Nova senha</label><input id="account-new-password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><div class="input-group"><label for="account-confirm-password">Confirme a nova senha</label><input id="account-confirm-password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><button type="submit" class="btn-primary">Alterar senha</button><p id="account-password-status" role="status" aria-live="polite"></p></form></section>`;
+                return;
+            }
             const lista = Object.values(dadosGlobais);
 
             if (currentTab === 'assets') {
@@ -1880,6 +1918,7 @@
                 case 'salvarRegrasTenant': salvarRegrasTenant(event); break;
                 case 'salvarWebhook': salvarWebhook(event); break;
                 case 'create-tenant-user': criarUsuarioTenant(event); break;
+                case 'change-password': alterarMinhaSenha(event); break;
                 case 'consult-qr':
                     event.preventDefault();
                     consultarQR(document.getElementById('qr-input-manual')?.value.trim() || '');

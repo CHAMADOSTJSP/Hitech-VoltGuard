@@ -7,6 +7,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 ## Melhorias aplicadas nesta revisão
 
 - v0.56.0: gestão de usuários exclusiva do CEO e isolada por tenant; criação de contas operacionais, alteração de perfil e ativação/desativação; senhas nunca retornam pela API; desativação e mudança de perfil revogam sessões; eventos de gestão são auditados. Migração compatível adiciona `users.is_active` às bases existentes. Blueprint Render alinhado a Docker.
+- v0.57.0: troca de senha autenticada pelo próprio usuário, exigindo senha atual, senha nova diferente e mínimo de 12 caracteres; todas as sessões são revogadas e a operação é auditada sem persistir segredos no evento. A rota possui limite de tentativas.
 - v0.55.0: matriz central de autorização por perfil; telemetria autenticada restrita aos papéis operacionais; módulos Ativos/Manutenção disponíveis ao Técnico de Campo, com edição de ativos ainda limitada a CEO/Gerente.
 - v0.54.0: envios de webhook conectam ao IP público resolvido e validado no momento da entrega, com Host/SNI originais para conservar o roteamento e a verificação TLS. Requests não seguem redirects, ignoram proxies do ambiente e não carregam corpos de resposta.
 - v0.53.0: Chart.js 4.5.1 e html5-qrcode 2.3.8 passaram a ser servidos localmente em `vendor/`; versões fixadas e licenças distribuídas com a aplicação. CSP Report-Only não permite mais scripts de CDNs.
@@ -41,7 +42,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 1. Realizar revisão de segurança independente e teste de penetração.
 2. Remover os demais manipuladores inline e rever todos os pontos de inserção via `innerHTML`; preferir `textContent`, criação de nós DOM e escape contextual.
 3. Implementar Content Security Policy (CSP) depois de eliminar scripts e eventos inline.
-4. Implementar MFA para administradores, recuperação segura e troca de senha, encerramento remoto de sessões e política de bloqueio/alerta. A gestão básica de contas e perfis já existe, mas precisa de validação independente.
+4. Implementar MFA para administradores, recuperação segura de senha, encerramento remoto de sessões por usuário e política de bloqueio/alerta. A gestão básica de contas e perfis já existe, mas precisa de validação independente.
 5. Migrar rate limiting para armazenamento compartilhado/edge ou WAF se houver múltiplas instâncias.
 6. Limitar conexões WebSocket, acompanhar falhas de autenticação e considerar um transporte de credencial fora da URL para ambientes de produção.
 7. O webhook agora fixa o IP público validado por envio para mitigar DNS rebinding/TOCTOU. Antes de produção, ainda usar política de saída de rede, limitar destinos, executar envios num worker isolado e definir logs/retries controlados.
@@ -58,7 +59,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 - Cada login recebe um identificador de sessão aleatório; somente seu hash e validade são persistidos.
 - A autorização verifica a sessão ativa em cada requisição autenticada. O endpoint `/api/logout` revoga a sessão atual, e a interface limpa o token e interrompe o polling.
-- A atualização invalida tokens emitidos antes da adoção do identificador de sessão; a interface solicita novo login. MFA, encerramento remoto de todas as sessões e alertas de atividade continuam pendentes.
+- A atualização invalida tokens emitidos antes da adoção do identificador de sessão; a interface solicita novo login. A troca de senha e a revogação de todas as sessões da conta foram adicionadas em v0.57.0. MFA, recuperação e alertas de atividade continuam pendentes.
 
 ### Controles implementados na versão 0.44.0
 
