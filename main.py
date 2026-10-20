@@ -367,7 +367,7 @@ async def post_webhook_event(value: str, payload: dict) -> int:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.56.0",
+    version="0.59.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -375,8 +375,14 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Bibliotecas JavaScript servidas localmente e versionadas junto ao deploy.
 VENDOR_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vendor")
-if not os.path.isdir(VENDOR_DIR):
-    raise RuntimeError("Pasta vendor ausente; inclua as bibliotecas locais no deploy.")
+REQUIRED_VENDOR_ASSETS = ("chart.umd.min.js", "html5-qrcode.min.js")
+missing_vendor_assets = [
+    asset for asset in REQUIRED_VENDOR_ASSETS
+    if not os.path.isfile(os.path.join(VENDOR_DIR, asset))
+]
+if missing_vendor_assets:
+    missing_list = ", ".join(missing_vendor_assets)
+    raise RuntimeError(f"Arquivos locais ausentes em vendor/: {missing_list}")
 app.mount("/vendor", StaticFiles(directory=VENDOR_DIR), name="vendor")
 
 @app.middleware("http")
@@ -400,6 +406,20 @@ async def security_headers(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=()"
+    # Impõe a política principal. Scripts ficam limitados à origem da aplicação;
+    # estilos inline são permitidos para compatibilidade com o scanner QR.
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "style-src-elem 'self' 'unsafe-inline'; "
+        "style-src-attr 'unsafe-inline'; "
+        "img-src 'self' data: blob:; font-src 'self' data:; "
+        "connect-src 'self'; worker-src 'self' blob:; "
+        "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+    )
+    # Mantém o relatório mais restritivo para identificar estilos inline futuros
+    # sem bloquear o fluxo de leitura QR enquanto ele é acompanhado.
     response.headers["Content-Security-Policy-Report-Only"] = (
         "default-src 'self'; "
         "script-src 'self'; "

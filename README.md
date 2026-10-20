@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.59.0 — CSP ativa e validação de bibliotecas locais
+
+A política de segurança de conteúdo agora é aplicada pelo navegador: scripts só podem vir da própria aplicação, formulários e conexões ficam limitados à origem, e conteúdo de objetos e enquadramento são bloqueados. Estilos inline continuam permitidos para preservar o leitor QR; a política Report-Only mais restritiva continua registrando possíveis violações de estilo. O backend também confere na inicialização se os dois arquivos JavaScript obrigatórios existem em `vendor/` e identifica os nomes ausentes no erro.
+
 ## v0.58.0 — Encerramento remoto de sessões
 
 O CEO pode encerrar todas as sessões ativas de outro usuário da própria organização pela aba **Usuários**. A ação exige confirmação, mostra quantas sessões foram revogadas e registra o evento na auditoria. A conta CEO e a própria conta do operador ficam protegidas nessa ação; para encerrar as próprias sessões, use **Sair** ou troque a senha em **Minha conta**.

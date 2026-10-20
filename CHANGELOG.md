@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.59.0 — CSP ativa e validação de bibliotecas locais
+- Ativada uma Content Security Policy que restringe scripts, conexões e formulários à própria origem, bloqueia objetos e impede enquadramento da aplicação.
+- Estilos inline permanecem permitidos para compatibilidade com o scanner QR; a política Report-Only mais restritiva continua disponível para observação.
+- A inicialização agora verifica os arquivos JavaScript locais obrigatórios e informa exatamente quais estão faltando em `vendor/`.
+- Corrigida a versão declarada na documentação OpenAPI, que estava desatualizada.
+
 ## v0.58.0 — Encerramento remoto de sessões
 - CEO pode revogar todas as sessões ativas de outro usuário da própria organização pela aba Usuários.
 - A rota valida o papel, o tenant e o estado da conta; protege a conta CEO e impede autoencerramento acidental.

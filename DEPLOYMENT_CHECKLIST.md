@@ -17,7 +17,8 @@
 - [ ] Build e start terminaram sem erros.
 - [ ] `/health` responde HTTP 200.
 - [ ] `/vendor/chart.umd.min.js` e `/vendor/html5-qrcode.min.js` respondem HTTP 200; a aba Network não mostra chamadas aos CDNs.
-- [ ] CSP permanece Report-Only; observar o Console durante os fluxos comuns e QR antes de considerar bloqueio.
+- [ ] O cabeçalho `Content-Security-Policy` está presente; confirme que `script-src` não permite CDNs ou scripts inline.
+- [ ] A política CSP Report-Only continua gerando somente relatórios; observar o Console durante os fluxos comuns, o leitor QR e o relatório de OS.
 
 ## Testes pós-deploy
 

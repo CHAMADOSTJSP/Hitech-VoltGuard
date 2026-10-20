@@ -6,13 +6,14 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 ## Melhorias aplicadas nesta revisão
 
+- v0.59.0: CSP passou a ser aplicada; scripts, conexões e formulários ficam restritos à origem, objetos e enquadramento são bloqueados. Estilos inline seguem permitidos para manter compatibilidade com o scanner QR; a política Report-Only restritiva continua ativa para observação. A inicialização confere os arquivos JavaScript obrigatórios de `vendor/` e identifica os ausentes.
 - v0.58.0: CEO pode encerrar remotamente todas as sessões ativas de outro usuário do próprio tenant; a API bloqueia contas CEO, autoencerramento e contas desativadas, informa a quantidade revogada e registra auditoria.
 - v0.56.0: gestão de usuários exclusiva do CEO e isolada por tenant; criação de contas operacionais, alteração de perfil e ativação/desativação; senhas nunca retornam pela API; desativação e mudança de perfil revogam sessões; eventos de gestão são auditados. Migração compatível adiciona `users.is_active` às bases existentes. Blueprint Render alinhado a Docker.
 - v0.57.0: troca de senha autenticada pelo próprio usuário, exigindo senha atual, senha nova diferente e mínimo de 12 caracteres; todas as sessões são revogadas e a operação é auditada sem persistir segredos no evento. A rota possui limite de tentativas.
 - v0.55.0: matriz central de autorização por perfil; telemetria autenticada restrita aos papéis operacionais; módulos Ativos/Manutenção disponíveis ao Técnico de Campo, com edição de ativos ainda limitada a CEO/Gerente.
 - v0.54.0: envios de webhook conectam ao IP público resolvido e validado no momento da entrega, com Host/SNI originais para conservar o roteamento e a verificação TLS. Requests não seguem redirects, ignoram proxies do ambiente e não carregam corpos de resposta.
 - v0.53.0: Chart.js 4.5.1 e html5-qrcode 2.3.8 passaram a ser servidos localmente em `vendor/`; versões fixadas e licenças distribuídas com a aplicação. CSP Report-Only não permite mais scripts de CDNs.
-- A CSP continua em modo Report-Only até ser observado o fluxo do scanner QR; a biblioteca pode aplicar estilos inline gerados em tempo de execução.
+- A CSP ativa permite estilos inline para preservar compatibilidade com o scanner QR. A política Report-Only mais restritiva permanece para observar violações. Antes de endurecer a política de estilos, validar os fluxos do scanner QR e do relatório de OS em navegador.
 - v0.50.0: folha de estilos principal separada em `styles.css`, servida pelo FastAPI com `Cache-Control: no-store` e incluída na imagem Docker. Atributos de estilo dinâmicos e estilos do relatório gerado ainda impedem CSP estrita.
 - v0.49.0: removidos eventos inline de clique, alteração, entrada e envio de formulário; listeners delegados encaminham ações por listas explícitas. Estilos inline restantes impedem CSP estrita.
 - v0.48.0: ações de clique das telas dinâmicas migradas para delegação baseada em `data-action` e lista explícita de operações. Eventos inline de alteração/entrada e estilos inline restantes ainda impedem CSP estrita.
