@@ -2,7 +2,10 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt "pyotp>=2.9,<3.0" \
+RUN pip install --no-cache-dir -r requirements.txt \
+    "pyotp>=2.9,<3.0" \
+    "qrcode[pil]>=8.2,<9.0" \
+    "cryptography>=42,<47" \
     && python -c "import pyotp, qrcode, cryptography; print('MFA dependencies installed')"
 COPY main.py index.html app.js styles.css report.css ./
 COPY vendor/ ./vendor/

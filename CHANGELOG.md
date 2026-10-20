@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.63.2 — Instalação completa das dependências MFA
+
+- O Dockerfile instala explicitamente PyOTP, qrcode com Pillow e cryptography antes de validar as importações; o build não depende apenas de a lista de dependências ter sido atualizada corretamente.
+
 ## v0.63.1 — Dependências MFA verificadas no build
 
 - O Dockerfile instala explicitamente PyOTP e verifica PyOTP, QR Code e cryptography durante o build, evitando que uma imagem sem essas bibliotecas chegue à inicialização do serviço.

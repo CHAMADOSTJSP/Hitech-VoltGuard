@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.63.2 — Dependências MFA no Docker
+
+O Dockerfile instala diretamente PyOTP, qrcode com Pillow e cryptography, além de instalar `requirements.txt`. O build verifica as três importações antes de concluir a imagem.
+
 ## v0.63.1 — Verificação das dependências MFA
 
 O build Docker instala PyOTP explicitamente e confirma que PyOTP, qrcode e cryptography podem ser importados antes de criar a imagem final. Se faltar alguma biblioteca, o deploy para no build com o erro de dependência, sem iniciar uma versão quebrada.
