@@ -6,6 +6,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 ## Melhorias aplicadas nesta revisão
 
+- v0.55.0: matriz central de autorização por perfil; telemetria autenticada restrita aos papéis operacionais; módulos Ativos/Manutenção disponíveis ao Técnico de Campo, com edição de ativos ainda limitada a CEO/Gerente.
 - v0.54.0: envios de webhook conectam ao IP público resolvido e validado no momento da entrega, com Host/SNI originais para conservar o roteamento e a verificação TLS. Requests não seguem redirects, ignoram proxies do ambiente e não carregam corpos de resposta.
 - v0.53.0: Chart.js 4.5.1 e html5-qrcode 2.3.8 passaram a ser servidos localmente em `vendor/`; versões fixadas e licenças distribuídas com a aplicação. CSP Report-Only não permite mais scripts de CDNs.
 - A CSP continua em modo Report-Only até ser observado o fluxo do scanner QR; a biblioteca pode aplicar estilos inline gerados em tempo de execução.

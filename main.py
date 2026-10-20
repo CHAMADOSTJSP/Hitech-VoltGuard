@@ -365,7 +365,7 @@ async def post_webhook_event(value: str, payload: dict) -> int:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.54.0",
+    version="0.55.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -575,6 +575,18 @@ class User(BaseModel):
     plan: str
     token_id: Optional[str] = None
 
+
+# Matriz central de autorização. A interface pode ocultar módulos, mas somente
+# estas regras no backend concedem ou negam acesso às operações.
+ROLE_CEO = frozenset({"CEO"})
+ROLE_MANAGERS = frozenset({"CEO", "Gerente"})
+ROLE_OPERATIONS = frozenset({"CEO", "Gerente", "Técnico de Campo"})
+
+
+def require_roles(current_user: User, allowed_roles: frozenset[str], detail: str) -> None:
+    if current_user.role not in allowed_roles:
+        raise HTTPException(status_code=403, detail=detail)
+
 class TelemetryData(BaseModel):
     panel_id: str
     temperature: float
@@ -738,8 +750,7 @@ def register_tenant(request: Request, data: dict, db: Session = Depends(get_db))
 
 @app.post("/api/tenant/webhook")
 def save_webhook(data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role != "CEO":
-        raise HTTPException(status_code=403, detail="Acesso restrito a CEO.")
+    require_roles(current_user, ROLE_CEO, "Acesso restrito a CEO.")
     webhook_url = validate_webhook_url(str(data.get("webhook_url", "")).strip())
     sub = db.query(TenantSubscriptionModel).filter(TenantSubscriptionModel.tenant_id == current_user.tenant_id).first()
     if not sub:
@@ -752,8 +763,7 @@ def save_webhook(data: dict, db: Session = Depends(get_db), current_user: User =
 @app.post("/api/tenant/webhook/test")
 async def test_webhook(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Envia um evento de teste ao endpoint salvo, sem criar alarmes."""
-    if current_user.role != "CEO":
-        raise HTTPException(status_code=403, detail="Acesso restrito a CEO.")
+    require_roles(current_user, ROLE_CEO, "Acesso restrito a CEO.")
     sub = db.query(TenantSubscriptionModel).filter(
         TenantSubscriptionModel.tenant_id == current_user.tenant_id
     ).first()
@@ -794,8 +804,7 @@ async def test_webhook(db: Session = Depends(get_db), current_user: User = Depen
 
 @app.post("/api/tenant/rules")
 def update_tenant_rules(data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in ["CEO", "Gerente"]:
-        raise HTTPException(status_code=403, detail="Acesso restrito para alterar regras de alarme.")
+    require_roles(current_user, ROLE_MANAGERS, "Acesso restrito para alterar regras de alarme.")
         
     try:
         max_temp = float(data.get("max_temperature", 85.0))
@@ -819,8 +828,7 @@ def update_tenant_rules(data: dict, db: Session = Depends(get_db), current_user:
 
 @app.post("/api/panels/add")
 def add_panel(data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in ["CEO", "Gerente"]:
-        raise HTTPException(status_code=403, detail="Acesso restrito para adicionar painéis.")
+    require_roles(current_user, ROLE_MANAGERS, "Acesso restrito para adicionar painéis.")
     
     raw_id = data.get("id", "")
     raw_name = data.get("name", "")
@@ -895,8 +903,7 @@ def get_panel_alarm_rules(panel_id: str, db: Session = Depends(get_db), current_
 
 @app.put("/api/panels/{panel_id}/alarm-rules", tags=["Alarm Rules"])
 def save_panel_alarm_rules(panel_id: str, data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in {"CEO", "Gerente"}:
-        raise HTTPException(status_code=403, detail="Sem permissão para alterar regras de alarme.")
+    require_roles(current_user, ROLE_MANAGERS, "Sem permissão para alterar regras de alarme.")
     panel = db.query(PanelModel).filter(PanelModel.id == panel_id, PanelModel.tenant_id == current_user.tenant_id).first()
     if not panel:
         raise HTTPException(status_code=404, detail="Painel não encontrado nesta organização.")
@@ -926,8 +933,7 @@ def save_panel_alarm_rules(panel_id: str, data: dict, db: Session = Depends(get_
 
 @app.delete("/api/panels/{panel_id}/alarm-rules", tags=["Alarm Rules"])
 def delete_panel_alarm_rules(panel_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in {"CEO", "Gerente"}:
-        raise HTTPException(status_code=403, detail="Sem permissão para alterar regras de alarme.")
+    require_roles(current_user, ROLE_MANAGERS, "Sem permissão para alterar regras de alarme.")
     panel = db.query(PanelModel).filter(PanelModel.id == panel_id, PanelModel.tenant_id == current_user.tenant_id).first()
     if not panel:
         raise HTTPException(status_code=404, detail="Painel não encontrado nesta organização.")
@@ -942,6 +948,7 @@ def delete_panel_alarm_rules(panel_id: str, db: Session = Depends(get_db), curre
 
 @app.post("/api/telemetry", tags=["Industrial Ingestion"])
 def ingest_telemetry(data: TelemetryData, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    require_roles(current_user, ROLE_OPERATIONS, "Sem permissão para enviar telemetria nesta organização.")
     import math
     if not data.panel_id or len(data.panel_id) > 100:
         raise HTTPException(status_code=422, detail="ID de painel inválido.")
@@ -1009,8 +1016,7 @@ def ingest_telemetry(data: TelemetryData, current_user: User = Depends(get_curre
 
 @app.post("/api/demo/force-failure")
 async def force_failure(data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in ["CEO", "Gerente"]:
-        raise HTTPException(status_code=403, detail="Apenas CEO ou Gerente pode executar simulações.")
+    require_roles(current_user, ROLE_MANAGERS, "Apenas CEO ou Gerente pode executar simulações.")
     raw_panel_id = data.get("panel_id", "")
     panel_id = raw_panel_id.strip() if isinstance(raw_panel_id, str) else ""
     panel = db.query(PanelModel).filter(PanelModel.id == panel_id, PanelModel.tenant_id == current_user.tenant_id).first()
@@ -1220,8 +1226,7 @@ def list_audit_logs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if current_user.role != "CEO":
-        raise HTTPException(status_code=403, detail="Somente CEO pode consultar o registro de auditoria.")
+    require_roles(current_user, ROLE_CEO, "Somente CEO pode consultar o registro de auditoria.")
     if limit < 1 or limit > 200 or offset < 0:
         raise HTTPException(status_code=422, detail="Paginação inválida. O limite deve ser de 1 a 200 e o deslocamento não pode ser negativo.")
     if date_from and date_to and date_from > date_to:
@@ -1325,8 +1330,7 @@ def list_alarms(status_filter: Optional[str] = None, db: Session = Depends(get_d
 
 @app.post("/api/alarms/{alarm_id}/acknowledge")
 def acknowledge_alarm(alarm_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in {"CEO", "Gerente", "Técnico de Campo"}:
-        raise HTTPException(status_code=403, detail="Sem permissão para reconhecer alarmes.")
+    require_roles(current_user, ROLE_OPERATIONS, "Sem permissão para reconhecer alarmes.")
     alarm = db.query(AlarmModel).filter(AlarmModel.id == alarm_id, AlarmModel.tenant_id == current_user.tenant_id).first()
     if not alarm:
         raise HTTPException(status_code=404, detail="Alarme não encontrado nesta organização.")
@@ -1344,8 +1348,7 @@ def acknowledge_alarm(alarm_id: int, db: Session = Depends(get_db), current_user
 @app.post("/api/alarms/{alarm_id}/work-order", status_code=201, tags=["Work Orders"])
 def create_work_order_from_alarm(alarm_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Create one traceable maintenance order from an open alarm."""
-    if current_user.role not in {"CEO", "Gerente", "Técnico de Campo"}:
-        raise HTTPException(status_code=403, detail="Sem permissão para criar ordens de serviço.")
+    require_roles(current_user, ROLE_OPERATIONS, "Sem permissão para criar ordens de serviço.")
     alarm = db.query(AlarmModel).filter(
         AlarmModel.id == alarm_id, AlarmModel.tenant_id == current_user.tenant_id
     ).first()
@@ -1427,8 +1430,7 @@ def create_work_order_from_alarm(alarm_id: int, db: Session = Depends(get_db), c
 
 @app.post("/api/alarms/{alarm_id}/clear")
 def clear_alarm(alarm_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in {"CEO", "Gerente", "Técnico de Campo"}:
-        raise HTTPException(status_code=403, detail="Sem permissão para encerrar alarmes.")
+    require_roles(current_user, ROLE_OPERATIONS, "Sem permissão para encerrar alarmes.")
     alarm = db.query(AlarmModel).filter(AlarmModel.id == alarm_id, AlarmModel.tenant_id == current_user.tenant_id).first()
     if not alarm:
         raise HTTPException(status_code=404, detail="Alarme não encontrado nesta organização.")
@@ -1475,8 +1477,7 @@ def get_panel_by_qr(qr_code: str, db: Session = Depends(get_db), current_user: U
 
 @app.post("/api/inventory/update")
 def update_inventory_item(data: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in ["CEO", "Gerente"]:
-        raise HTTPException(status_code=403, detail="Acesso restrito.")
+    require_roles(current_user, ROLE_MANAGERS, "Acesso restrito.")
     
     part_name = data.get("part_name")
     category = data.get("category", "Elétrica")
@@ -1838,8 +1839,7 @@ def list_work_order_checklist_templates(db: Session = Depends(get_db), current_u
 
 @app.post("/api/work-order-checklist-templates", status_code=201)
 def create_work_order_checklist_template(data: WorkOrderChecklistTemplateCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in {"CEO", "Gerente"}:
-        raise HTTPException(status_code=403, detail="Somente CEO ou Gerente pode criar modelos de checklist.")
+    require_roles(current_user, ROLE_MANAGERS, "Somente CEO ou Gerente pode criar modelos de checklist.")
     name = data.name.strip()
     items = [item.strip() for item in data.items if item.strip()]
     if not name or len(name) > 120:
@@ -1869,8 +1869,7 @@ def create_work_order_checklist_template(data: WorkOrderChecklistTemplateCreate,
 
 @app.delete("/api/work-order-checklist-templates/{template_id}")
 def delete_work_order_checklist_template(template_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in {"CEO", "Gerente"}:
-        raise HTTPException(status_code=403, detail="Somente CEO ou Gerente pode remover modelos de checklist.")
+    require_roles(current_user, ROLE_MANAGERS, "Somente CEO ou Gerente pode remover modelos de checklist.")
     template = db.query(WorkOrderChecklistTemplateModel).filter(
         WorkOrderChecklistTemplateModel.id == template_id,
         WorkOrderChecklistTemplateModel.tenant_id == current_user.tenant_id,
@@ -1887,8 +1886,7 @@ def delete_work_order_checklist_template(template_id: int, db: Session = Depends
 
 @app.post("/api/work-orders", status_code=201)
 def create_work_order(data: WorkOrderCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in ["CEO", "Gerente", "Técnico de Campo"]:
-        raise HTTPException(status_code=403, detail="Sem permissão para criar ordens de serviço.")
+    require_roles(current_user, ROLE_OPERATIONS, "Sem permissão para criar ordens de serviço.")
     panel_id, title = data.panel_id.strip(), data.title.strip()
     if not panel_id or len(panel_id) > 100 or not title or len(title) > 200:
         raise HTTPException(status_code=422, detail="ID do painel ou título inválido.")
@@ -1921,8 +1919,7 @@ def create_work_order(data: WorkOrderCreate, db: Session = Depends(get_db), curr
 
 @app.patch("/api/work-orders/{order_id}")
 def update_work_order(order_id: int, data: WorkOrderUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in ["CEO", "Gerente", "Técnico de Campo"]:
-        raise HTTPException(status_code=403, detail="Sem permissão para atualizar ordens de serviço.")
+    require_roles(current_user, ROLE_OPERATIONS, "Sem permissão para atualizar ordens de serviço.")
     order = db.query(WorkOrderModel).filter(WorkOrderModel.id == order_id, WorkOrderModel.tenant_id == current_user.tenant_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Ordem de serviço não encontrada.")
@@ -2026,8 +2023,7 @@ def update_work_order_checklist_item(
     order_id: int, item_id: int, data: WorkOrderChecklistItemUpdate,
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
-    if current_user.role not in {"CEO", "Gerente", "Técnico de Campo"}:
-        raise HTTPException(status_code=403, detail="Sem permissão para atualizar o checklist da ordem.")
+    require_roles(current_user, ROLE_OPERATIONS, "Sem permissão para atualizar o checklist da ordem.")
     order = db.query(WorkOrderModel).filter(
         WorkOrderModel.id == order_id, WorkOrderModel.tenant_id == current_user.tenant_id
     ).first()
@@ -2142,8 +2138,7 @@ def list_assets(db: Session = Depends(get_db), current_user: User = Depends(get_
 
 @app.post("/api/assets", status_code=201)
 def create_asset(data: AssetCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in {"CEO", "Gerente", "Técnico de Campo"}:
-        raise HTTPException(status_code=403, detail="Sem permissão para cadastrar ativos.")
+    require_roles(current_user, ROLE_OPERATIONS, "Sem permissão para cadastrar ativos.")
     tag, name = data.asset_tag.strip(), data.name.strip()
     if not tag or len(tag) > 80 or not name or len(name) > 160:
         raise HTTPException(status_code=422, detail="Identificação ou nome do ativo inválido.")
@@ -2162,8 +2157,7 @@ def create_asset(data: AssetCreate, db: Session = Depends(get_db), current_user:
 
 @app.patch("/api/assets/{asset_id}")
 def update_asset(asset_id: int, data: AssetUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in {"CEO", "Gerente"}:
-        raise HTTPException(status_code=403, detail="Sem permissão para editar ativos.")
+    require_roles(current_user, ROLE_MANAGERS, "Sem permissão para editar ativos.")
     row = db.query(AssetModel).filter(AssetModel.id == asset_id, AssetModel.tenant_id == current_user.tenant_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Ativo não encontrado nesta organização.")
@@ -2215,8 +2209,7 @@ def list_maintenance_plans(db: Session = Depends(get_db), current_user: User = D
 
 @app.post("/api/maintenance/plans", status_code=201)
 def create_maintenance_plan(data: MaintenancePlanCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in {"CEO", "Gerente", "Técnico de Campo"}:
-        raise HTTPException(status_code=403, detail="Sem permissão para criar planos de manutenção.")
+    require_roles(current_user, ROLE_OPERATIONS, "Sem permissão para criar planos de manutenção.")
     if not data.title.strip() or len(data.title) > 180 or not 1 <= data.interval_days <= 3650 or len(data.checklist) > 4000:
         raise HTTPException(status_code=422, detail="Título, periodicidade ou checklist inválido.")
     asset = db.query(AssetModel).filter(AssetModel.id == data.asset_id, AssetModel.tenant_id == current_user.tenant_id).first()
@@ -2237,8 +2230,7 @@ def list_maintenance_tasks(db: Session = Depends(get_db), current_user: User = D
 
 @app.post("/api/maintenance/tasks", status_code=201)
 def create_maintenance_task(data: MaintenanceTaskCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in {"CEO", "Gerente", "Técnico de Campo"}:
-        raise HTTPException(status_code=403, detail="Sem permissão para criar tarefas.")
+    require_roles(current_user, ROLE_OPERATIONS, "Sem permissão para criar tarefas.")
     asset = db.query(AssetModel).filter(AssetModel.id == data.asset_id, AssetModel.tenant_id == current_user.tenant_id).first()
     if not asset: raise HTTPException(status_code=404, detail="Ativo não encontrado nesta organização.")
     if not data.title.strip() or len(data.title) > 180 or len(data.notes) > 4000:
@@ -2249,8 +2241,7 @@ def create_maintenance_task(data: MaintenanceTaskCreate, db: Session = Depends(g
 
 @app.patch("/api/maintenance/tasks/{task_id}")
 def update_maintenance_task(task_id: int, data: MaintenanceTaskUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in {"CEO", "Gerente", "Técnico de Campo"}:
-        raise HTTPException(status_code=403, detail="Sem permissão para atualizar tarefas de manutenção.")
+    require_roles(current_user, ROLE_OPERATIONS, "Sem permissão para atualizar tarefas de manutenção.")
     row = db.query(MaintenanceTaskModel).filter(MaintenanceTaskModel.id == task_id, MaintenanceTaskModel.tenant_id == current_user.tenant_id).first()
     if not row: raise HTTPException(status_code=404, detail="Tarefa não encontrada.")
     if data.status not in {"PENDENTE", "EM_ANDAMENTO", "CONCLUIDA", "CANCELADA"}: raise HTTPException(status_code=422, detail="Estado inválido.")
@@ -2302,7 +2293,7 @@ def list_device_credentials(db: Session = Depends(get_db), current_user: User = 
 
 @app.post("/api/devices/credentials", status_code=201)
 def create_device_credential(data: DeviceCredentialCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in {"CEO", "Gerente"}: raise HTTPException(status_code=403, detail="Somente CEO ou Gerente pode criar credenciais.")
+    require_roles(current_user, ROLE_MANAGERS, "Somente CEO ou Gerente pode criar credenciais.")
     panel = db.query(PanelModel).filter(PanelModel.id == data.panel_id, PanelModel.tenant_id == current_user.tenant_id).first()
     if not panel: raise HTTPException(status_code=404, detail="Painel não encontrado nesta organização.")
     if not data.name.strip() or len(data.name) > 120: raise HTTPException(status_code=422, detail="Nome da credencial inválido.")
@@ -2314,7 +2305,7 @@ def create_device_credential(data: DeviceCredentialCreate, db: Session = Depends
 
 @app.post("/api/devices/credentials/{credential_id}/revoke")
 def revoke_device_credential(credential_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role not in {"CEO", "Gerente"}: raise HTTPException(status_code=403, detail="Sem permissão para revogar credenciais.")
+    require_roles(current_user, ROLE_MANAGERS, "Sem permissão para revogar credenciais.")
     row = db.query(DeviceCredentialModel).filter(DeviceCredentialModel.id == credential_id, DeviceCredentialModel.tenant_id == current_user.tenant_id).first()
     if not row: raise HTTPException(status_code=404, detail="Credencial não encontrada.")
     if row.revoked_at:

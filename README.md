@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.55.0 — Permissões por perfil
+
+As permissões das rotas de escrita usam uma matriz central no backend: CEO e Gerente administram configurações e credenciais; CEO, Gerente e Técnico de Campo podem executar operações de campo, como reconhecer alarmes e manter tarefas. Técnico de Campo pode cadastrar ativos, planos e tarefas, mas não editar ativos, administrar credenciais, alterar regras, configurar webhooks ou consultar auditoria. A interface agora mostra Ativos e Manutenção para esse perfil e oculta a edição de ativos. O cadastro de organização continua criando apenas o primeiro usuário CEO; gestão de usuários e atribuição de outros perfis ainda não estão disponíveis na interface.
+
 ## v0.54.0 — Proteção do destino de webhooks
 
 Antes de cada envio, o backend valida os endereços DNS e conecta ao IP público aprovado, preservando Host e SNI para a validação do certificado. Redirects e proxies definidos no ambiente não são usados. A resposta do endpoint não é carregada.

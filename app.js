@@ -189,6 +189,9 @@
                 html += `<button type="button" class="tab-btn" id="t-maintenance" data-action="switch-tab" data-tab="maintenance">🧰 Manutenção</button>`;
                 html += `<button type="button" class="tab-btn" id="t-devices" data-action="switch-tab" data-tab="devices">🔑 Dispositivos</button>`;
                 html += `<button type="button" class="tab-btn" id="t-rules" data-action="switch-tab" data-tab="rules">⚙️ Regras de Alarme</button>`;
+            } else if (currentCargo === 'Técnico de Campo') {
+                html += `<button type="button" class="tab-btn" id="t-assets" data-action="switch-tab" data-tab="assets">🏷️ Ativos</button>`;
+                html += `<button type="button" class="tab-btn" id="t-maintenance" data-action="switch-tab" data-tab="maintenance">🧰 Manutenção</button>`;
             }
             html += `<button type="button" class="tab-btn" id="t-alarms" data-action="switch-tab" data-tab="alarms">🚨 Central de Alarmes</button>`;
             html += `<button type="button" class="tab-btn" id="t-orders" data-action="switch-tab" data-tab="orders">📋 Ordens de Serviço</button>`;
@@ -1026,7 +1029,10 @@
         function renderizarLinhaAtivo(a, lista) {
             const id = Number(a.id);
             const status = a.status || 'ATIVO';
-            const row = `<tr><td>${escapeHtml(a.asset_tag)}</td><td>${escapeHtml(a.name)}</td><td>${escapeHtml(a.asset_type)}</td><td>${escapeHtml(a.location||'—')}</td><td>${escapeHtml(a.panel_id||'—')}</td><td>${escapeHtml(a.serial_number||'—')}</td><td data-vg-style="${status==='ATIVO'?'asset-status-active':status==='MANUTENCAO'?'asset-status-maintenance':'asset-status-inactive'}">${escapeHtml(status)}</td><td><button type="button" class="btn-action" data-action="toggle-asset-edit" data-asset-id="${id}">${assetEditOpen.has(id)?'Fechar edição':'Editar'}</button></td></tr>`;
+            const canManageAssets = ['CEO', 'Gerente'].includes(currentCargo);
+            const editAction = canManageAssets ? `<button type="button" class="btn-action" data-action="toggle-asset-edit" data-asset-id="${id}">${assetEditOpen.has(id)?'Fechar edição':'Editar'}</button>` : '—';
+            const row = `<tr><td>${escapeHtml(a.asset_tag)}</td><td>${escapeHtml(a.name)}</td><td>${escapeHtml(a.asset_type)}</td><td>${escapeHtml(a.location||'—')}</td><td>${escapeHtml(a.panel_id||'—')}</td><td>${escapeHtml(a.serial_number||'—')}</td><td data-vg-style="${status==='ATIVO'?'asset-status-active':status==='MANUTENCAO'?'asset-status-maintenance':'asset-status-inactive'}">${escapeHtml(status)}</td><td>${editAction}</td></tr>`;
+            if (!canManageAssets) return row;
             if (!assetEditOpen.has(id)) return row;
             return row + `<tr><td colspan="8"><div data-vg-style="static-82267458c46d">
                 <div class="input-group"><label>Tag / patrimônio</label><input id="asset-edit-${id}-asset_tag" value="${escapeHtml(a.asset_tag)}" maxlength="80"></div>
@@ -1710,6 +1716,7 @@
                     aplicarModeloChecklistOS();
                     break;
                 case 'toggle-asset-edit': {
+                    if (!['CEO', 'Gerente'].includes(currentCargo)) break;
                     const id = Number(target.dataset.assetId);
                     assetEditOpen.has(id) ? assetEditOpen.delete(id) : assetEditOpen.add(id);
                     renderizar();

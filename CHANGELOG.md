@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.55.0 — Autorização centralizada por perfil
+- Centralizada a matriz de papéis no backend para CEO, Gerente e Técnico de Campo; as rotas de escrita passam a compartilhar a mesma checagem de autorização.
+- A rota autenticada de telemetria agora aceita apenas os perfis operacionais definidos.
+- Técnico de Campo passa a ver os módulos Ativos e Manutenção, que já podia usar pela API; a edição de ativos continua restrita a CEO e Gerente.
+- As verificações no backend continuam obrigatórias mesmo quando a interface oculta ações.
+
 ## v0.54.0 — Mitigação de DNS rebinding em webhooks
 - Os envios de webhook resolvem e validam todos os endereços e conectam diretamente ao IP público aprovado, mantendo o Host e SNI originais para validação TLS.
 - Redirecionamentos e proxies definidos por variáveis de ambiente são desativados; o corpo da resposta não é carregado.
