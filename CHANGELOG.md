@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.62.3 — Troca de senha ao ativar MFA
+
+- No primeiro cadastro do autenticador, a confirmação TOTP agora abre uma etapa obrigatória para escolher e confirmar uma nova senha (mínimo de 12 caracteres).
+- MFA só é ativado após a troca de senha; os códigos de recuperação são emitidos ao final e exibidos uma única vez.
+- O desafio intermediário expira em 10 minutos, é de uso único e é consumido atomicamente; demais sessões são revogadas e a sessão atual é encerrada após o usuário confirmar que guardou os códigos.
+- Migração compatível adiciona colunas opcionais para o desafio temporário.
+
 ## v0.62.2 — QR Code para configurar MFA
 
 - A configuração MFA agora exibe QR Code compatível com Microsoft Authenticator e outros aplicativos TOTP, além da chave manual.

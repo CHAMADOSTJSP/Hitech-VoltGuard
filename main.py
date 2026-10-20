@@ -284,6 +284,8 @@ class UserModel(Base):
     totp_pending_secret_encrypted = Column(Text, nullable=True)
     totp_recovery_hashes = Column(Text, nullable=True)
     totp_last_step = Column(Integer, nullable=True)
+    totp_setup_challenge_hash = Column(String(64), nullable=True)
+    totp_setup_challenge_expires_at = Column(DateTime, nullable=True)
 
 class WebSocketTicketModel(Base):
     __tablename__ = "websocket_tickets"
@@ -376,7 +378,7 @@ async def post_webhook_event(value: str, payload: dict) -> int:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.62.2",
+    version="0.62.3",
 )
 # RATE_LIMIT_STORAGE_URI is optional. Leave it unset for the current per-process
 # memory store; use a managed Redis URL in the hosting provider for shared limits.
@@ -688,6 +690,8 @@ def init_db():
                     "totp_pending_secret_encrypted": "TEXT",
                     "totp_recovery_hashes": "TEXT",
                     "totp_last_step": "INTEGER",
+                    "totp_setup_challenge_hash": "VARCHAR(64)",
+                    "totp_setup_challenge_expires_at": "TIMESTAMP",
                 }
                 for column_name, column_type in user_compatibility_columns.items():
                     if column_name not in user_columns:
@@ -847,6 +851,8 @@ def start_mfa_setup(request: Request, data: dict, db: Session = Depends(get_db),
         raise HTTPException(status_code=409, detail="MFA já está ativo nesta conta.")
     secret = pyotp.random_base32()
     db_user.totp_pending_secret_encrypted = encrypt_totp_secret(secret)
+    db_user.totp_setup_challenge_hash = None
+    db_user.totp_setup_challenge_expires_at = None
     db.commit()
     uri = pyotp.TOTP(secret).provisioning_uri(name=db_user.username, issuer_name="HITECH VoltGuard")
     qr_image = qrcode.make(uri)
@@ -868,23 +874,87 @@ def confirm_mfa_setup(request: Request, data: dict, db: Session = Depends(get_db
     secret = decrypt_totp_secret(db_user.totp_pending_secret_encrypted if db_user else None)
     if not db_user or not secret or not verify_and_record_totp(db, db_user, code, secret):
         raise HTTPException(status_code=400, detail="Código inválido ou configuração expirada. Inicie a configuração novamente.")
+    setup_challenge = secrets.token_urlsafe(32)
+    db_user.totp_setup_challenge_hash = hashlib.sha256(setup_challenge.encode("ascii")).hexdigest()
+    db_user.totp_setup_challenge_expires_at = datetime.utcnow() + timedelta(minutes=10)
+    db.commit()
+    return {"status": "verified", "setup_challenge": setup_challenge,
+            "message": "Código confirmado. Escolha agora uma nova senha para concluir a ativação do MFA."}
+
+@app.post("/api/account/mfa/complete", tags=["Authentication"])
+@limiter.limit("5/hour")
+def complete_mfa_setup(request: Request, data: dict, db: Session = Depends(get_db),
+                       current_user: User = Depends(get_current_user)):
+    """Completa o primeiro enrollment MFA, troca a senha e emite recovery codes uma vez."""
+    if current_user.role not in {"CEO", "Gerente"}:
+        raise HTTPException(status_code=403, detail="MFA de administrador disponível somente para CEO e Gerente.")
+    if not isinstance(data, dict) or set(data) != {"setup_challenge", "new_password", "confirm_password"}:
+        raise HTTPException(status_code=422, detail="Informe a confirmação MFA e a nova senha duas vezes.")
+    challenge = data.get("setup_challenge")
+    new_password = data.get("new_password")
+    confirm_password = data.get("confirm_password")
+    if not all(isinstance(value, str) for value in (challenge, new_password, confirm_password)):
+        raise HTTPException(status_code=422, detail="Os campos informados devem ser texto válido.")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{43}", challenge):
+        raise HTTPException(status_code=400, detail="A confirmação da configuração MFA é inválida. Reinicie o processo.")
+    if not secrets.compare_digest(new_password, confirm_password):
+        raise HTTPException(status_code=400, detail="A confirmação da nova senha não corresponde.")
+    if len(new_password) < 12 or len(new_password) > 256:
+        raise HTTPException(status_code=422, detail="A nova senha deve ter entre 12 e 256 caracteres.")
+
+    now = datetime.utcnow()
+    challenge_hash = hashlib.sha256(challenge.encode("ascii", errors="ignore")).hexdigest()
+    db_user = db.query(UserModel).filter(
+        UserModel.username == current_user.username,
+        UserModel.is_active.is_(True),
+        UserModel.totp_enabled.is_(False),
+        UserModel.totp_pending_secret_encrypted.isnot(None),
+        UserModel.totp_setup_challenge_hash == challenge_hash,
+        UserModel.totp_setup_challenge_expires_at > now,
+    ).first()
+    if not db_user:
+        raise HTTPException(status_code=400, detail="Confirmação MFA expirada. Reinicie a configuração do autenticador.")
+    if verify_password(new_password, db_user.password):
+        raise HTTPException(status_code=422, detail="Escolha uma senha diferente da senha atual.")
+
+    # Consome o desafio de forma condicional para que duas requisições simultâneas
+    # não concluam o mesmo cadastro nem emitam conjuntos diferentes de recuperação.
+    consumed = db.query(UserModel).filter(
+        UserModel.username == current_user.username,
+        UserModel.totp_setup_challenge_hash == challenge_hash,
+        UserModel.totp_setup_challenge_expires_at > now,
+    ).update({
+        UserModel.totp_setup_challenge_hash: None,
+        UserModel.totp_setup_challenge_expires_at: None,
+    }, synchronize_session=False)
+    if consumed != 1:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Esta confirmação já foi usada ou expirou. Reinicie a configuração do autenticador.")
+
     recovery_codes = [secrets.token_hex(10).upper() for _ in range(10)]
-    db_user.totp_secret_encrypted = encrypt_totp_secret(secret)
+    db_user.password = hash_password(new_password)
+    db_user.totp_secret_encrypted = db_user.totp_pending_secret_encrypted
     db_user.totp_pending_secret_encrypted = None
     db_user.totp_recovery_hashes = json.dumps([hash_recovery_code(value) for value in recovery_codes])
     db_user.totp_enabled = True
+    db_user.totp_setup_challenge_hash = None
+    db_user.totp_setup_challenge_expires_at = None
+
     current_session_hash = hashlib.sha256(current_user.token_id.encode()).hexdigest()
     db.query(AuthSessionModel).filter(
         AuthSessionModel.user_name == current_user.username,
         AuthSessionModel.token_id_hash != current_session_hash,
         AuthSessionModel.revoked_at.is_(None),
-    ).update({AuthSessionModel.revoked_at: datetime.utcnow()}, synchronize_session=False)
+    ).update({AuthSessionModel.revoked_at: now}, synchronize_session=False)
     db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username,
                          role=current_user.role, action="ATIVAR_MFA",
-                         details="MFA TOTP ativado; demais sessões da conta foram encerradas."))
+                         details="MFA TOTP ativado após validação do autenticador e troca da senha."))
+    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username,
+                         role=current_user.role, action="ALTERAR_PROPRIA_SENHA",
+                         details="Senha alterada ao concluir a ativação do MFA; demais sessões foram encerradas."))
     db.commit()
     return {"status": "success", "recovery_codes": recovery_codes,
-            "message": "MFA ativado. Guarde os códigos de recuperação: eles serão exibidos somente agora."}
+            "message": "Senha alterada e MFA ativado. Guarde os códigos de recuperação: serão exibidos somente agora."}
 
 @app.post("/api/account/mfa/disable", tags=["Authentication"])
 @limiter.limit("5/hour")

@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.62.3 — Senha nova como etapa da ativação MFA
+
+Na primeira ativação do MFA, o fluxo é: informar a senha atual para iniciar, escanear o QR, digitar o código TOTP, escolher e confirmar uma nova senha e guardar os códigos de recuperação. A senha nova deve ter pelo menos 12 caracteres. Após confirmar que guardou os códigos, a sessão é encerrada e o próximo login usa a senha nova e o autenticador. O desafio entre a validação TOTP e a troca de senha expira em 10 minutos e só pode ser usado uma vez.
+
 ## v0.62.2 — QR Code para aplicativo autenticador
 
 Ao configurar MFA em **Minha conta**, o CEO ou Gerente pode escanear um QR Code com o Microsoft Authenticator ou outro aplicativo TOTP. O QR é gerado localmente no backend e enviado apenas na resposta autenticada da configuração; a chave manual continua disponível como alternativa.

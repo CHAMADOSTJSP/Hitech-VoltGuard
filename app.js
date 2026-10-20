@@ -1,6 +1,6 @@
         let currentTab = 'realtime';
         let currentUser = '', currentCargo = '', tokenJwt = '';
-        let mfaEnrollment = null, mfaRecoveryCodes = [];
+        let mfaEnrollment = null, mfaRecoveryCodes = [], mfaSetupChallenge = '', mfaPasswordChanged = false;
         let dadosGlobais = {}, auditLogs = [], billingData = {}, inventoryData = {}, historyData = {}, workOrders = [], workOrderChecklistTemplates = [], alarmsData = [], assetsData = [], maintenancePlans = [], maintenanceTasks = [], deviceCredentials = [], tenantUsers = [], pollingInterval = null;
         const workOrderHistoryOpen = new Set();
         const workOrderEditOpen = new Set();
@@ -123,6 +123,10 @@
                 tokenJwt = data.access_token;
                 currentCargo = data.role;
                 currentUser = usuario;
+                mfaEnrollment = null;
+                mfaRecoveryCodes = [];
+                mfaSetupChallenge = '';
+                mfaPasswordChanged = false;
                 document.getElementById('mfa-login-group')?.classList.add('is-hidden');
                 const mfaLoginInput = document.getElementById('mfa-login-code');
                 if (mfaLoginInput) mfaLoginInput.value = '';
@@ -163,6 +167,10 @@
             tokenJwt = '';
             currentUser = '';
             currentCargo = '';
+            mfaEnrollment = null;
+            mfaRecoveryCodes = [];
+            mfaSetupChallenge = '';
+            mfaPasswordChanged = false;
             tenantUsers = [];
             window.location.reload();
         }
@@ -1192,14 +1200,18 @@
                 container.innerHTML = '<p>MFA de administrador está disponível para perfis CEO e Gerente.</p>';
                 return;
             }
+            if (mfaRecoveryCodes.length) {
+                container.innerHTML = `<h4>MFA ativado</h4><p>${mfaPasswordChanged ? 'Senha alterada com sucesso. ' : ''}Guarde estes códigos agora. Cada código pode ser usado uma única vez e não será mostrado novamente.</p><pre class="mfa-recovery-codes">${mfaRecoveryCodes.map(escapeHtml).join('\n')}</pre><button type="button" class="btn-action" data-action="mfa-ack-codes">${mfaPasswordChanged ? 'Guardei os códigos e sair' : 'Já guardei os códigos'}</button>`;
+                return;
+            }
+            if (mfaSetupChallenge) {
+                container.innerHTML = `<h4>Escolha sua nova senha</h4><p>O código do autenticador foi confirmado. Defina uma senha nova para concluir e ativar o MFA. Use pelo menos 12 caracteres.</p><form data-vg-submit="complete-mfa-setup"><div class="input-group"><label for="mfa-new-password">Nova senha</label><input id="mfa-new-password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><div class="input-group"><label for="mfa-confirm-new-password">Confirme a nova senha</label><input id="mfa-confirm-new-password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><button type="submit" class="btn-primary">Salvar senha e ativar MFA</button></form><p id="mfa-status-message" role="status" aria-live="polite"></p>`;
+                return;
+            }
             try {
                 const state = await apiJson('/api/account/mfa');
-                if (mfaRecoveryCodes.length) {
-                    container.innerHTML = `<h4>MFA ativado</h4><p>Guarde estes códigos agora. Cada código pode ser usado uma única vez e não será mostrado novamente.</p><pre class="mfa-recovery-codes">${mfaRecoveryCodes.map(escapeHtml).join('\n')}</pre><button type="button" class="btn-action" data-action="mfa-ack-codes">Já guardei os códigos</button>`;
-                    return;
-                }
                 if (mfaEnrollment) {
-                    container.innerHTML = `<h4>Conclua a configuração</h4><p>Escaneie este QR Code no Microsoft Authenticator ou em outro aplicativo compatível. A configuração usa códigos TOTP de 6 dígitos com validade de 30 segundos.</p><img class="mfa-setup-qr" src="${escapeHtml(mfaEnrollment.qr_code_data_url)}" alt="QR Code privado para configurar o autenticador"><p>Se não conseguir escanear, adicione a chave manualmente: <code>${escapeHtml(mfaEnrollment.secret)}</code></p><details><summary>URI para configurar manualmente</summary><code class="mfa-setup-uri">${escapeHtml(mfaEnrollment.provisioning_uri)}</code></details><form data-vg-submit="confirm-mfa"><div class="input-group"><label for="mfa-confirm-code">Código de 6 dígitos do aplicativo</label><input id="mfa-confirm-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required></div><button type="submit" class="btn-primary">Confirmar e ativar MFA</button></form><p id="mfa-status-message" role="status" aria-live="polite"></p>`;
+                    container.innerHTML = `<h4>Conclua a configuração</h4><p>Escaneie este QR Code no Microsoft Authenticator ou em outro aplicativo compatível. A configuração usa códigos TOTP de 6 dígitos com validade de 30 segundos.</p><img class="mfa-setup-qr" src="${escapeHtml(mfaEnrollment.qr_code_data_url)}" alt="QR Code privado para configurar o autenticador"><p>Se não conseguir escanear, adicione a chave manualmente: <code>${escapeHtml(mfaEnrollment.secret)}</code></p><details><summary>URI para configurar manualmente</summary><code class="mfa-setup-uri">${escapeHtml(mfaEnrollment.provisioning_uri)}</code></details><form data-vg-submit="confirm-mfa"><div class="input-group"><label for="mfa-confirm-code">Código de 6 dígitos do aplicativo</label><input id="mfa-confirm-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required></div><button type="submit" class="btn-primary">Confirmar código</button></form><p id="mfa-status-message" role="status" aria-live="polite"></p>`;
                     return;
                 }
                 if (!state.eligible) {
@@ -1234,12 +1246,50 @@
             const code = document.getElementById('mfa-confirm-code')?.value.trim() || '';
             try {
                 const result = await apiJson('/api/account/mfa/confirm', {method:'POST', body:JSON.stringify({code})});
-                mfaRecoveryCodes = result.recovery_codes || [];
+                mfaSetupChallenge = result.setup_challenge || '';
                 mfaEnrollment = null;
                 renderizar();
             } catch (err) {
                 if (status) status.textContent = err.message || 'Código inválido. Confira o relógio do dispositivo e tente novamente.';
             }
+        }
+
+        async function concluirConfiguracaoMfa(event) {
+            event.preventDefault();
+            const status = document.getElementById('mfa-status-message');
+            const new_password = document.getElementById('mfa-new-password')?.value || '';
+            const confirm_password = document.getElementById('mfa-confirm-new-password')?.value || '';
+            if (new_password !== confirm_password) {
+                if (status) status.textContent = 'A confirmação não corresponde à nova senha.';
+                document.getElementById('mfa-confirm-new-password')?.focus();
+                return;
+            }
+            try {
+                const result = await apiJson('/api/account/mfa/complete', {
+                    method:'POST', body:JSON.stringify({setup_challenge:mfaSetupChallenge, new_password, confirm_password})
+                });
+                mfaSetupChallenge = '';
+                mfaPasswordChanged = true;
+                mfaRecoveryCodes = result.recovery_codes || [];
+                renderizar();
+            } catch (err) {
+                const password = document.getElementById('mfa-new-password');
+                const confirmation = document.getElementById('mfa-confirm-new-password');
+                if (password) password.value = '';
+                if (confirmation) confirmation.value = '';
+                if (status) status.textContent = err.message || 'Não foi possível concluir a ativação do MFA.';
+                password?.focus();
+            }
+        }
+
+        async function encerrarSessaoAposMfa() {
+            try { await apiJson('/api/logout', {method:'POST'}); } catch (_) {}
+            tokenJwt = '';
+            currentUser = '';
+            currentCargo = '';
+            mfaRecoveryCodes = [];
+            mfaPasswordChanged = false;
+            window.location.reload();
         }
 
         async function desativarMfa(event) {
@@ -1996,6 +2046,10 @@
                     realizarLogin();
                     break;
                 case 'mfa-ack-codes':
+                    if (mfaPasswordChanged) {
+                        encerrarSessaoAposMfa();
+                        break;
+                    }
                     mfaRecoveryCodes = [];
                     renderizar();
                     break;
@@ -2032,6 +2086,7 @@
                 case 'change-password': alterarMinhaSenha(event); break;
                 case 'setup-mfa': iniciarConfiguracaoMfa(event); break;
                 case 'confirm-mfa': confirmarConfiguracaoMfa(event); break;
+                case 'complete-mfa-setup': concluirConfiguracaoMfa(event); break;
                 case 'disable-mfa': desativarMfa(event); break;
                 case 'consult-qr':
                     event.preventDefault();
