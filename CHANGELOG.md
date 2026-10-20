@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.63.0 — MFA apenas para troca de senha
+
+- O login normal não solicita código MFA; autentica somente com usuário e senha.
+- Com MFA ativo, a troca de senha exige senha atual e código TOTP ou código de recuperação de uso único.
+- A página Minha conta informa que o autenticador protege a troca de senha, e exibe o campo MFA apenas para contas configuradas.
+- O QR usa um único rótulo de conta, sem repetir metadados do emissor, para reduzir incompatibilidade de leitores que criem entradas duplicadas.
+
 ## v0.62.3 — Troca de senha ao ativar MFA
 
 - No primeiro cadastro do autenticador, a confirmação TOTP agora abre uma etapa obrigatória para escolher e confirmar uma nova senha (mínimo de 12 caracteres).

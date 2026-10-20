@@ -6,10 +6,11 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 ## Melhorias aplicadas nesta revisão
 
+- v0.63.0: MFA é usado somente como confirmação adicional para troca de senha; o login normal requer apenas usuário e senha. A troca de senha verifica TOTP ou código de recuperação de uso único. A URI do QR contém um único rótulo de conta, sem parâmetro de emissor repetido.
 - v0.62.3: o primeiro enrollment MFA exige nova senha após validar o TOTP. Um desafio aleatório, com hash no banco, expira em 10 minutos e é consumido atomicamente; MFA e códigos de recuperação só são ativados após a troca de senha. Outras sessões são revogadas.
 - v0.62.2: configuração MFA exibe QR Code gerado localmente com a URI TOTP; permanece disponível a chave manual e nenhuma API externa recebe o segredo.
 - v0.62.1: o polling de telemetria não reconstrói a aba Minha conta nem consulta novamente o estado MFA a cada três segundos.
-- v0.62.0: CEO e Gerente podem ativar MFA TOTP com senha + código no login; segredo cifrado em repouso, reautenticação ao alterar a configuração, rejeição atômica de códigos TOTP já usados e 10 códigos de recuperação aleatórios de uso único. Migração compatível adiciona campos opcionais em `users`. MFA fica desativado até adesão explícita nesta versão.
+- v0.62.0: CEO e Gerente podem ativar MFA TOTP; segredo cifrado em repouso, reautenticação ao alterar a configuração, rejeição atômica de códigos TOTP já usados e 10 códigos de recuperação aleatórios de uso único. Migração compatível adiciona campos opcionais em `users`. MFA fica desativado até adesão explícita nesta versão.
 - v0.61.0: rate limiting pode usar Redis/Redis TLS por `RATE_LIMIT_STORAGE_URI`; fallback em memória preserva disponibilidade se Redis falhar, mas não oferece contagem global enquanto o armazenamento compartilhado estiver fora do ar. A variável é opcional; sem Redis, o comportamento permanece por processo.
 - v0.60.0: o login executa scrypt mesmo quando o nome de usuário não existe ou a conta ainda usa hash SHA-256 legado, reduzindo diferenças de tempo que poderiam facilitar enumeração de contas. A resposta de erro permanece genérica e nenhuma migração de banco é necessária.
 - v0.59.1: a página inicial envia `Cache-Control: no-store` para evitar HTML antigo em cache após deploy; o pacote mantém referências às bibliotecas JavaScript locais de `vendor/`.

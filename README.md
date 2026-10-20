@@ -1,8 +1,12 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.63.0 — MFA exclusivo para troca de senha
+
+O login normal usa somente usuário e senha. Quando MFA estiver ativo, a troca da senha exige também um código temporário do autenticador ou um código de recuperação de uso único. O QR apresenta uma única identificação para reduzir a possibilidade de leitores criarem duas entradas para a mesma configuração. O código MFA não é solicitado ao entrar no painel.
+
 ## v0.62.3 — Senha nova como etapa da ativação MFA
 
-Na primeira ativação do MFA, o fluxo é: informar a senha atual para iniciar, escanear o QR, digitar o código TOTP, escolher e confirmar uma nova senha e guardar os códigos de recuperação. A senha nova deve ter pelo menos 12 caracteres. Após confirmar que guardou os códigos, a sessão é encerrada e o próximo login usa a senha nova e o autenticador. O desafio entre a validação TOTP e a troca de senha expira em 10 minutos e só pode ser usado uma vez.
+Na primeira ativação do MFA, o fluxo é: informar a senha atual para iniciar, escanear o QR, digitar o código TOTP, escolher e confirmar uma nova senha e guardar os códigos de recuperação. A senha nova deve ter pelo menos 12 caracteres. Após confirmar que guardou os códigos, a sessão é encerrada e o próximo login usa a senha nova. Em logins seguintes, o autenticador não é solicitado; ele será usado somente para autorizar uma troca de senha.
 
 ## v0.62.2 — QR Code para aplicativo autenticador
 
@@ -14,7 +18,7 @@ A atualização periódica dos painéis não redesenha mais a aba **Minha conta*
 
 ## v0.62.0 — Autenticação em dois fatores para administradores
 
-Perfis CEO e Gerente podem ativar MFA TOTP em **Minha conta** usando aplicativo autenticador compatível. O login passa a exigir senha e código de 6 dígitos; cada código temporário é aceito apenas uma vez. Dez códigos de recuperação de uso único são exibidos uma única vez ao concluir a configuração. Guarde-os em local seguro.
+Perfis CEO e Gerente podem ativar MFA TOTP em **Minha conta** usando aplicativo autenticador compatível. O login normal exige somente a senha. Ao alterar a senha, contas com MFA ativo precisam também informar um código TOTP de 6 dígitos; cada janela TOTP só pode ser aceita uma vez. Dez códigos de recuperação de uso único são exibidos uma única vez ao concluir a configuração. Guarde-os em local seguro.
 
 Os segredos TOTP são criptografados no banco com uma chave derivada de `SECRET_KEY`. Mantenha essa variável estável e faça backup seguro; se ela for trocada, usuários com MFA ativo precisarão reconfigurar o autenticador. A migração é automática e não ativa MFA nas contas existentes. A ativação é voluntária nesta versão.
 

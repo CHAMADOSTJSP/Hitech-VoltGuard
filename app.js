@@ -99,23 +99,16 @@
 
             const usuario = usuarioInput.value.trim();
             const senha = senhaInput.value;
-            const mfaCode = document.getElementById('mfa-login-code')?.value.trim() || '';
             if(errEl) errEl.innerText = "A autenticar...";
 
             try {
                 const res = await fetch('/api/token', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({username: usuario, password: senha, ...(mfaCode ? {totp_code:mfaCode} : {})})
+                    body: JSON.stringify({username: usuario, password: senha})
                 });
                 
                 const data = await res.json();
-                if (res.ok && data.mfa_required) {
-                    document.getElementById('mfa-login-group')?.classList.remove('is-hidden');
-                    if (errEl) errEl.innerText = 'Digite o código de 6 dígitos do aplicativo autenticador ou um código de recuperação.';
-                    document.getElementById('mfa-login-code')?.focus();
-                    return;
-                }
                 if(!res.ok) {
                     throw new Error(data.detail || "Utilizador ou senha incorretos.");
                 }
@@ -127,9 +120,6 @@
                 mfaRecoveryCodes = [];
                 mfaSetupChallenge = '';
                 mfaPasswordChanged = false;
-                document.getElementById('mfa-login-group')?.classList.add('is-hidden');
-                const mfaLoginInput = document.getElementById('mfa-login-code');
-                if (mfaLoginInput) mfaLoginInput.value = '';
 
                 document.getElementById('user-display').innerText = formatarNome(usuario);
                 document.getElementById('cargo-display').innerText = currentCargo;
@@ -1168,6 +1158,7 @@
             const current_password = document.getElementById('account-current-password')?.value || '';
             const new_password = document.getElementById('account-new-password')?.value || '';
             const confirm_password = document.getElementById('account-confirm-password')?.value || '';
+            const mfa_code = document.getElementById('account-mfa-code')?.value.trim() || '';
             const status = document.getElementById('account-password-status');
             if (new_password !== confirm_password) {
                 if (status) status.textContent = 'A confirmação não corresponde à nova senha.';
@@ -1176,7 +1167,7 @@
             }
             try {
                 await apiJson('/api/account/password', {
-                    method:'POST', body:JSON.stringify({current_password, new_password})
+                    method:'POST', body:JSON.stringify({current_password, new_password, ...(mfa_code ? {mfa_code} : {})})
                 });
                 form.reset();
                 if (status) status.textContent = 'Senha alterada. Redirecionando para o login…';
@@ -1201,15 +1192,18 @@
                 return;
             }
             if (mfaRecoveryCodes.length) {
+                definirMfaNecessarioParaTrocaSenha(true);
                 container.innerHTML = `<h4>MFA ativado</h4><p>${mfaPasswordChanged ? 'Senha alterada com sucesso. ' : ''}Guarde estes códigos agora. Cada código pode ser usado uma única vez e não será mostrado novamente.</p><pre class="mfa-recovery-codes">${mfaRecoveryCodes.map(escapeHtml).join('\n')}</pre><button type="button" class="btn-action" data-action="mfa-ack-codes">${mfaPasswordChanged ? 'Guardei os códigos e sair' : 'Já guardei os códigos'}</button>`;
                 return;
             }
             if (mfaSetupChallenge) {
+                definirMfaNecessarioParaTrocaSenha(false);
                 container.innerHTML = `<h4>Escolha sua nova senha</h4><p>O código do autenticador foi confirmado. Defina uma senha nova para concluir e ativar o MFA. Use pelo menos 12 caracteres.</p><form data-vg-submit="complete-mfa-setup"><div class="input-group"><label for="mfa-new-password">Nova senha</label><input id="mfa-new-password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><div class="input-group"><label for="mfa-confirm-new-password">Confirme a nova senha</label><input id="mfa-confirm-new-password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><button type="submit" class="btn-primary">Salvar senha e ativar MFA</button></form><p id="mfa-status-message" role="status" aria-live="polite"></p>`;
                 return;
             }
             try {
                 const state = await apiJson('/api/account/mfa');
+                definirMfaNecessarioParaTrocaSenha(Boolean(state.enabled));
                 if (mfaEnrollment) {
                     container.innerHTML = `<h4>Conclua a configuração</h4><p>Escaneie este QR Code no Microsoft Authenticator ou em outro aplicativo compatível. A configuração usa códigos TOTP de 6 dígitos com validade de 30 segundos.</p><img class="mfa-setup-qr" src="${escapeHtml(mfaEnrollment.qr_code_data_url)}" alt="QR Code privado para configurar o autenticador"><p>Se não conseguir escanear, adicione a chave manualmente: <code>${escapeHtml(mfaEnrollment.secret)}</code></p><details><summary>URI para configurar manualmente</summary><code class="mfa-setup-uri">${escapeHtml(mfaEnrollment.provisioning_uri)}</code></details><form data-vg-submit="confirm-mfa"><div class="input-group"><label for="mfa-confirm-code">Código de 6 dígitos do aplicativo</label><input id="mfa-confirm-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required></div><button type="submit" class="btn-primary">Confirmar código</button></form><p id="mfa-status-message" role="status" aria-live="polite"></p>`;
                     return;
@@ -1219,13 +1213,22 @@
                     return;
                 }
                 if (state.enabled) {
-                    container.innerHTML = `<h4>MFA ativo</h4><p>O login exige senha e código do aplicativo autenticador. Restam ${Number(state.recovery_codes_remaining) || 0} código(s) de recuperação.</p><form data-vg-submit="disable-mfa"><div class="input-group"><label for="mfa-disable-password">Senha atual</label><input id="mfa-disable-password" type="password" autocomplete="current-password" maxlength="256" required></div><div class="input-group"><label for="mfa-disable-code">Código MFA ou código de recuperação</label><input id="mfa-disable-code" autocomplete="one-time-code" maxlength="20" required></div><button type="submit" class="btn-action">Desativar MFA</button></form><p id="mfa-status-message" role="status" aria-live="polite"></p>`;
+                    container.innerHTML = `<h4>MFA ativo para troca de senha</h4><p>O login normal usa somente sua senha. O código do autenticador será pedido ao alterar a senha. Restam ${Number(state.recovery_codes_remaining) || 0} código(s) de recuperação.</p><form data-vg-submit="disable-mfa"><div class="input-group"><label for="mfa-disable-password">Senha atual</label><input id="mfa-disable-password" type="password" autocomplete="current-password" maxlength="256" required></div><div class="input-group"><label for="mfa-disable-code">Código MFA ou código de recuperação</label><input id="mfa-disable-code" autocomplete="one-time-code" maxlength="20" required></div><button type="submit" class="btn-action">Desativar MFA</button></form><p id="mfa-status-message" role="status" aria-live="polite"></p>`;
                 } else {
-                    container.innerHTML = `<h4>MFA desativado</h4><p>Proteja o acesso administrativo exigindo um código temporário além da senha.</p><form data-vg-submit="setup-mfa"><div class="input-group"><label for="mfa-setup-password">Confirme sua senha atual</label><input id="mfa-setup-password" type="password" autocomplete="current-password" maxlength="256" required></div><button type="submit" class="btn-primary">Configurar aplicativo autenticador</button></form><p id="mfa-status-message" role="status" aria-live="polite"></p>`;
+                    container.innerHTML = `<h4>MFA desativado</h4><p>Ative o autenticador para confirmar futuras trocas de senha. O login normal continuará usando somente sua senha.</p><form data-vg-submit="setup-mfa"><div class="input-group"><label for="mfa-setup-password">Confirme sua senha atual</label><input id="mfa-setup-password" type="password" autocomplete="current-password" maxlength="256" required></div><button type="submit" class="btn-primary">Configurar aplicativo autenticador</button></form><p id="mfa-status-message" role="status" aria-live="polite"></p>`;
                 }
             } catch (err) {
                 container.innerHTML = `<p role="status">Não foi possível carregar o estado do MFA: ${escapeHtml(err.message)}</p>`;
             }
+        }
+
+        function definirMfaNecessarioParaTrocaSenha(ativo) {
+            const group = document.getElementById('account-mfa-code-group');
+            const input = document.getElementById('account-mfa-code');
+            if (!group || !input) return;
+            group.classList.toggle('is-hidden', !ativo);
+            input.required = Boolean(ativo);
+            if (!ativo) input.value = '';
         }
 
         async function iniciarConfiguracaoMfa(event) {
@@ -1480,7 +1483,7 @@
             if(!container) return;
 
             if (currentTab === 'account') {
-                container.innerHTML = `<section class="user-management-card account-security-card"><h3>🔐 Segurança da conta</h3><p>Usuário: <strong>${escapeHtml(currentUser)}</strong> · Perfil: <strong>${escapeHtml(currentCargo)}</strong></p><p>Use uma senha exclusiva com pelo menos 12 caracteres. Ao alterá-la, todas as sessões abertas desta conta serão encerradas.</p><form class="account-password-form" data-vg-submit="change-password"><div class="input-group"><label for="account-current-password">Senha atual</label><input id="account-current-password" type="password" autocomplete="current-password" maxlength="256" required></div><div class="input-group"><label for="account-new-password">Nova senha</label><input id="account-new-password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><div class="input-group"><label for="account-confirm-password">Confirme a nova senha</label><input id="account-confirm-password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><button type="submit" class="btn-primary">Alterar senha</button><p id="account-password-status" role="status" aria-live="polite"></p></form><section class="mfa-account-section"><h3>📲 Autenticação em dois fatores</h3><div id="mfa-management" role="region" aria-live="polite"><p>Carregando configuração MFA…</p></div></section></section>`;
+                container.innerHTML = `<section class="user-management-card account-security-card"><h3>🔐 Segurança da conta</h3><p>Usuário: <strong>${escapeHtml(currentUser)}</strong> · Perfil: <strong>${escapeHtml(currentCargo)}</strong></p><p>Use uma senha exclusiva com pelo menos 12 caracteres. Ao alterá-la, todas as sessões abertas desta conta serão encerradas.</p><form class="account-password-form" data-vg-submit="change-password"><div class="input-group"><label for="account-current-password">Senha atual</label><input id="account-current-password" type="password" autocomplete="current-password" maxlength="256" required></div><div class="input-group"><label for="account-new-password">Nova senha</label><input id="account-new-password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><div class="input-group"><label for="account-confirm-password">Confirme a nova senha</label><input id="account-confirm-password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><div class="input-group is-hidden" id="account-mfa-code-group"><label for="account-mfa-code">Código do autenticador ou de recuperação</label><input id="account-mfa-code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" placeholder="Código MFA"></div><button type="submit" class="btn-primary">Alterar senha</button><p id="account-password-status" role="status" aria-live="polite"></p></form><section class="mfa-account-section"><h3>📲 Autenticação em dois fatores</h3><div id="mfa-management" role="region" aria-live="polite"><p>Carregando configuração MFA…</p></div></section></section>`;
                 carregarStatusMfa();
                 return;
             }

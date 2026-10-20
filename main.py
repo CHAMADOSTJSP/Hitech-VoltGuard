@@ -378,7 +378,7 @@ async def post_webhook_event(value: str, payload: dict) -> int:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.62.3",
+    version="0.63.0",
 )
 # RATE_LIMIT_STORAGE_URI is optional. Leave it unset for the current per-process
 # memory store; use a managed Redis URL in the hosting provider for shared limits.
@@ -794,14 +794,8 @@ def login(request: Request, credentials: dict, db: Session = Depends(get_db)):
         verify_password(password, DUMMY_PASSWORD_HASH)
     if not db_user or not db_user.is_active or not password_matches:
         raise HTTPException(status_code=401, detail="Utilizador ou senha incorretos.")
-    if db_user.totp_enabled:
-        supplied_code = normalize_mfa_code(credentials.get("totp_code", ""))
-        if not supplied_code:
-            return {"mfa_required": True}
-        secret = decrypt_totp_secret(db_user.totp_secret_encrypted)
-        valid_totp = bool(secret and verify_and_record_totp(db, db_user, supplied_code, secret))
-        if not valid_totp and not consume_recovery_code(db, db_user, supplied_code):
-            raise HTTPException(status_code=401, detail="Código de autenticação inválido.")
+    # O MFA é uma confirmação adicional para operações de troca de senha,
+    # não faz parte do login normal. O acesso continua protegido pela senha.
     if not db_user.password.startswith("scrypt$"):
         db_user.password = hash_password(password)
         db.commit()
@@ -854,7 +848,9 @@ def start_mfa_setup(request: Request, data: dict, db: Session = Depends(get_db),
     db_user.totp_setup_challenge_hash = None
     db_user.totp_setup_challenge_expires_at = None
     db.commit()
-    uri = pyotp.TOTP(secret).provisioning_uri(name=db_user.username, issuer_name="HITECH VoltGuard")
+    # Uma única identificação no rótulo, sem repetir o emissor no parâmetro
+    # issuer. Alguns leitores podem criar duas entradas quando ambos aparecem.
+    uri = pyotp.TOTP(secret).provisioning_uri(name=f"HITECH VoltGuard - {db_user.username}")
     qr_image = qrcode.make(uri)
     qr_buffer = io.BytesIO()
     qr_image.save(qr_buffer, format="PNG")
@@ -1008,25 +1004,33 @@ def logout(db: Session = Depends(get_db), current_user: User = Depends(get_curre
 @limiter.limit("5/hour")
 def change_own_password(request: Request, data: dict, db: Session = Depends(get_db),
                         current_user: User = Depends(get_current_user)):
-    """Permite troca autenticada de senha e encerra todas as sessões da conta."""
-    if not isinstance(data, dict) or set(data) != {"current_password", "new_password"}:
-        raise HTTPException(status_code=422, detail="Informe a senha atual e a nova senha.")
+    """Troca a senha; contas com MFA ativo também confirmam com TOTP."""
+    if not isinstance(data, dict) or set(data) not in (
+            {"current_password", "new_password"}, {"current_password", "new_password", "mfa_code"}):
+        raise HTTPException(status_code=422, detail="Informe a senha atual, a nova senha e, se solicitado, o código MFA.")
     current_password = data.get("current_password")
     new_password = data.get("new_password")
+    supplied_mfa_code = normalize_mfa_code(data.get("mfa_code", ""))
     if not isinstance(current_password, str) or not isinstance(new_password, str):
         raise HTTPException(status_code=422, detail="As senhas devem ser texto válido.")
-    if len(current_password) > 256 or not verify_password(current_password,
-            db.query(UserModel.password).filter(UserModel.username == current_user.username).scalar() or ""):
+    db_user = db.query(UserModel).filter(UserModel.username == current_user.username,
+                                         UserModel.is_active.is_(True)).first()
+    if not db_user:
+        raise HTTPException(status_code=401, detail="Conta indisponível. Entre novamente.")
+    if len(current_password) > 256 or not verify_password(current_password, db_user.password or ""):
         raise HTTPException(status_code=400, detail="A senha atual está incorreta.")
     if len(new_password) < 12 or len(new_password) > 256:
         raise HTTPException(status_code=422, detail="A nova senha deve ter entre 12 e 256 caracteres.")
     if hmac.compare_digest(current_password, new_password):
         raise HTTPException(status_code=422, detail="A nova senha deve ser diferente da senha atual.")
 
-    db_user = db.query(UserModel).filter(UserModel.username == current_user.username,
-                                         UserModel.is_active.is_(True)).first()
-    if not db_user:
-        raise HTTPException(status_code=401, detail="Conta indisponível. Entre novamente.")
+    if db_user.totp_enabled:
+        if not supplied_mfa_code:
+            raise HTTPException(status_code=422, detail="Informe o código do autenticador para confirmar a troca de senha.")
+        secret = decrypt_totp_secret(db_user.totp_secret_encrypted)
+        valid_totp = bool(secret and verify_and_record_totp(db, db_user, supplied_mfa_code, secret))
+        if not valid_totp and not consume_recovery_code(db, db_user, supplied_mfa_code):
+            raise HTTPException(status_code=400, detail="Código do autenticador ou de recuperação inválido.")
     now = datetime.utcnow()
     db_user.password = hash_password(new_password)
     db.query(AuthSessionModel).filter(
