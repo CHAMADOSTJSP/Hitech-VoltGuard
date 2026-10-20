@@ -1,5 +1,6 @@
         let currentTab = 'realtime';
         let currentUser = '', currentCargo = '', tokenJwt = '';
+        let mfaEnrollment = null, mfaRecoveryCodes = [];
         let dadosGlobais = {}, auditLogs = [], billingData = {}, inventoryData = {}, historyData = {}, workOrders = [], workOrderChecklistTemplates = [], alarmsData = [], assetsData = [], maintenancePlans = [], maintenanceTasks = [], deviceCredentials = [], tenantUsers = [], pollingInterval = null;
         const workOrderHistoryOpen = new Set();
         const workOrderEditOpen = new Set();
@@ -98,16 +99,23 @@
 
             const usuario = usuarioInput.value.trim();
             const senha = senhaInput.value;
+            const mfaCode = document.getElementById('mfa-login-code')?.value.trim() || '';
             if(errEl) errEl.innerText = "A autenticar...";
 
             try {
                 const res = await fetch('/api/token', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({username: usuario, password: senha})
+                    body: JSON.stringify({username: usuario, password: senha, ...(mfaCode ? {totp_code:mfaCode} : {})})
                 });
                 
                 const data = await res.json();
+                if (res.ok && data.mfa_required) {
+                    document.getElementById('mfa-login-group')?.classList.remove('is-hidden');
+                    if (errEl) errEl.innerText = 'Digite o código de 6 dígitos do aplicativo autenticador ou um código de recuperação.';
+                    document.getElementById('mfa-login-code')?.focus();
+                    return;
+                }
                 if(!res.ok) {
                     throw new Error(data.detail || "Utilizador ou senha incorretos.");
                 }
@@ -115,6 +123,9 @@
                 tokenJwt = data.access_token;
                 currentCargo = data.role;
                 currentUser = usuario;
+                document.getElementById('mfa-login-group')?.classList.add('is-hidden');
+                const mfaLoginInput = document.getElementById('mfa-login-code');
+                if (mfaLoginInput) mfaLoginInput.value = '';
 
                 document.getElementById('user-display').innerText = formatarNome(usuario);
                 document.getElementById('cargo-display').innerText = currentCargo;
@@ -1170,6 +1181,80 @@
                 newPassword?.focus();
             }
         }
+        async function carregarStatusMfa() {
+            const container = document.getElementById('mfa-management');
+            if (!container) return;
+            if (!['CEO', 'Gerente'].includes(currentCargo)) {
+                container.innerHTML = '<p>MFA de administrador está disponível para perfis CEO e Gerente.</p>';
+                return;
+            }
+            try {
+                const state = await apiJson('/api/account/mfa');
+                if (mfaRecoveryCodes.length) {
+                    container.innerHTML = `<h4>MFA ativado</h4><p>Guarde estes códigos agora. Cada código pode ser usado uma única vez e não será mostrado novamente.</p><pre class="mfa-recovery-codes">${mfaRecoveryCodes.map(escapeHtml).join('\n')}</pre><button type="button" class="btn-action" data-action="mfa-ack-codes">Já guardei os códigos</button>`;
+                    return;
+                }
+                if (mfaEnrollment) {
+                    container.innerHTML = `<h4>Conclua a configuração</h4><p>Adicione esta chave ao aplicativo autenticador. A configuração usa códigos TOTP de 6 dígitos com validade de 30 segundos.</p><p>Chave de configuração: <code>${escapeHtml(mfaEnrollment.secret)}</code></p><details><summary>URI para configurar manualmente</summary><code class="mfa-setup-uri">${escapeHtml(mfaEnrollment.provisioning_uri)}</code></details><form data-vg-submit="confirm-mfa"><div class="input-group"><label for="mfa-confirm-code">Código de 6 dígitos do aplicativo</label><input id="mfa-confirm-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required></div><button type="submit" class="btn-primary">Confirmar e ativar MFA</button></form><p id="mfa-status-message" role="status" aria-live="polite"></p>`;
+                    return;
+                }
+                if (!state.eligible) {
+                    container.innerHTML = '<p>MFA de administrador está disponível para perfis CEO e Gerente.</p>';
+                    return;
+                }
+                if (state.enabled) {
+                    container.innerHTML = `<h4>MFA ativo</h4><p>O login exige senha e código do aplicativo autenticador. Restam ${Number(state.recovery_codes_remaining) || 0} código(s) de recuperação.</p><form data-vg-submit="disable-mfa"><div class="input-group"><label for="mfa-disable-password">Senha atual</label><input id="mfa-disable-password" type="password" autocomplete="current-password" maxlength="256" required></div><div class="input-group"><label for="mfa-disable-code">Código MFA ou código de recuperação</label><input id="mfa-disable-code" autocomplete="one-time-code" maxlength="20" required></div><button type="submit" class="btn-action">Desativar MFA</button></form><p id="mfa-status-message" role="status" aria-live="polite"></p>`;
+                } else {
+                    container.innerHTML = `<h4>MFA desativado</h4><p>Proteja o acesso administrativo exigindo um código temporário além da senha.</p><form data-vg-submit="setup-mfa"><div class="input-group"><label for="mfa-setup-password">Confirme sua senha atual</label><input id="mfa-setup-password" type="password" autocomplete="current-password" maxlength="256" required></div><button type="submit" class="btn-primary">Configurar aplicativo autenticador</button></form><p id="mfa-status-message" role="status" aria-live="polite"></p>`;
+                }
+            } catch (err) {
+                container.innerHTML = `<p role="status">Não foi possível carregar o estado do MFA: ${escapeHtml(err.message)}</p>`;
+            }
+        }
+
+        async function iniciarConfiguracaoMfa(event) {
+            event.preventDefault();
+            const status = document.getElementById('mfa-status-message');
+            const password = document.getElementById('mfa-setup-password')?.value || '';
+            try {
+                mfaEnrollment = await apiJson('/api/account/mfa/setup', {method:'POST', body:JSON.stringify({password})});
+                renderizar();
+            } catch (err) {
+                if (status) status.textContent = err.message || 'Não foi possível iniciar a configuração MFA.';
+            }
+        }
+
+        async function confirmarConfiguracaoMfa(event) {
+            event.preventDefault();
+            const status = document.getElementById('mfa-status-message');
+            const code = document.getElementById('mfa-confirm-code')?.value.trim() || '';
+            try {
+                const result = await apiJson('/api/account/mfa/confirm', {method:'POST', body:JSON.stringify({code})});
+                mfaRecoveryCodes = result.recovery_codes || [];
+                mfaEnrollment = null;
+                renderizar();
+            } catch (err) {
+                if (status) status.textContent = err.message || 'Código inválido. Confira o relógio do dispositivo e tente novamente.';
+            }
+        }
+
+        async function desativarMfa(event) {
+            event.preventDefault();
+            const status = document.getElementById('mfa-status-message');
+            const password = document.getElementById('mfa-disable-password')?.value || '';
+            const code = document.getElementById('mfa-disable-code')?.value.trim() || '';
+            if (!confirm('Desativar MFA? Todas as sessões desta conta serão encerradas.')) return;
+            try {
+                await apiJson('/api/account/mfa/disable', {method:'POST', body:JSON.stringify({password, code})});
+                if (status) status.textContent = 'MFA desativado. Redirecionando para o login…';
+                tokenJwt = '';
+                if (pollingInterval) clearInterval(pollingInterval);
+                setTimeout(() => window.location.reload(), 600);
+            } catch (err) {
+                if (status) status.textContent = err.message || 'Não foi possível desativar o MFA.';
+            }
+        }
+
         function gerarIdPainelDemo() {
             const organizacao = (document.getElementById('tenant-display')?.innerText || 'VOLTGUARD')
                 .replace(/^Organização:\s*/i, '').replace(/\s*\(.+\)$/, '')
@@ -1341,7 +1426,8 @@
             if(!container) return;
 
             if (currentTab === 'account') {
-                container.innerHTML = `<section class="user-management-card account-security-card"><h3>🔐 Segurança da conta</h3><p>Usuário: <strong>${escapeHtml(currentUser)}</strong> · Perfil: <strong>${escapeHtml(currentCargo)}</strong></p><p>Use uma senha exclusiva com pelo menos 12 caracteres. Ao alterá-la, todas as sessões abertas desta conta serão encerradas.</p><form class="account-password-form" data-vg-submit="change-password"><div class="input-group"><label for="account-current-password">Senha atual</label><input id="account-current-password" type="password" autocomplete="current-password" maxlength="256" required></div><div class="input-group"><label for="account-new-password">Nova senha</label><input id="account-new-password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><div class="input-group"><label for="account-confirm-password">Confirme a nova senha</label><input id="account-confirm-password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><button type="submit" class="btn-primary">Alterar senha</button><p id="account-password-status" role="status" aria-live="polite"></p></form></section>`;
+                container.innerHTML = `<section class="user-management-card account-security-card"><h3>🔐 Segurança da conta</h3><p>Usuário: <strong>${escapeHtml(currentUser)}</strong> · Perfil: <strong>${escapeHtml(currentCargo)}</strong></p><p>Use uma senha exclusiva com pelo menos 12 caracteres. Ao alterá-la, todas as sessões abertas desta conta serão encerradas.</p><form class="account-password-form" data-vg-submit="change-password"><div class="input-group"><label for="account-current-password">Senha atual</label><input id="account-current-password" type="password" autocomplete="current-password" maxlength="256" required></div><div class="input-group"><label for="account-new-password">Nova senha</label><input id="account-new-password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><div class="input-group"><label for="account-confirm-password">Confirme a nova senha</label><input id="account-confirm-password" type="password" autocomplete="new-password" minlength="12" maxlength="256" required></div><button type="submit" class="btn-primary">Alterar senha</button><p id="account-password-status" role="status" aria-live="polite"></p></form><section class="mfa-account-section"><h3>📲 Autenticação em dois fatores</h3><div id="mfa-management" role="region" aria-live="polite"><p>Carregando configuração MFA…</p></div></section></section>`;
+                carregarStatusMfa();
                 return;
             }
             const lista = Object.values(dadosGlobais);
@@ -1905,6 +1991,10 @@
                 case 'login':
                     realizarLogin();
                     break;
+                case 'mfa-ack-codes':
+                    mfaRecoveryCodes = [];
+                    renderizar();
+                    break;
                 case 'register':
                     registarTenant();
                     break;
@@ -1936,6 +2026,9 @@
                 case 'salvarWebhook': salvarWebhook(event); break;
                 case 'create-tenant-user': criarUsuarioTenant(event); break;
                 case 'change-password': alterarMinhaSenha(event); break;
+                case 'setup-mfa': iniciarConfiguracaoMfa(event); break;
+                case 'confirm-mfa': confirmarConfiguracaoMfa(event); break;
+                case 'disable-mfa': desativarMfa(event); break;
                 case 'consult-qr':
                     event.preventDefault();
                     consultarQR(document.getElementById('qr-input-manual')?.value.trim() || '');

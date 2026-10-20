@@ -6,6 +6,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 ## Melhorias aplicadas nesta revisão
 
+- v0.62.0: CEO e Gerente podem ativar MFA TOTP com senha + código no login; segredo cifrado em repouso, reautenticação ao alterar a configuração, rejeição atômica de códigos TOTP já usados e 10 códigos de recuperação aleatórios de uso único. Migração compatível adiciona campos opcionais em `users`. MFA fica desativado até adesão explícita nesta versão.
 - v0.61.0: rate limiting pode usar Redis/Redis TLS por `RATE_LIMIT_STORAGE_URI`; fallback em memória preserva disponibilidade se Redis falhar, mas não oferece contagem global enquanto o armazenamento compartilhado estiver fora do ar. A variável é opcional; sem Redis, o comportamento permanece por processo.
 - v0.60.0: o login executa scrypt mesmo quando o nome de usuário não existe ou a conta ainda usa hash SHA-256 legado, reduzindo diferenças de tempo que poderiam facilitar enumeração de contas. A resposta de erro permanece genérica e nenhuma migração de banco é necessária.
 - v0.59.1: a página inicial envia `Cache-Control: no-store` para evitar HTML antigo em cache após deploy; o pacote mantém referências às bibliotecas JavaScript locais de `vendor/`.
@@ -47,7 +48,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 1. Realizar revisão de segurança independente e teste de penetração.
 2. Revisar os pontos de inserção via `innerHTML`; preferir `textContent`, criação de nós DOM e escape contextual para dados variáveis.
 3. A CSP ativa já limita scripts à própria origem. Antes de remover `unsafe-inline` de estilos, validar em navegador o leitor QR e o relatório de OS; a política Report-Only ajuda a localizar violações.
-4. Implementar MFA para administradores, recuperação segura de senha, encerramento remoto de sessões do próprio usuário e política de bloqueio/alerta. A gestão básica de contas e perfis já existe, mas precisa de validação independente.
+4. MFA TOTP para CEO/Gerente está disponível por adesão; antes de exigir MFA para todas as contas administrativas, definir recuperação de conta e processo de suporte. Recuperação de senha por e-mail e alertas de atividade continuam pendentes.
 5. Provisionar Redis gerenciado e configurar `RATE_LIMIT_STORAGE_URI` como segredo no Render antes de escalar para múltiplas instâncias; o fallback em memória não mantém limites globais durante falhas do Redis.
 6. Limitar conexões WebSocket, acompanhar falhas de autenticação e considerar um transporte de credencial fora da URL para ambientes de produção.
 7. O webhook agora fixa o IP público validado por envio para mitigar DNS rebinding/TOCTOU. Antes de produção, ainda usar política de saída de rede, limitar destinos, executar envios num worker isolado e definir logs/retries controlados.
@@ -64,7 +65,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 - Cada login recebe um identificador de sessão aleatório; somente seu hash e validade são persistidos.
 - A autorização verifica a sessão ativa em cada requisição autenticada. O endpoint `/api/logout` revoga a sessão atual, e a interface limpa o token e interrompe o polling.
-- A atualização invalida tokens emitidos antes da adoção do identificador de sessão; a interface solicita novo login. A troca de senha e a revogação de todas as sessões da conta foram adicionadas em v0.57.0. MFA, recuperação e alertas de atividade continuam pendentes.
+- A atualização invalida tokens emitidos antes da adoção do identificador de sessão; a interface solicita novo login. A troca de senha e a revogação de todas as sessões da conta foram adicionadas em v0.57.0. MFA TOTP foi adicionado em v0.62.0; recuperação de senha e alertas de atividade continuam pendentes.
 
 ### Controles implementados na versão 0.44.0
 

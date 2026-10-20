@@ -14,6 +14,7 @@
 - [ ] Blueprint criou serviço web e banco PostgreSQL.
 - [ ] `SECRET_KEY` foi gerada pelo Render e está definida como variável secreta.
 - [ ] `DATABASE_URL` aponta para o banco correto.
+- [ ] Preservar `SECRET_KEY` entre deploys; os segredos TOTP existentes são criptografados com uma chave derivada dela.
 - [ ] Se houver mais de uma instância, `RATE_LIMIT_STORAGE_URI` aponta para Redis gerenciado e está cadastrada como variável secreta; sem essa configuração, limites de requisição ficam locais a cada processo.
 - [ ] Build e start terminaram sem erros.
 - [ ] `/health` responde HTTP 200.
@@ -33,6 +34,7 @@
 - [ ] Desativar uma conta de teste e confirmar que login/sessões anteriores deixam de funcionar; reativá-la e validar novo login.
 - [ ] Tentar abrir `/api/users` com uma conta não CEO e confirmar resposta 403; revisar que as alterações aparecem na auditoria.
 - [ ] Como CEO, encerrar as sessões de uma conta de teste; confirmar que ela precisa entrar novamente e que a ação aparece na auditoria.
+- [ ] Como CEO/Gerente de teste, ativar MFA em **Minha conta**, cadastrar a chave em um aplicativo TOTP, confirmar o código e guardar os códigos de recuperação; testar login por TOTP e uso único de um código de recuperação.
 - [ ] Testar leitura QR manual; testar câmera somente em navegador/ambiente com permissão.
 - [ ] Criar ordem de serviço e alterar estado.
 - [ ] Testar exportação CSV autenticada.

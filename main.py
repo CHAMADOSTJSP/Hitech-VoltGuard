@@ -9,6 +9,7 @@ import hmac
 import socket
 import ipaddress
 import re
+import base64
 from urllib.parse import urlparse
 import httpx
 from datetime import date, datetime, timedelta, timezone
@@ -19,6 +20,8 @@ from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 import jwt
+import pyotp
+from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Index, Text, text, or_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
@@ -275,6 +278,11 @@ class UserModel(Base):
     tenant_id = Column(String, default="HITECH-DEFAULT")
     plan = Column(String, default="Enterprise")
     is_active = Column(Boolean, nullable=False, default=True)
+    totp_enabled = Column(Boolean, nullable=False, default=False)
+    totp_secret_encrypted = Column(Text, nullable=True)
+    totp_pending_secret_encrypted = Column(Text, nullable=True)
+    totp_recovery_hashes = Column(Text, nullable=True)
+    totp_last_step = Column(Integer, nullable=True)
 
 class WebSocketTicketModel(Base):
     __tablename__ = "websocket_tickets"
@@ -367,7 +375,7 @@ async def post_webhook_event(value: str, payload: dict) -> int:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.61.0",
+    version="0.62.0",
 )
 # RATE_LIMIT_STORAGE_URI is optional. Leave it unset for the current per-process
 # memory store; use a managed Redis URL in the hosting provider for shared limits.
@@ -516,6 +524,79 @@ def verify_password(plain_password: str, stored_password: str) -> bool:
 # legados, reduzindo diferenças de tempo que poderiam revelar contas válidas.
 DUMMY_PASSWORD_HASH = hash_password(secrets.token_urlsafe(32))
 
+# TOTP secrets are encrypted at rest with a key derived from the stable application
+# SECRET_KEY. Rotating SECRET_KEY requires users to re-enroll MFA.
+MFA_ENCRYPTION_KEY = base64.urlsafe_b64encode(
+    hashlib.sha256(b"HITECH VoltGuard MFA v1\0" + SECRET_KEY.encode("utf-8")).digest()
+)
+mfa_cipher = Fernet(MFA_ENCRYPTION_KEY)
+
+def encrypt_totp_secret(secret: str) -> str:
+    return mfa_cipher.encrypt(secret.encode("ascii")).decode("ascii")
+
+def decrypt_totp_secret(encrypted_secret: Optional[str]) -> Optional[str]:
+    if not encrypted_secret:
+        return None
+    try:
+        return mfa_cipher.decrypt(encrypted_secret.encode("ascii")).decode("ascii")
+    except (InvalidToken, UnicodeError, ValueError):
+        return None
+
+def normalize_mfa_code(value: object) -> str:
+    return re.sub(r"[\s-]", "", value).upper() if isinstance(value, str) else ""
+
+def hash_recovery_code(value: str) -> str:
+    return hashlib.sha256(("voltguard-mfa-recovery-v1:" + value).encode("ascii")).hexdigest()
+
+def verify_and_record_totp(db: Session, db_user: UserModel, supplied_code: str, secret: str) -> bool:
+    """Accept a TOTP step once, using a conditional update to prevent replay."""
+    if not re.fullmatch(r"\d{6}", supplied_code):
+        return False
+    totp = pyotp.TOTP(secret)
+    current_step = totp.timecode(datetime.now(timezone.utc))
+    try:
+        last_step = db_user.totp_last_step
+    except (AttributeError, TypeError):
+        last_step = None
+    for candidate_step in (current_step, current_step - 1, current_step + 1):
+        if last_step is not None and candidate_step <= last_step:
+            continue
+        if not hmac.compare_digest(totp.generate_otp(candidate_step), supplied_code):
+            continue
+        result = db.query(UserModel).filter(
+            UserModel.username == db_user.username,
+            or_(UserModel.totp_last_step.is_(None), UserModel.totp_last_step < candidate_step),
+        ).update({UserModel.totp_last_step: candidate_step}, synchronize_session=False)
+        return result == 1
+    return False
+
+def consume_recovery_code(db: Session, db_user: UserModel, supplied_code: str) -> bool:
+    """Atomically consume one high-entropy, single-use recovery code."""
+    normalized = normalize_mfa_code(supplied_code)
+    if len(normalized) != 20:
+        return False
+    try:
+        hashes = json.loads(db_user.totp_recovery_hashes or "[]")
+    except (TypeError, json.JSONDecodeError):
+        return False
+    if not isinstance(hashes, list):
+        return False
+    candidate = hash_recovery_code(normalized)
+    matched = next((stored for stored in hashes if isinstance(stored, str)
+                    and hmac.compare_digest(stored, candidate)), None)
+    if not matched:
+        return False
+    updated_hashes = [stored for stored in hashes if stored != matched]
+    result = db.query(UserModel).filter(
+        UserModel.username == db_user.username,
+        UserModel.totp_recovery_hashes == db_user.totp_recovery_hashes,
+    ).update({UserModel.totp_recovery_hashes: json.dumps(updated_hashes)}, synchronize_session=False)
+    if result != 1:
+        db.rollback()
+        return False
+    db.commit()
+    return True
+
 # Gestão de Sessões e Inicialização da Base de Dados
 def get_db():
     db = SessionLocal()
@@ -599,8 +680,17 @@ def init_db():
                 ))
             if "users" in inspector.get_table_names():
                 user_columns = {col["name"] for col in inspector.get_columns("users")}
-                if "is_active" not in user_columns:
-                    connection.execute(text("ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE"))
+                user_compatibility_columns = {
+                    "is_active": "BOOLEAN NOT NULL DEFAULT TRUE",
+                    "totp_enabled": "BOOLEAN NOT NULL DEFAULT FALSE",
+                    "totp_secret_encrypted": "TEXT",
+                    "totp_pending_secret_encrypted": "TEXT",
+                    "totp_recovery_hashes": "TEXT",
+                    "totp_last_step": "INTEGER",
+                }
+                for column_name, column_type in user_compatibility_columns.items():
+                    if column_name not in user_columns:
+                        connection.execute(text(f"ALTER TABLE users ADD COLUMN {column_name} {column_type}"))
         Base.metadata.create_all(bind=engine)
         
         # Não criar contas de demonstração com senhas conhecidas. Todas as contas
@@ -699,6 +789,14 @@ def login(request: Request, credentials: dict, db: Session = Depends(get_db)):
         verify_password(password, DUMMY_PASSWORD_HASH)
     if not db_user or not db_user.is_active or not password_matches:
         raise HTTPException(status_code=401, detail="Utilizador ou senha incorretos.")
+    if db_user.totp_enabled:
+        supplied_code = normalize_mfa_code(credentials.get("totp_code", ""))
+        if not supplied_code:
+            return {"mfa_required": True}
+        secret = decrypt_totp_secret(db_user.totp_secret_encrypted)
+        valid_totp = bool(secret and verify_and_record_totp(db, db_user, supplied_code, secret))
+        if not valid_totp and not consume_recovery_code(db, db_user, supplied_code):
+            raise HTTPException(status_code=401, detail="Código de autenticação inválido.")
     if not db_user.password.startswith("scrypt$"):
         db_user.password = hash_password(password)
         db.commit()
@@ -717,6 +815,105 @@ def login(request: Request, credentials: dict, db: Session = Depends(get_db)):
     db.commit()
     token = jwt.encode({"sub": db_user.username, "role": db_user.role, "tenant_id": db_user.tenant_id, "plan": db_user.plan, "jti": token_id, "exp": expires_at}, SECRET_KEY, algorithm=ALGORITHM)
     return {"access_token": token, "token_type": "bearer", "role": db_user.role, "plan": db_user.plan}
+
+@app.get("/api/account/mfa", tags=["Authentication"])
+def get_mfa_status(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    db_user = db.query(UserModel).filter(UserModel.username == current_user.username).first()
+    if not db_user:
+        raise HTTPException(status_code=401, detail="Conta indisponível.")
+    try:
+        hashes = json.loads(db_user.totp_recovery_hashes or "[]")
+        remaining = len(hashes) if isinstance(hashes, list) else 0
+    except (TypeError, json.JSONDecodeError):
+        remaining = 0
+    return {"eligible": current_user.role in {"CEO", "Gerente"},
+            "enabled": bool(db_user.totp_enabled),
+            "setup_pending": bool(db_user.totp_pending_secret_encrypted),
+            "recovery_codes_remaining": remaining}
+
+@app.post("/api/account/mfa/setup", tags=["Authentication"])
+@limiter.limit("5/hour")
+def start_mfa_setup(request: Request, data: dict, db: Session = Depends(get_db),
+                    current_user: User = Depends(get_current_user)):
+    if current_user.role not in {"CEO", "Gerente"}:
+        raise HTTPException(status_code=403, detail="MFA de administrador disponível somente para CEO e Gerente.")
+    password = data.get("password", "") if isinstance(data, dict) else ""
+    db_user = db.query(UserModel).filter(UserModel.username == current_user.username,
+                                         UserModel.is_active.is_(True)).first()
+    if not isinstance(password, str) or len(password) > 256 or not db_user or not verify_password(password, db_user.password):
+        raise HTTPException(status_code=400, detail="A senha atual está incorreta.")
+    if db_user.totp_enabled:
+        raise HTTPException(status_code=409, detail="MFA já está ativo nesta conta.")
+    secret = pyotp.random_base32()
+    db_user.totp_pending_secret_encrypted = encrypt_totp_secret(secret)
+    db.commit()
+    uri = pyotp.TOTP(secret).provisioning_uri(name=db_user.username, issuer_name="HITECH VoltGuard")
+    return {"secret": secret, "provisioning_uri": uri, "algorithm": "SHA1", "digits": 6, "period_seconds": 30}
+
+@app.post("/api/account/mfa/confirm", tags=["Authentication"])
+@limiter.limit("10/hour")
+def confirm_mfa_setup(request: Request, data: dict, db: Session = Depends(get_db),
+                      current_user: User = Depends(get_current_user)):
+    if current_user.role not in {"CEO", "Gerente"}:
+        raise HTTPException(status_code=403, detail="MFA de administrador disponível somente para CEO e Gerente.")
+    code = normalize_mfa_code(data.get("code", "") if isinstance(data, dict) else "")
+    db_user = db.query(UserModel).filter(UserModel.username == current_user.username,
+                                         UserModel.is_active.is_(True)).first()
+    secret = decrypt_totp_secret(db_user.totp_pending_secret_encrypted if db_user else None)
+    if not db_user or not secret or not verify_and_record_totp(db, db_user, code, secret):
+        raise HTTPException(status_code=400, detail="Código inválido ou configuração expirada. Inicie a configuração novamente.")
+    recovery_codes = [secrets.token_hex(10).upper() for _ in range(10)]
+    db_user.totp_secret_encrypted = encrypt_totp_secret(secret)
+    db_user.totp_pending_secret_encrypted = None
+    db_user.totp_recovery_hashes = json.dumps([hash_recovery_code(value) for value in recovery_codes])
+    db_user.totp_enabled = True
+    current_session_hash = hashlib.sha256(current_user.token_id.encode()).hexdigest()
+    db.query(AuthSessionModel).filter(
+        AuthSessionModel.user_name == current_user.username,
+        AuthSessionModel.token_id_hash != current_session_hash,
+        AuthSessionModel.revoked_at.is_(None),
+    ).update({AuthSessionModel.revoked_at: datetime.utcnow()}, synchronize_session=False)
+    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username,
+                         role=current_user.role, action="ATIVAR_MFA",
+                         details="MFA TOTP ativado; demais sessões da conta foram encerradas."))
+    db.commit()
+    return {"status": "success", "recovery_codes": recovery_codes,
+            "message": "MFA ativado. Guarde os códigos de recuperação: eles serão exibidos somente agora."}
+
+@app.post("/api/account/mfa/disable", tags=["Authentication"])
+@limiter.limit("5/hour")
+def disable_mfa(request: Request, data: dict, db: Session = Depends(get_db),
+                current_user: User = Depends(get_current_user)):
+    if current_user.role not in {"CEO", "Gerente"}:
+        raise HTTPException(status_code=403, detail="MFA de administrador disponível somente para CEO e Gerente.")
+    if not isinstance(data, dict) or set(data) != {"password", "code"}:
+        raise HTTPException(status_code=422, detail="Informe a senha atual e o código MFA.")
+    password = data.get("password")
+    code = normalize_mfa_code(data.get("code"))
+    db_user = db.query(UserModel).filter(UserModel.username == current_user.username,
+                                         UserModel.is_active.is_(True)).first()
+    if not db_user or not db_user.totp_enabled:
+        raise HTTPException(status_code=409, detail="MFA não está ativo nesta conta.")
+    if not isinstance(password, str) or len(password) > 256 or not verify_password(password, db_user.password):
+        raise HTTPException(status_code=400, detail="Senha ou código MFA inválido.")
+    secret = decrypt_totp_secret(db_user.totp_secret_encrypted)
+    valid_totp = bool(secret and verify_and_record_totp(db, db_user, code, secret))
+    if not valid_totp and not consume_recovery_code(db, db_user, code):
+        raise HTTPException(status_code=400, detail="Senha ou código MFA inválido.")
+    now = datetime.utcnow()
+    db_user.totp_enabled = False
+    db_user.totp_secret_encrypted = None
+    db_user.totp_pending_secret_encrypted = None
+    db_user.totp_recovery_hashes = None
+    db.query(AuthSessionModel).filter(
+        AuthSessionModel.user_name == current_user.username,
+        AuthSessionModel.revoked_at.is_(None),
+    ).update({AuthSessionModel.revoked_at: now}, synchronize_session=False)
+    db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username,
+                         role=current_user.role, action="DESATIVAR_MFA",
+                         details="MFA TOTP desativado; sessões da conta foram encerradas."))
+    db.commit()
+    return {"status": "success", "message": "MFA desativado. Entre novamente."}
 
 @app.post("/api/logout", tags=["Authentication"])
 def logout(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

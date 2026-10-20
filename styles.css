@@ -336,3 +336,9 @@
 .account-password-form { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; align-items:end; margin-top:18px; }
 .account-password-form .btn-primary { grid-column:1/-1; }
 .account-password-form #account-password-status { grid-column:1/-1; min-height:1.2em; color:#34d399; }
+.mfa-account-section { border-top:1px solid #065f46; margin-top:24px; padding-top:20px; }
+.mfa-account-section h3 { margin:0 0 12px; }
+.mfa-account-section form { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; align-items:end; }
+.mfa-account-section form button,.mfa-account-section form p { grid-column:1/-1; }
+.mfa-recovery-codes { white-space:pre-wrap; overflow-wrap:anywhere; padding:14px; color:#d1fae5; background:#06110b; border:1px solid #065f46; border-radius:6px; }
+.mfa-setup-uri { display:block; overflow-wrap:anywhere; margin:8px 0; }

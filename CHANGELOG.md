@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.62.0 — MFA TOTP para administradores
+
+- CEO e Gerente podem ativar MFA por aplicativo autenticador em **Minha conta**; o login exige senha e código TOTP após a ativação.
+- Segredos TOTP são criptografados no banco com chave derivada de `SECRET_KEY`; manter essa variável estável é necessário para validar contas já configuradas.
+- Cada janela TOTP só pode ser aceita uma vez por conta; a atualização do passo é atômica no banco.
+- São gerados 10 códigos de recuperação de uso único, exibidos apenas na confirmação. Ativar/desativar MFA exige reautenticação e encerra as demais sessões (ou todas ao desativar).
+- A migração adiciona colunas compatíveis em `users`; contas existentes permanecem com MFA desativado até ativação pelo titular. Novas dependências: `pyotp` e `cryptography`.
+
 ## v0.61.0 — Armazenamento compartilhado para rate limiting
 
 - SlowAPI aceita `RATE_LIMIT_STORAGE_URI` para armazenar contadores em Redis/Redis TLS e compartilhar limites entre instâncias.

@@ -16,6 +16,7 @@
         <p class="sub">SCADA Enterprise SaaS</p>
         <div class="input-group"><label>Usuário</label><input type="text" id="usuario" autocomplete="username" placeholder="Seu usuário" required></div>
         <div class="input-group"><label>Senha</label><input type="password" id="senha" autocomplete="current-password" placeholder="Sua senha" required></div>
+        <div class="input-group is-hidden" id="mfa-login-group"><label for="mfa-login-code">Código do aplicativo autenticador ou de recuperação</label><input type="text" id="mfa-login-code" inputmode="numeric" autocomplete="one-time-code" maxlength="20" placeholder="Código MFA"></div>
         <button type="button" class="btn-primary" data-action="login">Acessar Plataforma</button>
         <button type="button" class="link-toggle" data-action="show-register">Registar Nova Empresa (Tenant)</button>
         <div id="error-msg"></div>

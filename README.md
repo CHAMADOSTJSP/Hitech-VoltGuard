@@ -1,12 +1,18 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.62.0 — Autenticação em dois fatores para administradores
+
+Perfis CEO e Gerente podem ativar MFA TOTP em **Minha conta** usando aplicativo autenticador compatível. O login passa a exigir senha e código de 6 dígitos; cada código temporário é aceito apenas uma vez. Dez códigos de recuperação de uso único são exibidos uma única vez ao concluir a configuração. Guarde-os em local seguro.
+
+Os segredos TOTP são criptografados no banco com uma chave derivada de `SECRET_KEY`. Mantenha essa variável estável e faça backup seguro; se ela for trocada, usuários com MFA ativo precisarão reconfigurar o autenticador. A migração é automática e não ativa MFA nas contas existentes. A ativação é voluntária nesta versão.
+
 ## v0.61.0 — Rate limiting pronto para Redis compartilhado
 
 O backend aceita `RATE_LIMIT_STORAGE_URI` com uma URL `redis://` ou `rediss://` para compartilhar contadores de tentativas entre instâncias. Sem essa variável, a aplicação continua usando memória local por processo, como antes. Se o Redis configurado ficar indisponível, o SlowAPI usa fallback local; durante essa falha, o limite não é global. Para ativar o modo compartilhado, provisione Redis gerenciado e adicione a URL como variável secreta no Render. Nenhuma credencial Redis deve ser enviada ao GitHub ou ao chat.
 
 ## v0.60.0 — Resposta de login com trabalho criptográfico uniforme
 
-O login executa scrypt também para nomes de usuário inexistentes e contas com hash legado, reduzindo diferenças de tempo que poderiam indicar se uma conta existe. A mensagem de falha continua genérica. O limite atual de tentativas por IP permanece em memória por instância; múltiplas instâncias ainda exigem um limitador compartilhado.
+O login executa scrypt também para nomes de usuário inexistentes e contas com hash legado, reduzindo diferenças de tempo que poderiam indicar se uma conta existe. A mensagem de falha continua genérica. O limitador pode usar Redis compartilhado quando `RATE_LIMIT_STORAGE_URI` está configurada; sem Redis, permanece em memória por processo.
 
 ## v0.59.1 — Evitar cache desatualizado do HTML
 
@@ -26,7 +32,7 @@ Todos os usuários autenticados podem abrir **Minha conta** e trocar a própria 
 
 ## v0.56.0 — Gestão de usuários e perfis por organização
 
-O CEO pode abrir **Usuários**, listar contas da própria organização, criar contas de Gerente e Técnico de Campo, alterar o perfil e desativar/reativar uma conta. A conta CEO e a própria sessão do CEO não podem ser alteradas nessa tela. A desativação encerra as sessões ativas e impede novos logins. O backend valida novamente o papel e o tenant em cada chamada; a interface não é a barreira de segurança. O banco adiciona `users.is_active` com migração compatível; contas existentes são mantidas ativas. A entrega da senha inicial deve ocorrer por canal seguro; recuperação de senha e MFA ainda não estão disponíveis.
+O CEO pode abrir **Usuários**, listar contas da própria organização, criar contas de Gerente e Técnico de Campo, alterar o perfil e desativar/reativar uma conta. A conta CEO e a própria sessão do CEO não podem ser alteradas nessa tela. A desativação encerra as sessões ativas e impede novos logins. O backend valida novamente o papel e o tenant em cada chamada; a interface não é a barreira de segurança. O banco adiciona `users.is_active` com migração compatível; contas existentes são mantidas ativas. A entrega da senha inicial deve ocorrer por canal seguro; CEO e Gerente podem ativar MFA TOTP em **Minha conta**.
 
 O `render.yaml` agora declara `runtime: docker` e aponta explicitamente para `./Dockerfile` e para o contexto raiz, em linha com a configuração do serviço Render.
 
@@ -80,11 +86,11 @@ O script principal da interface foi separado em `app.js`, servido em `/app.js` s
 
 ## v0.44.0 — Limites básicos para ingestão de telemetria
 
-A rota de telemetria agora limita cada IP a 600 requisições por minuto e recusa corpos com `Content-Length` acima de 16 KB. O payload rejeita campos desconhecidos e restringe o tamanho dos identificadores e da tensão textual. O limite de taxa é compartilhado por gateways que saem pelo mesmo IP e mantido em memória por instância; para maior escala, configurar limite distribuído por credencial no proxy/WAF ou em armazenamento compartilhado.
+A rota de telemetria limita cada IP a 600 requisições por minuto e recusa corpos com `Content-Length` acima de 16 KB. O payload rejeita campos desconhecidos e restringe o tamanho dos identificadores e da tensão textual. Sem Redis, os limites ficam em memória por processo; com `RATE_LIMIT_STORAGE_URI`, os contadores são compartilhados entre instâncias. A política por credencial no proxy/WAF continua pendente.
 
 ## v0.43.0 — Revogação de sessão no logout
 
-Cada login recebe um identificador de sessão aleatório; somente o hash é persistido. Requisições autenticadas verificam se a sessão continua ativa. O botão “Sair” chama `/api/logout` para revogar o token no servidor e limpa a sessão local; tokens antigos, sem identificador de sessão, exigem novo login após esta atualização. O CEO pode revogar as sessões de outros usuários da organização pela aba **Usuários**. Os registros expirados são eliminados gradualmente no login; MFA e alertas de atividade continuam pendentes.
+Cada login recebe um identificador de sessão aleatório; somente o hash é persistido. Requisições autenticadas verificam se a sessão continua ativa. O botão “Sair” chama `/api/logout` para revogar o token no servidor e limpa a sessão local; tokens antigos, sem identificador de sessão, exigem novo login após esta atualização. O CEO pode revogar as sessões de outros usuários da organização pela aba **Usuários**. Os registros expirados são eliminados gradualmente no login; alertas de atividade continuam pendentes.
 
 ## v0.42.0 — Ticket temporário para WebSocket
 
@@ -372,14 +378,14 @@ O Blueprint está configurado para avaliação econômica. Serviços e bancos gr
 - Alguns KPIs, previsão de falhas e valores ESG são demonstrativos/estimativas e não constituem predição validada ou medição real.
 - A assinatura representa metadados; não há integração de cobrança, pagamentos, inadimplência ou cancelamento.
 - IDs de painéis permanecem globalmente únicos no modelo atual. A coluna `tenant_id` e os filtros de acesso protegem as consultas, mas permitir IDs iguais entre organizações requer migração de chave e revisão dos relacionamentos.
-- O limitador de requisições usa armazenamento em memória por processo; não é proteção distribuída para uma implantação escalada.
+- O limitador de requisições usa memória por processo por padrão; configure Redis via `RATE_LIMIT_STORAGE_URI` antes de escalar para múltiplas instâncias.
 
 Leia `REVISAO_TECNICA.md` antes de usar dados reais.
 
 ### Gestão de usuários (v0.58.0)
 A aba **Usuários** aparece somente para CEO. Permite criar usuários com perfil Gerente ou Técnico de Campo, alterar seus perfis, desativar/reativar contas e encerrar as sessões de outros usuários ativos do mesmo tenant. A API protege todas as contas CEO e impede que o CEO altere ou encerre a própria conta por estas ações. Desativar uma conta impede novos logins e revoga sessões existentes; mudar um perfil também revoga sessões para exigir novo login. Ações são registradas na auditoria.
 
-Endpoints: `GET /api/users`, `POST /api/users` com `{ "username", "password", "role" }`, `PATCH /api/users/{username}` com `role` e/ou `is_active`, e `POST /api/users/{username}/revoke-sessions`. Apenas o backend concede acesso. Senhas devem ter pelo menos 12 caracteres e são armazenadas com scrypt. O endpoint `POST /api/account/password` exige senha atual e nova senha e encerra todas as sessões após a alteração. Recuperação de senha e MFA ainda não estão disponíveis.
+Endpoints: `GET /api/users`, `POST /api/users` com `{ "username", "password", "role" }`, `PATCH /api/users/{username}` com `role` e/ou `is_active`, e `POST /api/users/{username}/revoke-sessions`. Apenas o backend concede acesso. Senhas devem ter pelo menos 12 caracteres e são armazenadas com scrypt. O endpoint `POST /api/account/password` exige senha atual e nova senha e encerra todas as sessões após a alteração. MFA TOTP está disponível por adesão para CEO e Gerente; recuperação de senha ainda não está disponível.
 
 ## Novos módulos (v0.5.0)
 
