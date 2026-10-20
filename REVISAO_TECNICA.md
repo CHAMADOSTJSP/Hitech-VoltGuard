@@ -6,6 +6,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 ## Melhorias aplicadas nesta revisão
 
+- v0.60.0: o login executa scrypt mesmo quando o nome de usuário não existe ou a conta ainda usa hash SHA-256 legado, reduzindo diferenças de tempo que poderiam facilitar enumeração de contas. A resposta de erro permanece genérica e nenhuma migração de banco é necessária.
 - v0.59.1: a página inicial envia `Cache-Control: no-store` para evitar HTML antigo em cache após deploy; o pacote mantém referências às bibliotecas JavaScript locais de `vendor/`.
 - v0.59.0: CSP passou a ser aplicada; scripts, conexões e formulários ficam restritos à origem, objetos e enquadramento são bloqueados. Estilos inline seguem permitidos para manter compatibilidade com o scanner QR; a política Report-Only restritiva continua ativa para observação. A inicialização confere os arquivos JavaScript obrigatórios de `vendor/` e identifica os ausentes.
 - v0.58.0: CEO pode encerrar remotamente todas as sessões ativas de outro usuário do próprio tenant; a API bloqueia contas CEO, autoencerramento e contas desativadas, informa a quantidade revogada e registra auditoria.
@@ -43,8 +44,8 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 ### Segurança e identidade
 
 1. Realizar revisão de segurança independente e teste de penetração.
-2. Remover os demais manipuladores inline e rever todos os pontos de inserção via `innerHTML`; preferir `textContent`, criação de nós DOM e escape contextual.
-3. Implementar Content Security Policy (CSP) depois de eliminar scripts e eventos inline.
+2. Revisar os pontos de inserção via `innerHTML`; preferir `textContent`, criação de nós DOM e escape contextual para dados variáveis.
+3. A CSP ativa já limita scripts à própria origem. Antes de remover `unsafe-inline` de estilos, validar em navegador o leitor QR e o relatório de OS; a política Report-Only ajuda a localizar violações.
 4. Implementar MFA para administradores, recuperação segura de senha, encerramento remoto de sessões do próprio usuário e política de bloqueio/alerta. A gestão básica de contas e perfis já existe, mas precisa de validação independente.
 5. Migrar rate limiting para armazenamento compartilhado/edge ou WAF se houver múltiplas instâncias.
 6. Limitar conexões WebSocket, acompanhar falhas de autenticação e considerar um transporte de credencial fora da URL para ambientes de produção.

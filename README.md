@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.60.0 — Resposta de login com trabalho criptográfico uniforme
+
+O login executa scrypt também para nomes de usuário inexistentes e contas com hash legado, reduzindo diferenças de tempo que poderiam indicar se uma conta existe. A mensagem de falha continua genérica. O limite atual de tentativas por IP permanece em memória por instância; múltiplas instâncias ainda exigem um limitador compartilhado.
+
 ## v0.59.1 — Evitar cache desatualizado do HTML
 
 A resposta da página inicial passa a usar `Cache-Control: no-store`, assim como os recursos da aplicação. Isso evita que o navegador ou uma camada intermediária mantenha um `index.html` antigo após o deploy. O HTML servido referencia Chart.js e html5-qrcode em `vendor/`, na mesma origem do serviço.

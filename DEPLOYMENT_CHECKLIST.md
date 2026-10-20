@@ -25,6 +25,7 @@
 
 - [ ] Criar organização de teste com senha de pelo menos 12 caracteres.
 - [ ] Fazer login e sair.
+- [ ] Confirmar que um login válido funciona e que usuário inexistente/senha incorreta recebem a mesma mensagem genérica.
 - [ ] Confirmar que os painéis iniciais estão marcados como dados de demonstração.
 - [ ] Como CEO, criar um Gerente e um Técnico de Campo; confirmar que cada perfil vê apenas módulos autorizados.
 - [ ] Em **Minha conta**, trocar a senha de uma conta de teste; confirmar que as sessões abertas são encerradas e que o novo login funciona.

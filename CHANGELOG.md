@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.60.0 — Mitigação de enumeração de contas por tempo
+
+- Login faz verificação criptográfica de custo semelhante para usuários inexistentes e contas com hash legado, reduzindo enumeração de contas por temporização.
+- Mantém a mesma resposta genérica para falhas de autenticação; não altera o fluxo de login nem exige migração do banco.
+
 ## v0.59.1 — Evitar cache desatualizado do HTML
 - A página inicial agora envia `Cache-Control: no-store` para evitar conteúdo HTML antigo após um deploy.
 - Confirmado no pacote que o HTML carrega Chart.js e html5-qrcode da pasta local `/vendor/`.

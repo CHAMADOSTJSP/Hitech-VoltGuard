@@ -367,7 +367,7 @@ async def post_webhook_event(value: str, payload: dict) -> int:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.59.1",
+    version="0.60.0",
 )
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 app.state.limiter = limiter
@@ -491,6 +491,11 @@ def verify_password(plain_password: str, stored_password: str) -> bool:
         return hmac.compare_digest(legacy, stored_password)
     except (ValueError, TypeError):
         return False
+
+
+# Equaliza o trabalho de autenticação para usuários inexistentes e hashes
+# legados, reduzindo diferenças de tempo que poderiam revelar contas válidas.
+DUMMY_PASSWORD_HASH = hash_password(secrets.token_urlsafe(32))
 
 # Gestão de Sessões e Inicialização da Base de Dados
 def get_db():
@@ -667,7 +672,13 @@ def login(request: Request, credentials: dict, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Utilizador ou senha incorretos.")
     
     db_user = db.query(UserModel).filter(UserModel.username == username).first()
-    if not db_user or not db_user.is_active or not verify_password(password, db_user.password):
+    stored_hash = db_user.password if db_user and isinstance(db_user.password, str) else DUMMY_PASSWORD_HASH
+    password_matches = verify_password(password, stored_hash)
+    # Compatibilidade com hashes SHA-256 antigos: além da validação legada,
+    # executa scrypt para evitar uma resposta mais rápida para essas contas.
+    if db_user and not stored_hash.startswith("scrypt$"):
+        verify_password(password, DUMMY_PASSWORD_HASH)
+    if not db_user or not db_user.is_active or not password_matches:
         raise HTTPException(status_code=401, detail="Utilizador ou senha incorretos.")
     if not db_user.password.startswith("scrypt$"):
         db_user.password = hash_password(password)
