@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.63.1 — Dependências MFA verificadas no build
+
+- O Dockerfile instala explicitamente PyOTP e verifica PyOTP, QR Code e cryptography durante o build, evitando que uma imagem sem essas bibliotecas chegue à inicialização do serviço.
+
 ## v0.63.0 — MFA apenas para troca de senha
 
 - O login normal não solicita código MFA; autentica somente com usuário e senha.

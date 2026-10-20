@@ -6,6 +6,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 ## Melhorias aplicadas nesta revisão
 
+- v0.63.1: instalação explícita do PyOTP no Docker e verificação de importação de PyOTP, qrcode e cryptography durante o build.
 - v0.63.0: MFA é usado somente como confirmação adicional para troca de senha; o login normal requer apenas usuário e senha. A troca de senha verifica TOTP ou código de recuperação de uso único. A URI do QR contém um único rótulo de conta, sem parâmetro de emissor repetido.
 - v0.62.3: o primeiro enrollment MFA exige nova senha após validar o TOTP. Um desafio aleatório, com hash no banco, expira em 10 minutos e é consumido atomicamente; MFA e códigos de recuperação só são ativados após a troca de senha. Outras sessões são revogadas.
 - v0.62.2: configuração MFA exibe QR Code gerado localmente com a URI TOTP; permanece disponível a chave manual e nenhuma API externa recebe o segredo.

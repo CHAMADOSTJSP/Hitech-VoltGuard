@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.63.1 — Verificação das dependências MFA
+
+O build Docker instala PyOTP explicitamente e confirma que PyOTP, qrcode e cryptography podem ser importados antes de criar a imagem final. Se faltar alguma biblioteca, o deploy para no build com o erro de dependência, sem iniciar uma versão quebrada.
+
 ## v0.63.0 — MFA exclusivo para troca de senha
 
 O login normal usa somente usuário e senha. Quando MFA estiver ativo, a troca da senha exige também um código temporário do autenticador ou um código de recuperação de uso único. O QR apresenta uma única identificação para reduzir a possibilidade de leitores criarem duas entradas para a mesma configuração. O código MFA não é solicitado ao entrar no painel.
