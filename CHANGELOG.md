@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.61.0 — Armazenamento compartilhado para rate limiting
+
+- SlowAPI aceita `RATE_LIMIT_STORAGE_URI` para armazenar contadores em Redis/Redis TLS e compartilhar limites entre instâncias.
+- Sem Redis configurado, mantém o armazenamento em memória por processo. Se o Redis configurado ficar indisponível, ativa fallback em memória para preservar a disponibilidade; durante a falha, a contagem deixa de ser global.
+- A URL é validada na inicialização e não é registrada nos logs. Redis é opcional e deve ser provisionado separadamente; não foi adicionado um serviço Redis ao Blueprint.
+
 ## v0.60.0 — Mitigação de enumeração de contas por tempo
 
 - Login faz verificação criptográfica de custo semelhante para usuários inexistentes e contas com hash legado, reduzindo enumeração de contas por temporização.

@@ -14,6 +14,7 @@
 - [ ] Blueprint criou serviço web e banco PostgreSQL.
 - [ ] `SECRET_KEY` foi gerada pelo Render e está definida como variável secreta.
 - [ ] `DATABASE_URL` aponta para o banco correto.
+- [ ] Se houver mais de uma instância, `RATE_LIMIT_STORAGE_URI` aponta para Redis gerenciado e está cadastrada como variável secreta; sem essa configuração, limites de requisição ficam locais a cada processo.
 - [ ] Build e start terminaram sem erros.
 - [ ] `/health` responde HTTP 200.
 - [ ] A página `/` e os recursos `/app.js`, `/styles.css` e `/vendor/*` enviam `Cache-Control: no-store`.

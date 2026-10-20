@@ -6,6 +6,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 ## Melhorias aplicadas nesta revisão
 
+- v0.61.0: rate limiting pode usar Redis/Redis TLS por `RATE_LIMIT_STORAGE_URI`; fallback em memória preserva disponibilidade se Redis falhar, mas não oferece contagem global enquanto o armazenamento compartilhado estiver fora do ar. A variável é opcional; sem Redis, o comportamento permanece por processo.
 - v0.60.0: o login executa scrypt mesmo quando o nome de usuário não existe ou a conta ainda usa hash SHA-256 legado, reduzindo diferenças de tempo que poderiam facilitar enumeração de contas. A resposta de erro permanece genérica e nenhuma migração de banco é necessária.
 - v0.59.1: a página inicial envia `Cache-Control: no-store` para evitar HTML antigo em cache após deploy; o pacote mantém referências às bibliotecas JavaScript locais de `vendor/`.
 - v0.59.0: CSP passou a ser aplicada; scripts, conexões e formulários ficam restritos à origem, objetos e enquadramento são bloqueados. Estilos inline seguem permitidos para manter compatibilidade com o scanner QR; a política Report-Only restritiva continua ativa para observação. A inicialização confere os arquivos JavaScript obrigatórios de `vendor/` e identifica os ausentes.
@@ -27,7 +28,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 - Hash de senhas com scrypt e migração de hashes SHA-256 legados no login.
 - `SECRET_KEY` configurável; o Render deve fornecer um segredo estável e aleatório.
 - Validação de senha de cadastro com mínimo de 12 caracteres, limites de comprimento e validação de identificadores.
-- Rate limiting de login e cadastro por processo, usando SlowAPI; não é rate limiting distribuído.
+- Rate limiting de login, cadastro e endpoints operacionais usando SlowAPI; com `RATE_LIMIT_STORAGE_URI` em Redis pode compartilhar contadores entre instâncias. Sem a variável, permanece por processo.
 - Filtros por organização nas consultas de painéis, ordens, auditoria, inventário e histórico.
 - Adicionado `tenant_id` ao histórico de painéis, incluindo uma migração de compatibilidade estreita para bancos anteriores.
 - Timestamps de novos registros de histórico passam a incluir data/hora completa em formato ISO.
@@ -47,7 +48,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 2. Revisar os pontos de inserção via `innerHTML`; preferir `textContent`, criação de nós DOM e escape contextual para dados variáveis.
 3. A CSP ativa já limita scripts à própria origem. Antes de remover `unsafe-inline` de estilos, validar em navegador o leitor QR e o relatório de OS; a política Report-Only ajuda a localizar violações.
 4. Implementar MFA para administradores, recuperação segura de senha, encerramento remoto de sessões do próprio usuário e política de bloqueio/alerta. A gestão básica de contas e perfis já existe, mas precisa de validação independente.
-5. Migrar rate limiting para armazenamento compartilhado/edge ou WAF se houver múltiplas instâncias.
+5. Provisionar Redis gerenciado e configurar `RATE_LIMIT_STORAGE_URI` como segredo no Render antes de escalar para múltiplas instâncias; o fallback em memória não mantém limites globais durante falhas do Redis.
 6. Limitar conexões WebSocket, acompanhar falhas de autenticação e considerar um transporte de credencial fora da URL para ambientes de produção.
 7. O webhook agora fixa o IP público validado por envio para mitigar DNS rebinding/TOCTOU. Antes de produção, ainda usar política de saída de rede, limitar destinos, executar envios num worker isolado e definir logs/retries controlados.
 8. Rever a política de CORS, cookies/sessões (se forem introduzidos), CSP e configuração de proxy/HTTPS de acordo com o ambiente.
@@ -70,7 +71,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 - A ingestão de dispositivo limita 600 requisições por minuto por endereço IP usando SlowAPI.
 - A rota recusa requisições que declarem `Content-Length` maior que 16 KB antes do processamento do corpo.
 - O modelo de telemetria rejeita campos desconhecidos e limita os tamanhos de `panel_id`, `voltage` e `gateway_qr`.
-- O rate limiting é em memória por processo e compartilhado por todos os dispositivos que chegam do mesmo IP. Para múltiplas instâncias, adotar armazenamento distribuído e uma política dimensionada por credencial.
+- O rate limiting usa memória por processo quando `RATE_LIMIT_STORAGE_URI` não está configurada. Com Redis configurado, os contadores são compartilhados entre instâncias; se Redis ficar indisponível, há fallback em memória e a contagem deixa de ser global até a recuperação.
 
 ### Banco e multiempresa
 

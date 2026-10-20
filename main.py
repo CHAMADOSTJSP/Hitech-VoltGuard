@@ -367,9 +367,28 @@ async def post_webhook_event(value: str, payload: dict) -> int:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.60.0",
+    version="0.61.0",
 )
-limiter = Limiter(key_func=get_remote_address, default_limits=[])
+# RATE_LIMIT_STORAGE_URI is optional. Leave it unset for the current per-process
+# memory store; use a managed Redis URL in the hosting provider for shared limits.
+# Never log this value because Redis URLs can contain credentials.
+RATE_LIMIT_STORAGE_URI = os.getenv("RATE_LIMIT_STORAGE_URI", "").strip()
+if RATE_LIMIT_STORAGE_URI:
+    parsed_rate_limit_storage = urlparse(RATE_LIMIT_STORAGE_URI)
+    if parsed_rate_limit_storage.scheme not in {"redis", "rediss"} or not parsed_rate_limit_storage.hostname:
+        raise RuntimeError("RATE_LIMIT_STORAGE_URI deve ser uma URL Redis válida (redis:// ou rediss://).")
+    try:
+        parsed_rate_limit_storage.port
+    except ValueError as exc:
+        raise RuntimeError("RATE_LIMIT_STORAGE_URI contém uma porta inválida.") from exc
+    del parsed_rate_limit_storage
+
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[],
+    storage_uri=RATE_LIMIT_STORAGE_URI or "memory://",
+    in_memory_fallback_enabled=True,
+)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 

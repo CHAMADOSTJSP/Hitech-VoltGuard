@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.61.0 — Rate limiting pronto para Redis compartilhado
+
+O backend aceita `RATE_LIMIT_STORAGE_URI` com uma URL `redis://` ou `rediss://` para compartilhar contadores de tentativas entre instâncias. Sem essa variável, a aplicação continua usando memória local por processo, como antes. Se o Redis configurado ficar indisponível, o SlowAPI usa fallback local; durante essa falha, o limite não é global. Para ativar o modo compartilhado, provisione Redis gerenciado e adicione a URL como variável secreta no Render. Nenhuma credencial Redis deve ser enviada ao GitHub ou ao chat.
+
 ## v0.60.0 — Resposta de login com trabalho criptográfico uniforme
 
 O login executa scrypt também para nomes de usuário inexistentes e contas com hash legado, reduzindo diferenças de tempo que poderiam indicar se uma conta existe. A mensagem de falha continua genérica. O limite atual de tentativas por IP permanece em memória por instância; múltiplas instâncias ainda exigem um limitador compartilhado.
