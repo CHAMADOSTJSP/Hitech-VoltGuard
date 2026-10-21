@@ -7,6 +7,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 ## Melhorias aplicadas nesta revisão
 
 - v0.64.0: a API exige CEO para exportar o relatório executivo e CEO/Gerente para consultar credenciais de dispositivos, alinhando a autorização do backend à interface e mantendo os dados limitados ao tenant autenticado.
+- Operação do banco: documentado o fluxo de exportação e recuperação do PostgreSQL em instância separada, incluindo os limites do plano Free e a preservação de `SECRET_KEY`. O procedimento ainda precisa ser executado e a restauração validada pelo responsável do ambiente.
 - v0.63.2: o Dockerfile instala explicitamente PyOTP, qrcode/Pillow e cryptography, e valida as importações durante o build.
 - v0.63.1: instalação explícita do PyOTP no Docker e verificação de importação de PyOTP, qrcode e cryptography durante o build.
 - v0.63.0: MFA é usado somente como confirmação adicional para troca de senha; o login normal requer apenas usuário e senha. A troca de senha verifica TOTP ou código de recuperação de uso único. A URI do QR contém um único rótulo de conta, sem parâmetro de emissor repetido.
@@ -85,7 +86,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 1. `PanelModel.id` ainda é chave primária global. A aplicação não permite reutilizar o mesmo ID em duas organizações. Alterar para chave composta exige migração estrutural e testes de regressão.
 2. A coluna `tenant_id` foi adicionada ao histórico e as consultas filtram por organização. Validar a migração com cópia de banco e backup antes de atualizar bases persistentes antigas.
-3. A migração de compatibilidade em `init_db()` cobre apenas a coluna `panel_history.tenant_id`; não substitui Alembic para futuras mudanças estruturais.
+3. `init_db()` contém alterações de compatibilidade limitadas em `panel_history`, `panels`, `work_orders` e `users`, além de `Base.metadata.create_all()`. Não há histórico versionado ou rollback; adotar Alembic após ensaio em cópia, com backup e plano de retorno. Ver `DATABASE_OPERATIONS.md`.
 4. Adicionar testes negativos para cada endpoint que lê ou altera painéis, inventário, regras, auditoria, ordens, webhooks e relatórios.
 5. Criar histórico de movimentação de estoque, constraints/índices apropriados, transações robustas e testes de concorrência. A validação de saldo negativo já foi adicionada, mas concorrência precisa ser testada em PostgreSQL.
 6. Completar trilha de auditoria para todas as operações administrativas e definir retenção, exportação e exclusão.
@@ -97,7 +98,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 3. Criar detecção de equipamento offline, limites de stale data, reconexão, fila de eventos e observabilidade.
 4. Previsão de falhas, ESG e KPIs demonstrativos não devem ser anunciados como medições ou previsões validadas.
 5. Cobrança é metadado, sem gateway de pagamento, renovação ou gestão de inadimplência.
-6. Configurar backup e restauração do PostgreSQL, logs estruturados, alertas e plano de resposta a incidentes.
+6. Executar e registrar um backup e uma restauração do PostgreSQL em instância separada; o procedimento está documentado em `DATABASE_OPERATIONS.md`. Logs estruturados, alertas e plano de resposta a incidentes continuam pendentes.
 7. Executar testes de carga, navegador multiplataforma e testes de recuperação antes de um piloto.
 
 ## Conformidade e segurança industrial

@@ -1,5 +1,11 @@
 # Changelog
 
+## Operação do banco — backup e recuperação
+
+- Adicionado `DATABASE_OPERATIONS.md` com procedimento para exportar, recuperar e validar o PostgreSQL sem substituir o banco ativo antes da verificação.
+- Checklist de piloto agora exige validar a restauração em uma instância separada.
+- Nenhuma alteração no esquema ou na inicialização do banco foi feita nesta etapa.
+
 ## v0.64.0 — Permissões do relatório executivo e credenciais
 
 - A exportação do relatório executivo agora exige perfil CEO no backend.

@@ -398,6 +398,8 @@ Abra `http://127.0.0.1:8000`. Para ambiente local, o padrão é SQLite. Para Ren
 
 O Blueprint está configurado para avaliação econômica. Serviços e bancos gratuitos podem ter limites de uso, suspensão por inatividade e políticas de expiração que mudam com o tempo. Antes de guardar dados reais, confirme no painel e na documentação atual do Render o plano, a persistência, os backups e a política de expiração do PostgreSQL. Faça upgrade quando necessário e teste restauração antes de um piloto comercial.
 
+Consulte [DATABASE_OPERATIONS.md](DATABASE_OPERATIONS.md) para criar uma exportação, recuperar o banco em uma instância separada e preservar os segredos necessários. A inicialização ainda executa alterações de compatibilidade limitadas; mudanças futuras de esquema exigem migração formal, backup e ensaio de retorno.
+
 ## Limites funcionais importantes
 
 - A telemetria da API é autenticada com token de usuário; **ainda não existe uma identidade/credencial dedicada por dispositivo industrial**.

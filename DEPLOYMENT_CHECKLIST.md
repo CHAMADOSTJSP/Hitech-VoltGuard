@@ -47,7 +47,8 @@
 ## Antes de qualquer piloto com dados reais
 
 - [ ] Plano PostgreSQL persistente escolhido e política de expiração confirmada.
-- [ ] Backup e restauração testados.
+- [ ] Procedimento em [DATABASE_OPERATIONS.md](DATABASE_OPERATIONS.md) seguido; exportação armazenada em local privado.
+- [ ] Restauração validada em banco separado, sem apontar o serviço ativo antes da validação.
 - [ ] Revisão independente de segurança e testes de isolamento concluídos.
 - [ ] Migrações de banco revisadas com backup.
 - [ ] Política de privacidade, retenção, suporte e resposta a incidentes definida.
