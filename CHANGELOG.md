@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.64.0 — Permissões do relatório executivo e credenciais
+
+- A exportação do relatório executivo agora exige perfil CEO no backend.
+- A listagem de credenciais de dispositivos exige perfil CEO ou Gerente no backend.
+- As verificações mantêm-se no servidor mesmo se uma chamada for feita diretamente à API, fora da interface.
+
 ## v0.63.2 — Instalação completa das dependências MFA
 
 - O Dockerfile instala explicitamente PyOTP, qrcode com Pillow e cryptography antes de validar as importações; o build não depende apenas de a lista de dependências ter sido atualizada corretamente.

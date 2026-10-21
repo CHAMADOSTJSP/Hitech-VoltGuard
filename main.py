@@ -378,7 +378,7 @@ async def post_webhook_event(value: str, payload: dict) -> int:
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.63.2",
+    version="0.64.0",
 )
 # RATE_LIMIT_STORAGE_URI is optional. Leave it unset for the current per-process
 # memory store; use a managed Redis URL in the hosting provider for shared limits.
@@ -2064,6 +2064,7 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.get("/api/export/executive-report")
 def export_executive_report(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Exporta relatório executivo Excel formatado, limitado ao tenant autenticado."""
+    require_roles(current_user, ROLE_CEO, "Somente CEO pode exportar o relatório executivo.")
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
     from openpyxl.utils import get_column_letter
@@ -2759,6 +2760,7 @@ def update_maintenance_task(task_id: int, data: MaintenanceTaskUpdate, db: Sessi
 
 @app.get("/api/devices/credentials")
 def list_device_credentials(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    require_roles(current_user, ROLE_MANAGERS, "Somente CEO ou Gerente pode consultar credenciais de dispositivos.")
     rows = db.query(DeviceCredentialModel).filter(DeviceCredentialModel.tenant_id == current_user.tenant_id).order_by(DeviceCredentialModel.created_at.desc()).all()
     return [{"id": x.id, "panel_id": x.panel_id, "name": x.name, "created_at": x.created_at.isoformat(), "last_used_at": x.last_used_at.isoformat() if x.last_used_at else None, "revoked": bool(x.revoked_at)} for x in rows]
 

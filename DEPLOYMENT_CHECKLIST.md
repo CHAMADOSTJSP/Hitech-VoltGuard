@@ -33,6 +33,7 @@
 - [ ] Em **Minha conta**, trocar a senha de uma conta de teste; confirmar que as sessões abertas são encerradas e que o novo login funciona.
 - [ ] Desativar uma conta de teste e confirmar que login/sessões anteriores deixam de funcionar; reativá-la e validar novo login.
 - [ ] Tentar abrir `/api/users` com uma conta não CEO e confirmar resposta 403; revisar que as alterações aparecem na auditoria.
+- [ ] Com Técnico de Campo, confirmar que `GET /api/devices/credentials` e `GET /api/export/executive-report` retornam 403; com Gerente, confirmar que a lista de credenciais retorna 200 e a exportação executiva retorna 403.
 - [ ] Como CEO, encerrar as sessões de uma conta de teste; confirmar que ela precisa entrar novamente e que a ação aparece na auditoria.
 - [ ] Como CEO/Gerente de teste, ativar MFA em **Minha conta**, escanear o QR uma vez, confirmar o código TOTP, escolher nova senha e guardar os códigos de recuperação; confirmar que o login usa apenas senha e que a troca posterior de senha pede TOTP (ou um código de recuperação de uso único).
 - [ ] Testar leitura QR manual; testar câmera somente em navegador/ambiente com permissão.

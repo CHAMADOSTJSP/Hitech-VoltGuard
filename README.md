@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.64.0 — Permissões do relatório executivo e credenciais
+
+O backend agora exige perfil CEO para exportar o relatório executivo e CEO/Gerente para consultar metadados das credenciais de dispositivos, alinhando as rotas às permissões já exibidas na interface.
+
 ## v0.63.2 — Dependências MFA no Docker
 
 O Dockerfile instala diretamente PyOTP, qrcode com Pillow e cryptography, além de instalar `requirements.txt`. O build verifica as três importações antes de concluir a imagem.
@@ -62,7 +66,7 @@ O `render.yaml` agora declara `runtime: docker` e aponta explicitamente para `./
 
 ## v0.55.0 — Permissões por perfil
 
-As permissões das rotas de escrita usam uma matriz central no backend: CEO e Gerente administram configurações e credenciais; CEO, Gerente e Técnico de Campo podem executar operações de campo, como reconhecer alarmes e manter tarefas. Técnico de Campo pode cadastrar ativos, planos e tarefas, mas não editar ativos, administrar credenciais, alterar regras, configurar webhooks ou consultar auditoria. A interface mostra Ativos e Manutenção para esse perfil e oculta a edição de ativos.
+As permissões das rotas usam uma matriz central no backend: CEO e Gerente administram configurações e credenciais; CEO, Gerente e Técnico de Campo podem executar operações de campo, como reconhecer alarmes e manter tarefas. Técnico de Campo pode cadastrar ativos, planos e tarefas, mas não editar ativos, consultar/administrar credenciais, alterar regras, configurar webhooks ou consultar auditoria. A exportação do relatório executivo é exclusiva do CEO. A interface aplica as mesmas permissões, mas a validação decisiva ocorre no servidor.
 
 ## v0.54.0 — Proteção do destino de webhooks
 

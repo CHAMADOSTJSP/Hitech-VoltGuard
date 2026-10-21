@@ -6,6 +6,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 ## Melhorias aplicadas nesta revisão
 
+- v0.64.0: a API exige CEO para exportar o relatório executivo e CEO/Gerente para consultar credenciais de dispositivos, alinhando a autorização do backend à interface e mantendo os dados limitados ao tenant autenticado.
 - v0.63.2: o Dockerfile instala explicitamente PyOTP, qrcode/Pillow e cryptography, e valida as importações durante o build.
 - v0.63.1: instalação explícita do PyOTP no Docker e verificação de importação de PyOTP, qrcode e cryptography durante o build.
 - v0.63.0: MFA é usado somente como confirmação adicional para troca de senha; o login normal requer apenas usuário e senha. A troca de senha verifica TOTP ou código de recuperação de uso único. A URI do QR contém um único rótulo de conta, sem parâmetro de emissor repetido.
