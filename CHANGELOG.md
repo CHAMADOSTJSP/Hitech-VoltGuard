@@ -1,5 +1,10 @@
 # Changelog
 
+## Empacotamento reproduzível do backend e gateway
+
+- Dependências de MFA (PyOTP, QR Code e cryptography) e do gateway Modbus agora estão declaradas em `requirements.txt`, compartilhado por instalação local e Docker.
+- O build Docker mantém uma verificação de importação para falhar durante o build quando alguma dependência necessária estiver ausente.
+
 ## Operação do banco — backup e recuperação
 
 - Adicionado `DATABASE_OPERATIONS.md` com procedimento para exportar, recuperar e validar o PostgreSQL sem substituir o banco ativo antes da verificação.

@@ -8,3 +8,7 @@ python-multipart>=0.0.9,<1.0
 psycopg[binary]>=3.2,<4.0
 slowapi>=0.1.9,<1.0
 openpyxl>=3.1,<4.0
+pyotp>=2.9,<3.0
+qrcode[pil]>=8.2,<9.0
+cryptography>=42,<47
+pymodbus>=3.6,<4.0
