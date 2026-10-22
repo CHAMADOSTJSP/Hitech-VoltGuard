@@ -127,7 +127,6 @@
                 document.getElementById('dashboard-screen').classList.remove('is-hidden');
 
                 construirAbas();
-                atualizarKPIs();
                 iniciarPolling();
             } catch (err) {
                 console.error("Erro no Login:", err);
@@ -221,16 +220,16 @@
         function atualizarKPIs() {
             const banner = document.getElementById('kpi-banner');
             if(!banner) return;
+            const panels = Object.values(dadosGlobais).filter(panel => panel && panel.id);
+            const onlinePanels = panels.filter(panel => panel.connectivity_status === 'ONLINE').length;
+            const activeAlarms = alarmsData.filter(alarm => ['ACTIVE', 'ACKNOWLEDGED'].includes(alarm.status)).length;
+            const openWorkOrders = workOrders.filter(order => !['CONCLUIDA', 'CANCELADA'].includes(order.status)).length;
             banner.classList.remove('is-hidden');
-            banner.innerHTML = currentCargo === 'CEO' ? `
-                <div class="kpi-card"><h4>Risco</h4><span data-vg-style="static-c0b89d302c95">Critico</span></div>
-                <div class="kpi-card"><h4>Downtime (demo)</h4><span>R$ 14.500 / h</span></div>
-                <div class="kpi-card"><h4>Confiabilidade (demo)</h4><span>98.4%</span></div>
-                <div class="kpi-card"><h4>ESG (demo)</h4><span>124 kWh</span></div>
-            ` : `
-                <div class="kpi-card"><h4>Equipe</h4><span>100% Ativa</span></div>
-                <div class="kpi-card"><h4>MTTR (demo)</h4><span>32 min</span></div>
-                <div class="kpi-card"><h4>Eficiência (demo)</h4><span>99.1%</span></div>
+            banner.innerHTML = `
+                <div class="kpi-card"><h4>Painéis cadastrados</h4><span>${panels.length}</span></div>
+                <div class="kpi-card"><h4>Painéis online</h4><span>${onlinePanels} de ${panels.length}</span></div>
+                <div class="kpi-card"><h4>Alarmes ativos</h4><span>${activeAlarms}</span></div>
+                <div class="kpi-card"><h4>Ordens em aberto</h4><span>${openWorkOrders}</span></div>
             `;
         }
 
@@ -277,6 +276,7 @@
                         });
                         dadosGlobais = {};
                         data.panels.forEach(p => { dadosGlobais[p.id] = p; });
+                        atualizarKPIs();
                         
                         if (currentTab === 'predictive') {
                             atualizarGraficosExistentes();

@@ -45,7 +45,12 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 8
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/token")
 
 # Configuração da Base de Dados SQLAlchemy
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./voltguard.db")
+DATABASE_URL = os.getenv("DATABASE_URL")
+if os.getenv("RENDER") and not DATABASE_URL:
+    raise RuntimeError("Configure DATABASE_URL com o PostgreSQL persistente antes de iniciar no Render.")
+if os.getenv("RENDER") and DATABASE_URL.lower().startswith("sqlite:"):
+    raise RuntimeError("SQLite não é suportado no Render: o sistema de arquivos do serviço pode ser descartado.")
+DATABASE_URL = DATABASE_URL or "sqlite:///./voltguard.db"
 # Render pode fornecer URLs PostgreSQL com o esquema postgres://. SQLAlchemy 2
 # usa o driver psycopg explicitamente para evitar depender de psycopg2.
 if DATABASE_URL.startswith("postgres://"):

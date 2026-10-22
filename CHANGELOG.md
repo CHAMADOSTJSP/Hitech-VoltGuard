@@ -6,6 +6,12 @@
 - Checklist de piloto agora exige validar a restauração em uma instância separada.
 - Nenhuma alteração no esquema ou na inicialização do banco foi feita nesta etapa.
 
+## Em desenvolvimento — indicadores operacionais baseados nos dados da organização
+
+O cabeçalho do painel deixa de exibir risco, disponibilidade, downtime, MTTR e ESG com valores fixos de demonstração. Agora mostra somente contagens recebidas da API: painéis cadastrados, painéis com telemetria recente, alarmes ativos/reconhecidos e ordens de serviço em aberto. Os cartões são atualizados junto com o polling do painel.
+
+A inicialização no Render agora falha se `DATABASE_URL` estiver ausente ou apontar para SQLite, evitando que a aplicação trate o sistema de arquivos descartável como banco de produção.
+
 ## v0.64.0 — Permissões do relatório executivo e credenciais
 
 - A exportação do relatório executivo agora exige perfil CEO no backend.
