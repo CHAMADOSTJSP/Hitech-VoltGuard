@@ -878,8 +878,16 @@ def login(request: Request, credentials: dict, db: Session = Depends(get_db)):
         verify_password(password, DUMMY_PASSWORD_HASH)
     if not db_user or not db_user.is_active or not password_matches:
         raise HTTPException(status_code=401, detail="Utilizador ou senha incorretos.")
-    # O MFA é uma confirmação adicional para operações de troca de senha,
-    # não faz parte do login normal. O acesso continua protegido pela senha.
+    if db_user.totp_enabled:
+        supplied_mfa_code = normalize_mfa_code(credentials.get("mfa_code", ""))
+        if not supplied_mfa_code:
+            # Só é informado depois da validação da senha, sem revelar a existência
+            # de uma conta por meio de uma tentativa de senha inválida.
+            raise HTTPException(status_code=401, detail="MFA_REQUIRED")
+        totp_secret = decrypt_totp_secret(db_user.totp_secret_encrypted)
+        valid_totp = bool(totp_secret and verify_and_record_totp(db, db_user, supplied_mfa_code, totp_secret))
+        if not valid_totp and not consume_recovery_code(db, db_user, supplied_mfa_code):
+            raise HTTPException(status_code=401, detail="Utilizador, senha ou código de autenticação incorretos.")
     if not db_user.password.startswith("scrypt$"):
         db_user.password = hash_password(password)
         db.commit()
@@ -899,6 +907,18 @@ def login(request: Request, credentials: dict, db: Session = Depends(get_db)):
     token = jwt.encode({"sub": db_user.username, "role": db_user.role, "tenant_id": db_user.tenant_id, "plan": db_user.plan, "jti": token_id, "exp": expires_at}, SECRET_KEY, algorithm=ALGORITHM)
     return {"access_token": token, "token_type": "bearer", "role": db_user.role, "plan": db_user.plan}
 
+
+def self_service_registration_enabled() -> bool:
+    """Fail closed unless public signup is explicitly approved for this environment."""
+    configured = os.getenv("ALLOW_SELF_SERVICE_REGISTRATION", "0")
+    return configured.strip().lower() in {"1", "true", "yes", "on"}
+
+
+@app.get("/api/tenant/registration-status", tags=["Onboarding"])
+def get_registration_status():
+    """Expose only whether public self-service signup is enabled."""
+    return {"self_service_enabled": self_service_registration_enabled()}
+
 @app.get("/api/account/mfa", tags=["Authentication"])
 def get_mfa_status(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     db_user = db.query(UserModel).filter(UserModel.username == current_user.username).first()
@@ -909,7 +929,7 @@ def get_mfa_status(current_user: User = Depends(get_current_user), db: Session =
         remaining = len(hashes) if isinstance(hashes, list) else 0
     except (TypeError, json.JSONDecodeError):
         remaining = 0
-    return {"eligible": current_user.role in {"CEO", "Gerente"},
+    return {"eligible": True,
             "enabled": bool(db_user.totp_enabled),
             "setup_pending": bool(db_user.totp_pending_secret_encrypted),
             "recovery_codes_remaining": remaining}
@@ -918,8 +938,6 @@ def get_mfa_status(current_user: User = Depends(get_current_user), db: Session =
 @limiter.limit("5/hour")
 def start_mfa_setup(request: Request, data: dict, db: Session = Depends(get_db),
                     current_user: User = Depends(get_current_user)):
-    if current_user.role not in {"CEO", "Gerente"}:
-        raise HTTPException(status_code=403, detail="MFA de administrador disponível somente para CEO e Gerente.")
     password = data.get("password", "") if isinstance(data, dict) else ""
     db_user = db.query(UserModel).filter(UserModel.username == current_user.username,
                                          UserModel.is_active.is_(True)).first()
@@ -946,8 +964,6 @@ def start_mfa_setup(request: Request, data: dict, db: Session = Depends(get_db),
 @limiter.limit("10/hour")
 def confirm_mfa_setup(request: Request, data: dict, db: Session = Depends(get_db),
                       current_user: User = Depends(get_current_user)):
-    if current_user.role not in {"CEO", "Gerente"}:
-        raise HTTPException(status_code=403, detail="MFA de administrador disponível somente para CEO e Gerente.")
     code = normalize_mfa_code(data.get("code", "") if isinstance(data, dict) else "")
     db_user = db.query(UserModel).filter(UserModel.username == current_user.username,
                                          UserModel.is_active.is_(True)).first()
@@ -966,8 +982,6 @@ def confirm_mfa_setup(request: Request, data: dict, db: Session = Depends(get_db
 def complete_mfa_setup(request: Request, data: dict, db: Session = Depends(get_db),
                        current_user: User = Depends(get_current_user)):
     """Completa o primeiro enrollment MFA, troca a senha e emite recovery codes uma vez."""
-    if current_user.role not in {"CEO", "Gerente"}:
-        raise HTTPException(status_code=403, detail="MFA de administrador disponível somente para CEO e Gerente.")
     if not isinstance(data, dict) or set(data) != {"setup_challenge", "new_password", "confirm_password"}:
         raise HTTPException(status_code=422, detail="Informe a confirmação MFA e a nova senha duas vezes.")
     challenge = data.get("setup_challenge")
@@ -1040,8 +1054,6 @@ def complete_mfa_setup(request: Request, data: dict, db: Session = Depends(get_d
 @limiter.limit("5/hour")
 def disable_mfa(request: Request, data: dict, db: Session = Depends(get_db),
                 current_user: User = Depends(get_current_user)):
-    if current_user.role not in {"CEO", "Gerente"}:
-        raise HTTPException(status_code=403, detail="MFA de administrador disponível somente para CEO e Gerente.")
     if not isinstance(data, dict) or set(data) != {"password", "code"}:
         raise HTTPException(status_code=422, detail="Informe a senha atual e o código MFA.")
     password = data.get("password")
@@ -1146,6 +1158,8 @@ def create_websocket_ticket(db: Session = Depends(get_db), current_user: User = 
 @app.post("/api/tenant/register")
 @limiter.limit("5/hour")
 def register_tenant(request: Request, data: dict, db: Session = Depends(get_db)):
+    if not self_service_registration_enabled():
+        raise HTTPException(status_code=403, detail="Cadastro público desativado neste ambiente.")
     raw_tenant = data.get("tenant_id", "")
     raw_user = data.get("username", "")
     tenant_id = raw_tenant.upper().strip() if isinstance(raw_tenant, str) else ""

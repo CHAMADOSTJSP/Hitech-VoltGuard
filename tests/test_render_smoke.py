@@ -1,5 +1,6 @@
 """Smoke/integration tests for the Render deployment candidate."""
 import os
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -13,9 +14,10 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_DB_FILE.as_posix()}"
 os.environ["SECRET_KEY"] = "test-only-secret-key-with-more-than-32-characters"
 os.environ["ENABLE_DEMO_USERS"] = "0"
 os.environ["SIMULATE_TELEMETRY"] = "0"
+os.environ["ALLOW_SELF_SERVICE_REGISTRATION"] = "1"
 
 from fastapi.testclient import TestClient
-from main import app, TenantSubscriptionModel, rate_limit_client_address
+from main import app, TenantSubscriptionModel, UserModel, SessionLocal, encrypt_totp_secret, hash_recovery_code, pyotp, rate_limit_client_address
 
 
 class VoltGuardSmokeTests(unittest.TestCase):
@@ -119,6 +121,53 @@ class VoltGuardSmokeTests(unittest.TestCase):
         foreign_panel = next(iter(ids_b))
         forbidden_access = self.client.get(f"/api/panels/qr/{foreign_panel}", headers=headers_a)
         self.assertEqual(forbidden_access.status_code, 404)
+
+    def test_hosted_public_registration_is_closed_by_default(self):
+        with patch.dict(os.environ, {"RENDER": "true"}):
+            os.environ.pop("ALLOW_SELF_SERVICE_REGISTRATION", None)
+            status_response = self.client.get("/api/tenant/registration-status")
+            self.assertEqual(status_response.status_code, 200, status_response.text)
+            self.assertFalse(status_response.json()["self_service_enabled"])
+            response = self.client.post("/api/tenant/register", json={
+                "tenant_id": "PUBLIC-SIGNUP", "username": "admin_publicsignup",
+                "password": "Senha-forte-de-teste-2026!",
+            })
+            self.assertEqual(response.status_code, 403, response.text)
+
+    def test_mfa_enabled_account_requires_second_factor_at_login(self):
+        tenant_id, _ = self.create_tenant("LOGINMFA")
+        username = "admin_LOGINMFA"
+        secret = pyotp.random_base32()
+        recovery_code = "ABCD1234EFGH5678IJKL"
+        with SessionLocal() as db:
+            user = db.query(UserModel).filter(UserModel.username == username,
+                                              UserModel.tenant_id == tenant_id).one()
+            user.totp_enabled = True
+            user.totp_secret_encrypted = encrypt_totp_secret(secret)
+            user.totp_recovery_hashes = json.dumps([hash_recovery_code(recovery_code)])
+            db.commit()
+
+        credentials = {"username": username, "password": "Senha-forte-de-teste-2026!"}
+        missing = self.client.post("/api/token", json=credentials)
+        self.assertEqual(missing.status_code, 401)
+        self.assertEqual(missing.json()["detail"], "MFA_REQUIRED")
+
+        invalid = self.client.post("/api/token", json={**credentials, "mfa_code": "000000"})
+        self.assertEqual(invalid.status_code, 401)
+        self.assertNotIn("access_token", invalid.json())
+
+        code = pyotp.TOTP(secret).now()
+        valid = self.client.post("/api/token", json={**credentials, "mfa_code": code})
+        self.assertEqual(valid.status_code, 200, valid.text)
+        self.assertTrue(valid.json().get("access_token"))
+
+        replayed = self.client.post("/api/token", json={**credentials, "mfa_code": code})
+        self.assertEqual(replayed.status_code, 401)
+
+        recovery_login = self.client.post("/api/token", json={**credentials, "mfa_code": recovery_code})
+        self.assertEqual(recovery_login.status_code, 200, recovery_login.text)
+        recovery_replay = self.client.post("/api/token", json={**credentials, "mfa_code": recovery_code})
+        self.assertEqual(recovery_replay.status_code, 401)
 
     def test_new_panel_waits_for_real_telemetry(self):
         _, headers = self.create_tenant("NEWPANEL")

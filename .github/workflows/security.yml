@@ -27,5 +27,16 @@ jobs:
       - name: Audit installed Python packages
         run: pip-audit
 
+      - name: Check Python syntax and dependency consistency
+        run: |
+          python -m compileall -q main.py gateway.py tests
+          python -m pip check
+
+      - name: Check frontend JavaScript syntax
+        run: node --check app.js
+
       - name: Run integration tests
         run: python -m unittest discover -s tests -v
+
+      - name: Build production Docker image
+        run: docker build --tag voltguard-ci:${{ github.sha }} .

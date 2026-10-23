@@ -20,6 +20,8 @@ Revisão do código e das dependências do branch `codex/commercial-readiness-au
 - Senhas novas usam scrypt; JWT fixa o algoritmo HS256; sessões têm identificador aleatório, expiração e revogação consultada no banco.
 - As operações sensíveis verificam papel e organização no servidor. Os testes cobrem isolamento entre organizações em fluxos principais, sem cobrir cada combinação de rota/papel.
 - Tokens de dispositivo são aleatórios, armazenados como hash, limitados a um painel e revogáveis.
+- Quando MFA TOTP está habilitado, o login agora exige o código TOTP ou um código de recuperação de uso único; senha correta sem segundo fator não cria sessão.
+- Cadastro público é desativado por padrão em todos os ambientes; precisa de `ALLOW_SELF_SERVICE_REGISTRATION=1` explícito. O Blueprint do Render o mantém desativado até haver verificação de e-mail e onboarding.
 - Webhooks exigem HTTPS, rejeitam destinos não globais, fixam o IP resolvido, não seguem redirects e não herdam proxies do ambiente.
 - Cabeçalhos de segurança e CSP estão ativos; os testes confirmam ao menos `X-Content-Type-Options`.
 - A revisão dos arquivos de configuração do branch não encontrou `.env` nem credenciais reais versionadas; `.env.example` contém valores vazios/de exemplo. Isso não inspeciona todo o histórico Git nem os segredos configurados no GitHub/Render.
@@ -27,8 +29,8 @@ Revisão do código e das dependências do branch `codex/commercial-readiness-au
 ## Pendências antes de dados reais ou venda
 
 - O piloto sem custo usa rate limit em memória por processo. Sem Redis, várias instâncias ou reinícios não compartilham contadores; o fallback continua permissivo para disponibilidade. Configure armazenamento compartilhado antes de escalar.
-- O cadastro público ainda cria organizações sem confirmação de e-mail, convite ou validação comercial; pode ser abusado para criar contas/consumir recursos. Adicione onboarding protegido antes de abrir a clientes pagantes.
-- Ainda não foram executados pentest, teste de carga, scanner de segredos de todo o histórico Git ou revisão independente. O workflow remoto de segurança, testes e `pip-audit` concluiu com sucesso no commit `a13252d`; a validação local executou 20 testes. `pip check` confirmou dependências consistentes no ambiente local.
+- Não há confirmação de e-mail, convite ou onboarding comercial. O cadastro público agora fica fechado por padrão; não habilite a variável de self-service em produção antes de implementar verificação de e-mail, prevenção contra abuso e fluxo de suporte.
+- Ainda não foram executados pentest, teste de carga, scanner de segredos de todo o histórico Git ou revisão independente. A validação local atual executou 22 testes; `compileall`, `node --check`, `pip check` e `git diff --check` passaram. O workflow remoto repetirá `pip-audit`, os testes, a checagem de sintaxe e o build Docker após o push desta revisão.
 - Em Render, adicione cada domínio personalizado ao `ALLOWED_HOSTS` separado por vírgulas; sem isso, apenas o hostname padrão do serviço é autorizado.
 - Backup/restauração do PostgreSQL, migrações formais com rollback, alertas, rotação de credenciais, recuperação de conta, retenção/exclusão de dados e resposta a incidentes ainda precisam de processo e validação operacional.
 - A telemetria Modbus ainda precisa ser validada com o modelo/firmware do medidor em laboratório. Não conecte esta aplicação a funções de comando, proteção ou intertravamento e não declare conformidade NR-10, IEC 62443 ou LGPD com base nesta revisão.

@@ -13,6 +13,7 @@
 - A auditoria inicial não conseguiu confirmar a variável `DATABASE_URL` no serviço nem localizar tabelas no PostgreSQL consultado.
 - O código da branch agora encerra a inicialização no Render se `DATABASE_URL` estiver ausente ou apontar para SQLite. O deploy atual do piloto iniciou, o que indica que a proteção de banco passou, mas não confirma qual banco contém os dados anteriores nem a persistência/expiração do destino.
 - O banco PostgreSQL atual está no plano Free, com expiração informada para **15/11/2026**. O serviço web também está no plano Free. O Render documenta que o sistema de arquivos de serviços Free é efêmero, inclusive para SQLite, e que bancos PostgreSQL Free expiram após 30 dias. Esses planos são destinados a teste, não à produção ([limitações do plano Free do Render](https://render.com/docs/free)).
+- Existem dois serviços Render para este repositório: `Hitech-VoltGuard` em `main` e `voltguard-pilot-free` na branch de revisão. O primeiro continua servindo o endereço histórico, com deploy por commit e sem health check; o segundo contém a revisão e está configurado para aguardar CI. Ainda não houve promoção para `main`.
 
 **Ação para liberar:** no Dashboard, confirmar a origem efetiva de `DATABASE_URL` sem copiar o segredo para o chat; vincular o serviço ao PostgreSQL correto; migrar para plano persistente antes de 15/11; fazer backup/exportação e validar uma restauração; só então reiniciar/deployar. Antes de decidir qual banco usar, preservar qualquer dado existente no serviço.
 
@@ -66,6 +67,7 @@
 - O cabeçalho agora mostra painéis cadastrados, painéis online, alarmes ativos/reconhecidos e ordens em aberto, atualizados com o polling do painel.
 - Adicionada proteção para impedir que uma configuração do Render sem `DATABASE_URL` use o SQLite descartável como se fosse persistente.
 - O cadastro de ativos não cria medições aleatórias nem histórico fictício; leituras parciais ficam identificadas e não são exibidas como estado normal.
+- Login de contas com MFA habilitado exige segundo fator. Cadastro público fecha por padrão e só abre com `ALLOW_SELF_SERVICE_REGISTRATION=1` configurado explicitamente.
 - Health check HTTP `/health` configurado e respondendo no serviço piloto Render, além da configuração declarada no Blueprint.
 - Deploy do serviço configurado para aguardar CI do GitHub. O commit `a13252d` passou no workflow (incluindo `pip-audit` e 20 testes de integração) e está `live` no Render.
 

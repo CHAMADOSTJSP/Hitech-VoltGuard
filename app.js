@@ -90,6 +90,24 @@
             document.getElementById('register-screen').classList.toggle('is-hidden', !mostrar);
         }
 
+        async function carregarDisponibilidadeCadastro() {
+            const button = document.getElementById('show-register-button');
+            const message = document.getElementById('registration-unavailable');
+            if (!button || !message) return;
+            try {
+                const response = await fetch('/api/tenant/registration-status', {headers:{'Accept':'application/json'}});
+                if (!response.ok) throw new Error('Não foi possível consultar o cadastro.');
+                const config = await response.json();
+                const enabled = config.self_service_enabled === true;
+                button.classList.toggle('is-hidden', !enabled);
+                message.classList.toggle('is-hidden', enabled);
+            } catch (_error) {
+                button.classList.add('is-hidden');
+                message.classList.remove('is-hidden');
+                message.textContent = 'Não foi possível verificar se o cadastro público está disponível.';
+            }
+        }
+
         async function registarTenant() {
             const tenant = document.getElementById('reg-tenant').value.trim();
             const user = document.getElementById('reg-user').value.trim();
@@ -120,16 +138,24 @@
 
             const usuario = usuarioInput.value.trim();
             const senha = senhaInput.value;
+            const mfaCodeInput = document.getElementById('mfa-login-code');
+            const mfaCode = mfaCodeInput?.value.trim() || '';
             if(errEl) errEl.innerText = "A autenticar...";
 
             try {
                 const res = await fetch('/api/token', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({username: usuario, password: senha})
+                    body: JSON.stringify({username: usuario, password: senha, ...(mfaCode ? {mfa_code: mfaCode} : {})})
                 });
                 
                 const data = await res.json();
+                if (res.status === 401 && data.detail === 'MFA_REQUIRED') {
+                    document.getElementById('mfa-login-group')?.classList.remove('is-hidden');
+                    if(errEl) errEl.innerText = 'Informe o código do aplicativo autenticador ou um código de recuperação.';
+                    mfaCodeInput?.focus();
+                    return;
+                }
                 if(!res.ok) {
                     throw new Error(data.detail || "Utilizador ou senha incorretos.");
                 }
@@ -146,6 +172,8 @@
                 document.getElementById('cargo-display').innerText = currentCargo;
                 document.getElementById('login-screen').classList.add('is-hidden');
                 document.getElementById('dashboard-screen').classList.remove('is-hidden');
+                document.getElementById('mfa-login-group')?.classList.add('is-hidden');
+                if (mfaCodeInput) mfaCodeInput.value = '';
 
                 construirAbas();
                 iniciarPolling();
@@ -1208,10 +1236,6 @@
         async function carregarStatusMfa() {
             const container = document.getElementById('mfa-management');
             if (!container) return;
-            if (!['CEO', 'Gerente'].includes(currentCargo)) {
-                container.innerHTML = '<p>MFA de administrador está disponível para perfis CEO e Gerente.</p>';
-                return;
-            }
             if (mfaRecoveryCodes.length) {
                 definirMfaNecessarioParaTrocaSenha(true);
                 container.innerHTML = `<h4>MFA ativado</h4><p>${mfaPasswordChanged ? 'Senha alterada com sucesso. ' : ''}Guarde estes códigos agora. Cada código pode ser usado uma única vez e não será mostrado novamente.</p><pre class="mfa-recovery-codes">${mfaRecoveryCodes.map(escapeHtml).join('\n')}</pre><button type="button" class="btn-action" data-action="mfa-ack-codes">${mfaPasswordChanged ? 'Guardei os códigos e sair' : 'Já guardei os códigos'}</button>`;
@@ -1229,14 +1253,10 @@
                     container.innerHTML = `<h4>Conclua a configuração</h4><p>Escaneie este QR Code no Microsoft Authenticator ou em outro aplicativo compatível. A configuração usa códigos TOTP de 6 dígitos com validade de 30 segundos.</p><img class="mfa-setup-qr" src="${escapeHtml(mfaEnrollment.qr_code_data_url)}" alt="QR Code privado para configurar o autenticador"><p>Se não conseguir escanear, adicione a chave manualmente: <code>${escapeHtml(mfaEnrollment.secret)}</code></p><details><summary>URI para configurar manualmente</summary><code class="mfa-setup-uri">${escapeHtml(mfaEnrollment.provisioning_uri)}</code></details><form data-vg-submit="confirm-mfa"><div class="input-group"><label for="mfa-confirm-code">Código de 6 dígitos do aplicativo</label><input id="mfa-confirm-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required></div><button type="submit" class="btn-primary">Confirmar código</button></form><p id="mfa-status-message" role="status" aria-live="polite"></p>`;
                     return;
                 }
-                if (!state.eligible) {
-                    container.innerHTML = '<p>MFA de administrador está disponível para perfis CEO e Gerente.</p>';
-                    return;
-                }
                 if (state.enabled) {
-                    container.innerHTML = `<h4>MFA ativo para troca de senha</h4><p>O login normal usa somente sua senha. O código do autenticador será pedido ao alterar a senha. Restam ${Number(state.recovery_codes_remaining) || 0} código(s) de recuperação.</p><form data-vg-submit="disable-mfa"><div class="input-group"><label for="mfa-disable-password">Senha atual</label><input id="mfa-disable-password" type="password" autocomplete="current-password" maxlength="256" required></div><div class="input-group"><label for="mfa-disable-code">Código MFA ou código de recuperação</label><input id="mfa-disable-code" autocomplete="one-time-code" maxlength="20" required></div><button type="submit" class="btn-action">Desativar MFA</button></form><p id="mfa-status-message" role="status" aria-live="polite"></p>`;
+                    container.innerHTML = `<h4>MFA ativo no login</h4><p>O autenticador ou um código de recuperação será pedido ao entrar e ao alterar a senha. Restam ${Number(state.recovery_codes_remaining) || 0} código(s) de recuperação.</p><form data-vg-submit="disable-mfa"><div class="input-group"><label for="mfa-disable-password">Senha atual</label><input id="mfa-disable-password" type="password" autocomplete="current-password" maxlength="256" required></div><div class="input-group"><label for="mfa-disable-code">Código MFA ou código de recuperação</label><input id="mfa-disable-code" autocomplete="one-time-code" maxlength="23" required></div><button type="submit" class="btn-action">Desativar MFA</button></form><p id="mfa-status-message" role="status" aria-live="polite"></p>`;
                 } else {
-                    container.innerHTML = `<h4>MFA desativado</h4><p>Ative o autenticador para confirmar futuras trocas de senha. O login normal continuará usando somente sua senha.</p><form data-vg-submit="setup-mfa"><div class="input-group"><label for="mfa-setup-password">Confirme sua senha atual</label><input id="mfa-setup-password" type="password" autocomplete="current-password" maxlength="256" required></div><button type="submit" class="btn-primary">Configurar aplicativo autenticador</button></form><p id="mfa-status-message" role="status" aria-live="polite"></p>`;
+                    container.innerHTML = `<h4>MFA desativado</h4><p>Ative o autenticador para proteger o login e futuras trocas de senha com uma segunda etapa.</p><form data-vg-submit="setup-mfa"><div class="input-group"><label for="mfa-setup-password">Confirme sua senha atual</label><input id="mfa-setup-password" type="password" autocomplete="current-password" maxlength="256" required></div><button type="submit" class="btn-primary">Configurar aplicativo autenticador</button></form><p id="mfa-status-message" role="status" aria-live="polite"></p>`;
                 }
             } catch (err) {
                 container.innerHTML = `<p role="status">Não foi possível carregar o estado do MFA: ${escapeHtml(err.message)}</p>`;
@@ -2091,6 +2111,7 @@
                     break;
             }
         });
+        carregarDisponibilidadeCadastro();
         document.addEventListener('submit', (event) => {
             const form = event.target;
             if (!(form instanceof HTMLFormElement)) return;
