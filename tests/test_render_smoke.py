@@ -1,6 +1,7 @@
 """Smoke/integration tests for the Render deployment candidate."""
 import os
 import json
+import hashlib
 import secrets
 import tempfile
 import unittest
@@ -9,6 +10,7 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 import httpx
 from starlette.requests import Request
+from starlette.websockets import WebSocketDisconnect
 
 _DB_FILE = Path(tempfile.gettempdir()) / f"voltguard-test-{os.getpid()}-{secrets.token_hex(8)}.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{_DB_FILE.as_posix()}"
@@ -24,7 +26,7 @@ from main import (
     PanelModel, PanelHistoryModel, AlarmModel, WorkOrderModel,
     WorkOrderChecklistItemModel, WorkOrderChecklistTemplateModel,
     AuditLogModel, InventoryModel, AssetModel, MaintenancePlanModel,
-    MaintenanceTaskModel, DeviceCredentialModel,
+    MaintenanceTaskModel, DeviceCredentialModel, WebSocketTicketModel,
 )
 
 
@@ -292,6 +294,37 @@ class VoltGuardSmokeTests(unittest.TestCase):
         self.assertEqual(recovery_login.status_code, 200, recovery_login.text)
         recovery_replay = self.client.post("/api/token", json={**credentials, "mfa_code": recovery_code})
         self.assertEqual(recovery_replay.status_code, 401)
+
+    def test_websocket_ticket_is_single_use_and_bound_to_live_session(self):
+        _, headers = self.create_tenant("WSTICKET")
+        issued = self.client.post("/api/ws-ticket", headers=headers)
+        self.assertEqual(issued.status_code, 200, issued.text)
+        ticket = issued.json()["ticket"]
+        with SessionLocal() as db:
+            row = db.query(WebSocketTicketModel).filter_by(
+                ticket_hash=hashlib.sha256(ticket.encode()).hexdigest()
+            ).one()
+            self.assertRegex(row.session_token_id_hash, r"^[a-f0-9]{64}$")
+
+        ws_url = f"/ws/panels?ticket={ticket}"
+        ws_headers = {"Origin": "http://localhost", "Host": "localhost"}
+        with self.client.websocket_connect(ws_url, headers=ws_headers):
+            pass
+        with self.assertRaises(WebSocketDisconnect) as reused:
+            with self.client.websocket_connect(ws_url, headers=ws_headers):
+                pass
+        self.assertEqual(reused.exception.code, 1008)
+
+        second_ticket = self.client.post("/api/ws-ticket", headers=headers)
+        self.assertEqual(second_ticket.status_code, 200, second_ticket.text)
+        logout = self.client.post("/api/logout", headers=headers)
+        self.assertEqual(logout.status_code, 200, logout.text)
+        with self.assertRaises(WebSocketDisconnect) as revoked:
+            with self.client.websocket_connect(
+                f"/ws/panels?ticket={second_ticket.json()['ticket']}", headers=ws_headers,
+            ):
+                pass
+        self.assertEqual(revoked.exception.code, 1008)
 
     def test_sensitive_routes_enforce_role_matrix(self):
         _, ceo_headers = self.create_tenant("ROLEMATRIX")

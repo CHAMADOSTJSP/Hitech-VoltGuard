@@ -1,5 +1,6 @@
 """Safety tests for one-time provisioning of an empty pilot database."""
 import os
+import json
 import sqlite3
 import subprocess
 import sys
@@ -11,6 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "provision_first_tenant.py"
+SCHEMA_PROBE = ROOT / "tests" / "schema_migration_probe.py"
 sys.path.insert(0, str(ROOT))
 from scripts.provision_first_tenant import normalized_database_url
 
@@ -89,6 +91,37 @@ class FirstTenantBootstrapTests(unittest.TestCase):
                     "SELECT name FROM sqlite_master WHERE type='table'"
                 ).fetchall()
             self.assertEqual(tables, [])
+
+    def test_websocket_ticket_schema_upgrade_preserves_existing_rows(self):
+        with tempfile.TemporaryDirectory(prefix="voltguard-schema-upgrade-") as temp_dir:
+            database_path = Path(temp_dir) / "legacy.sqlite"
+            with closing(sqlite3.connect(database_path)) as connection:
+                with connection:
+                    connection.execute(
+                        "CREATE TABLE websocket_tickets ("
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT, user_name VARCHAR NOT NULL, "
+                        "ticket_hash VARCHAR NOT NULL UNIQUE, expires_at TIMESTAMP NOT NULL, used_at TIMESTAMP)"
+                    )
+                    connection.execute(
+                        "INSERT INTO websocket_tickets (user_name, ticket_hash, expires_at) "
+                        "VALUES ('legacy-user', ?, '2099-01-01 00:00:00')",
+                        ("a" * 64,),
+                    )
+
+            env = os.environ.copy()
+            env["DATABASE_URL"] = f"sqlite:///{database_path.as_posix()}"
+            env["SECRET_KEY"] = "test-only-secret-key-with-more-than-32-characters"
+            env.pop("RENDER", None)
+            result = subprocess.run(
+                [sys.executable, str(SCHEMA_PROBE)], cwd=ROOT, env=env,
+                capture_output=True, text=True, timeout=60, check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            probe = json.loads(result.stdout)
+            self.assertEqual(probe["preserved_user"], "legacy-user")
+            self.assertTrue(probe["preserved_ticket_hash"])
+            self.assertTrue(probe["legacy_ticket_unbound"])
+            self.assertTrue(probe["session_hash_column"])
 
 
 if __name__ == "__main__":

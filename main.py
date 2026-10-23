@@ -302,6 +302,9 @@ class WebSocketTicketModel(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_name = Column(String, index=True, nullable=False)
     ticket_hash = Column(String, unique=True, index=True, nullable=False)
+    # Hash of the exact authenticated session that issued this ticket. Nullable
+    # only for old rows during rolling upgrades; such tickets are rejected.
+    session_token_id_hash = Column(String(64), nullable=True, index=True)
     expires_at = Column(DateTime, nullable=False, index=True)
     used_at = Column(DateTime, nullable=True)
 
@@ -780,6 +783,11 @@ def init_db():
                 for column_name, column_type in user_compatibility_columns.items():
                     if column_name not in user_columns:
                         connection.execute(text(f"ALTER TABLE users ADD COLUMN {column_name} {column_type}"))
+            if "websocket_tickets" in inspector.get_table_names():
+                ticket_columns = {col["name"] for col in inspector.get_columns("websocket_tickets")}
+                if "session_token_id_hash" not in ticket_columns:
+                    # Old unbound tickets expire quickly and are rejected after upgrade.
+                    connection.execute(text("ALTER TABLE websocket_tickets ADD COLUMN session_token_id_hash VARCHAR(64)"))
         Base.metadata.create_all(bind=engine)
         
         # Não criar contas de demonstração com senhas conhecidas. Todas as contas
@@ -1142,6 +1150,8 @@ def change_own_password(request: Request, data: dict, db: Session = Depends(get_
 @app.post("/api/ws-ticket", tags=["Authentication"])
 def create_websocket_ticket(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Emite um segredo opaco, de uso único, para autenticar a conexão WebSocket."""
+    if not current_user.token_id:
+        raise HTTPException(status_code=401, detail="Sessão inválida para abrir o canal em tempo real.")
     now = utcnow()
     db.query(WebSocketTicketModel).filter(
         WebSocketTicketModel.expires_at < now - timedelta(days=1)
@@ -1150,6 +1160,7 @@ def create_websocket_ticket(db: Session = Depends(get_db), current_user: User = 
     db.add(WebSocketTicketModel(
         user_name=current_user.username,
         ticket_hash=hashlib.sha256(raw_ticket.encode()).hexdigest(),
+        session_token_id_hash=hashlib.sha256(current_user.token_id.encode()).hexdigest(),
         expires_at=now + timedelta(seconds=30),
     ))
     db.commit()
@@ -2206,7 +2217,13 @@ async def websocket_endpoint(websocket: WebSocket):
             return
 
         db_user = db.query(UserModel).filter(UserModel.username == ticket_row.user_name).first()
-        if not db_user:
+        active_session = db.query(AuthSessionModel).filter(
+            AuthSessionModel.token_id_hash == ticket_row.session_token_id_hash,
+            AuthSessionModel.user_name == ticket_row.user_name,
+            AuthSessionModel.revoked_at.is_(None),
+            AuthSessionModel.expires_at > now,
+        ).first() if ticket_row.session_token_id_hash else None
+        if not db_user or not db_user.is_active or not active_session:
             db.commit()
             await websocket.close(code=1008)
             return
