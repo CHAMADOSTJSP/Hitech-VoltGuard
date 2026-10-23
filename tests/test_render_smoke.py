@@ -1,6 +1,7 @@
 """Smoke/integration tests for the Render deployment candidate."""
 import os
 import json
+import secrets
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,7 +10,7 @@ from unittest.mock import patch
 import httpx
 from starlette.requests import Request
 
-_DB_FILE = Path(tempfile.gettempdir()) / f"voltguard-test-{os.getpid()}.db"
+_DB_FILE = Path(tempfile.gettempdir()) / f"voltguard-test-{os.getpid()}-{secrets.token_hex(8)}.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{_DB_FILE.as_posix()}"
 os.environ["SECRET_KEY"] = "test-only-secret-key-with-more-than-32-characters"
 os.environ["ENABLE_DEMO_USERS"] = "0"

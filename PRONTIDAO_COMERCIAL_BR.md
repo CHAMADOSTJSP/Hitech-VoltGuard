@@ -18,7 +18,7 @@ Use exclusivamente dados fictícios para demonstrações. Não apresente o servi
 | Tema | Situação atual | Critério de liberação |
 |---|---|---|
 | Dados e persistência | Serviço e PostgreSQL do piloto estão no plano gratuito; a identidade e retenção do banco histórico não estão comprovadas. | Escolher infraestrutura persistente, documentar o banco de produção, exportar e restaurar uma cópia em ambiente isolado, e aprovar RPO/RTO e prazo de retenção. Não migrar nem apagar o banco atual antes da confirmação do proprietário. |
-| Contas e suporte | Sem e-mail verificado, convite, recuperação automática de conta ou canal de atendimento configurado. | Definir endereço de suporte, fluxo de convite, recuperação com token curto e de uso único, MFA para administradores e atendimento/escalação. O cadastro público continua desligado até isso ser validado. |
+| Contas e suporte | Há um comando de provisionamento inicial que só funciona se todas as tabelas estiverem vazias; o Render Free não fornece Shell/SSH para executá-lo dentro da instância. Também faltam e-mail verificado, convite, recuperação automática de conta e canal de atendimento. | Definir ambiente administrativo seguro com conectividade já aprovada (sem abrir o banco à internet), endereço de suporte, fluxo de convite, recuperação com token curto e de uso único, MFA para administradores e atendimento/escalação. O cadastro público continua desligado até isso ser validado. |
 | Privacidade/LGPD | Não há aviso de privacidade final, política de retenção, fluxo de direitos do titular, contrato controlador-operador ou processo de incidente aprovado. | Empresa define finalidade, bases legais, papéis, categorias de dados, prazos, subprocessadores, canal do titular, encarregado quando aplicável, exclusão/exportação e responsabilidades contratuais. Assessoria jurídica revisa os documentos. |
 | Cobrança | A assinatura é metadado; pagamentos, renovação, inadimplência, cancelamento e nota fiscal não estão integrados. | Definir preço e limites com pilotos, entidade vendedora, tributação, provedor, termos de cancelamento/reembolso e suporte; só então integrar checkout e webhooks de cobrança idempotentes. |
 | Banco e mudanças | Inicialização usa `create_all()` e ajustes de compatibilidade limitados; não há histórico formal de migrações nem rollback testado. | Versionar migrações, ensaiar atualização e rollback em cópia, adicionar monitoramento e documentar manutenção antes de atualizar produção. |
@@ -35,9 +35,9 @@ Use exclusivamente dados fictícios para demonstrações. Não apresente o servi
 
 ## Sequência recomendada
 
-1. Continuar a validação do piloto com dados fictícios, incluindo os três perfis, operações principais e isolamento entre organizações.
+1. Continuar a validação do piloto com dados fictícios, incluindo os três perfis, operações principais e isolamento entre organizações. O comando inicial só pode ser usado numa instalação nova, vazia e com o serviço parado; não o execute no banco atual do piloto.
 2. Definir os dados da empresa e atendimento para elaborar aviso de privacidade, termos, contrato de piloto, DPA quando aplicável e processo de incidente.
-3. Definir o processo de provisionamento/recovery e a infraestrutura persistente; realizar backup/restore em cópia e preparar migrações formais sem tocar no banco atual.
+3. Exercitar o comando de provisionamento numa instalação vazia, desenhar recuperação de contas e definir infraestrutura persistente; realizar backup/restore em cópia e preparar migrações formais sem tocar no banco atual.
 4. Entrevistar clientes do segmento escolhido, rodar pilotos de desenho com objetivos acordados e testar preço/implantação/suporte.
 5. Homologar o conjunto medidor-gateway em laboratório e ambiente controlado; medir qualidade das leituras e comportamento de perda de comunicação.
 6. Após resolver os bloqueios, habilitar clientes reais gradualmente, com limites, suporte, observabilidade e plano de reversão.
@@ -57,3 +57,4 @@ Use exclusivamente dados fictícios para demonstrações. Não apresente o servi
 - [Ministério do Trabalho e Emprego — NR-10 e calendário da nova redação](https://www.gov.br/trabalho-e-emprego/pt-br/acesso-a-informacao/participacao-social/conselhos-e-orgaos-colegiados/comissao-tripartite-paritaria-permanente/normas-regulamentadora/normas-regulamentadoras-vigentes/norma-regulamentadora-no-10-nr-10)
 - [INMETRO — produtos e serviços regulados](https://www.gov.br/inmetro/pt-br/assuntos/regulamentacao/produtos-e-servicos-regulados)
 - [OWASP ASVS — referência para requisitos verificáveis de segurança de aplicações](https://owasp.org/www-project-application-security-verification-standard/)
+- [Render — disponibilidade de Shell e SSH por tipo de serviço](https://render.com/docs/ssh)

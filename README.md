@@ -358,7 +358,7 @@ curl -X POST "https://SEU-SERVICO.onrender.com/api/device/telemetry" \
 3. A resposta deve conter `status: success` e listar `measurements_received`. Consulte o painel e o histórico para confirmar as grandezas recebidas. Alarmes de temperatura e corrente só são avaliados quando a leitura inclui o respectivo campo; a ausência de uma medição não limpa um alarme existente.
 4. Em **Dispositivos**, confirme que “Último uso” foi atualizado. Revogue a credencial e repita a chamada: a API deve responder `401`.
 
-Validação local atual: 23 testes de integração aprovados com as dependências completas, incluindo rate limiting, MFA, isolamento entre organizações e a matriz básica de perfis. A CI do GitHub também valida dependências, sintaxe, testes e build Docker.
+Validação local atual: 27 testes aprovados com as dependências completas, cobrindo rate limiting, MFA, isolamento entre organizações, matriz básica de perfis e recusas seguras do comando de bootstrap. O caminho de criação do bootstrap também foi exercitado manualmente em um SQLite temporário vazio. A CI do GitHub valida dependências, sintaxe, testes e build Docker.
 
 ## Publicação recomendada no Render
 
@@ -367,9 +367,19 @@ Validação local atual: 23 testes de integração aprovados com as dependência
 3. No Render, escolha **New + → Blueprint** e conecte o repositório.
 4. Revise os recursos e variáveis definidos pelo `render.yaml` antes de aplicar.
 5. Aguarde o deploy e verifique `https://SEU-SERVICO.onrender.com/health`. A resposta esperada contém `"status":"ok"`.
-6. No piloto Render, entre com a conta de teste já provisionada. O cadastro público permanece desativado; ainda falta um fluxo controlado para criar a primeira organização em uma instalação vazia.
+6. No piloto Render, entre com a conta de teste já provisionada. O cadastro público permanece desativado. Para uma instalação nova, o comando de bootstrap abaixo cria a primeira organização somente após confirmar que o banco está vazio.
 7. Confira que os painéis demonstrativos estão identificados como simulação. Não são leituras de medidores físicos.
 8. Teste o acesso às abas, a criação de ordens de serviço, a exportação CSV, as regras e o inventário usando somente dados fictícios.
+
+### Provisionar a primeira organização em um banco vazio
+
+O cadastro pela internet permanece fechado por padrão. Para inicializar **uma instalação nova, sem nenhum registro**, pare o serviço web, execute o comando abaixo em um ambiente com acesso ao banco e com `DATABASE_URL` e a mesma `SECRET_KEY` estável configuradas. O comando exige confirmação digitada e senha oculta; ele cria a conta CEO inicial e os dados de demonstração pela mesma validação usada pela aplicação.
+
+```powershell
+python scripts/provision_first_tenant.py --tenant-id SUA-ORGANIZACAO --username seu.usuario
+```
+
+O script verifica todas as tabelas antes de começar e aborta se qualquer uma contiver dados. Não use no banco do piloto atual nem em uma base com dados a preservar. Após a criação, inicie o serviço, entre com a conta informada e ative MFA; mantenha o auto-cadastro público desligado. O comando não altera as variáveis de ambiente persistentes do Render. Faça um backup antes de qualquer operação administrativa no banco. **O Render Free não oferece Shell/SSH** ([limitações oficiais](https://render.com/docs/ssh)); portanto, a execução deve ser feita de um ambiente administrativo seguro com conectividade ao banco já aprovada. Não amplie regras de rede para abrir o banco à internet como atalho. Se não houver acesso seguro, não execute o provisionamento no Render Free.
 
 ## Configuração do serviço
 
@@ -385,7 +395,7 @@ Se configurar o serviço manualmente, use:
 - Build command: `pip install -r requirements.txt`
 - Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
 - Health check path: `/health`
-- Configure `SECRET_KEY` com pelo menos 32 caracteres aleatórios e `DATABASE_URL` com a URL interna do PostgreSQL. Não existe usuário/senha predefinido; o cadastro público é fechado. O provisionamento inicial de uma organização em uma instalação vazia precisa de procedimento controlado e ainda é um bloqueio antes de produção.
+- Configure `SECRET_KEY` com pelo menos 32 caracteres aleatórios e `DATABASE_URL` com a URL interna do PostgreSQL. Não existe usuário/senha predefinido; o cadastro público é fechado. Para uma instalação nova sem registros, use o provisionamento inicial controlado documentado acima. Recuperação de conta e onboarding de clientes continuam pendentes antes da produção.
 
 Não comite valores reais de `SECRET_KEY` nem URLs de banco com credenciais.
 
