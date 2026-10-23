@@ -1,5 +1,14 @@
 # Changelog
 
+## Preparação de piloto comercial — 23/10/2026
+
+- MFA passou a ser exigido no login quando ativado e pode ser configurado por todos os perfis; códigos de recuperação são aceitos nos campos móveis.
+- Cadastro público fica desativado por padrão no Render; a instalação inicial de novas organizações continua controlada e documentada como bloqueio.
+- Textos da interface foram alinhados ao escopo real de monitoramento e manutenção; não apresentam o produto como SCADA ou sistema de proteção certificado.
+- Testes adicionais cobrem permissões CEO/Gerente/Técnico nas rotas de usuários, auditoria, credenciais e relatórios.
+- Incluída matriz brasileira de prontidão com LGPD, NR-10, INMETRO, privacidade, recuperação de conta, cobrança, persistência, backup e homologação de hardware.
+- Esta atualização não altera dados, segredos, recursos Render, infraestrutura ou cadastro do banco.
+
 ## v0.66.0 — Integridade e completude das leituras
 
 - Painéis cadastrados manualmente começam como `SEM_DADOS`; o cadastro não inventa valores nem grava telemetria inicial.

@@ -169,6 +169,38 @@ class VoltGuardSmokeTests(unittest.TestCase):
         recovery_replay = self.client.post("/api/token", json={**credentials, "mfa_code": recovery_code})
         self.assertEqual(recovery_replay.status_code, 401)
 
+    def test_sensitive_routes_enforce_role_matrix(self):
+        _, ceo_headers = self.create_tenant("ROLEMATRIX")
+        credentials = {}
+        for username, role in (("manager_rolematrix", "Gerente"), ("tech_rolematrix", "Técnico de Campo")):
+            created = self.client.post("/api/users", headers=ceo_headers, json={
+                "username": username, "password": "Senha-forte-de-teste-2026!", "role": role,
+            })
+            self.assertEqual(created.status_code, 200, created.text)
+            login = self.client.post("/api/token", json={
+                "username": username, "password": "Senha-forte-de-teste-2026!",
+            })
+            self.assertEqual(login.status_code, 200, login.text)
+            credentials[role] = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+        manager_headers = credentials["Gerente"]
+        technician_headers = credentials["Técnico de Campo"]
+        self.assertEqual(self.client.get("/api/users", headers=ceo_headers).status_code, 200)
+        self.assertEqual(self.client.get("/api/users", headers=manager_headers).status_code, 403)
+        self.assertEqual(self.client.get("/api/users", headers=technician_headers).status_code, 403)
+
+        self.assertEqual(self.client.get("/api/audit-logs", headers=ceo_headers).status_code, 200)
+        self.assertEqual(self.client.get("/api/audit-logs", headers=manager_headers).status_code, 403)
+        self.assertEqual(self.client.get("/api/audit-logs", headers=technician_headers).status_code, 403)
+
+        self.assertEqual(self.client.get("/api/devices/credentials", headers=ceo_headers).status_code, 200)
+        self.assertEqual(self.client.get("/api/devices/credentials", headers=manager_headers).status_code, 200)
+        self.assertEqual(self.client.get("/api/devices/credentials", headers=technician_headers).status_code, 403)
+
+        self.assertEqual(self.client.get("/api/export/executive-report", headers=ceo_headers).status_code, 200)
+        self.assertEqual(self.client.get("/api/export/executive-report", headers=manager_headers).status_code, 403)
+        self.assertEqual(self.client.get("/api/export/executive-report", headers=technician_headers).status_code, 403)
+
     def test_new_panel_waits_for_real_telemetry(self):
         _, headers = self.create_tenant("NEWPANEL")
         created = self.client.post("/api/panels/add", headers=headers, json={

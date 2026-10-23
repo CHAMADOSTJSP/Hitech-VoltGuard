@@ -18,7 +18,7 @@ Revisão do código e das dependências do branch `codex/commercial-readiness-au
 ## Controles verificados no código
 
 - Senhas novas usam scrypt; JWT fixa o algoritmo HS256; sessões têm identificador aleatório, expiração e revogação consultada no banco.
-- As operações sensíveis verificam papel e organização no servidor. Os testes cobrem isolamento entre organizações em fluxos principais, sem cobrir cada combinação de rota/papel.
+- As operações sensíveis verificam papel e organização no servidor. Os testes agora cobrem a matriz básica CEO/Gerente/Técnico de Campo para administração de usuários, auditoria, credenciais de dispositivo e relatório executivo, além de isolamento entre organizações nos fluxos principais; ainda não cobrem cada combinação de rota/papel.
 - Tokens de dispositivo são aleatórios, armazenados como hash, limitados a um painel e revogáveis.
 - Quando MFA TOTP está habilitado, o login agora exige o código TOTP ou um código de recuperação de uso único; senha correta sem segundo fator não cria sessão.
 - Cadastro público é desativado por padrão em todos os ambientes; precisa de `ALLOW_SELF_SERVICE_REGISTRATION=1` explícito. O Blueprint do Render o mantém desativado até haver verificação de e-mail e onboarding.
@@ -30,7 +30,7 @@ Revisão do código e das dependências do branch `codex/commercial-readiness-au
 
 - O piloto sem custo usa rate limit em memória por processo. Sem Redis, várias instâncias ou reinícios não compartilham contadores; o fallback continua permissivo para disponibilidade. Configure armazenamento compartilhado antes de escalar.
 - Não há confirmação de e-mail, convite ou onboarding comercial. O cadastro público agora fica fechado por padrão; não habilite a variável de self-service em produção antes de implementar verificação de e-mail, prevenção contra abuso e fluxo de suporte.
-- Ainda não foram executados pentest, teste de carga, scanner de segredos de todo o histórico Git ou revisão independente. A validação local atual executou 22 testes; `compileall`, `node --check`, `pip check` e `git diff --check` passaram. No commit `8855ce4`, o workflow remoto também passou em `pip-audit`, integração, sintaxe e build Docker.
+- Ainda não foram executados pentest, teste de carga, scanner de segredos de todo o histórico Git ou revisão independente. A validação local desta revisão executou 23 testes; `compileall`, `node --check`, `pip check`, YAML do Blueprint e `git diff --check` passaram. No commit `7f0be2a`, o workflow remoto também passou em `pip-audit`, integração, sintaxe e build Docker; a atualização atual ainda aguarda a próxima execução de CI.
 - Em Render, adicione cada domínio personalizado ao `ALLOWED_HOSTS` separado por vírgulas; sem isso, apenas o hostname padrão do serviço é autorizado.
 - Backup/restauração do PostgreSQL, migrações formais com rollback, alertas, rotação de credenciais, recuperação de conta, retenção/exclusão de dados e resposta a incidentes ainda precisam de processo e validação operacional.
 - A telemetria Modbus ainda precisa ser validada com o modelo/firmware do medidor em laboratório. Não conecte esta aplicação a funções de comando, proteção ou intertravamento e não declare conformidade NR-10, IEC 62443 ou LGPD com base nesta revisão.

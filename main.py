@@ -450,7 +450,7 @@ class ApiRequestBodyLimitMiddleware:
 
 # Instanciação primária da aplicação FastAPI
 app = FastAPI(
-    title="HITECH VoltGuard SCADA Enterprise",
+    title="HITECH VoltGuard",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
     version="0.65.0",
 )

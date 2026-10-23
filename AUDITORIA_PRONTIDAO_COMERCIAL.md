@@ -37,7 +37,7 @@
 
 ### P1 — Identidade e atendimento ao cliente
 
-- O cadastro de organização é público e cria contas CEO sem confirmação de e-mail; há limite de taxa, mas não há verificação de domínio/identidade, convites ou aprovação comercial.
+- O cadastro de organização não tem confirmação de e-mail; por segurança, está fechado por padrão no Render. Ainda não há convites, recuperação de senha ou aprovação comercial. A variável de auto-cadastro não deve ser habilitada em produção até esses fluxos serem projetados e testados.
 - Não há recuperação de senha por e-mail. A recuperação administrativa depende de suporte fora do fluxo do produto.
 - Não há política implementada de retenção, exportação e exclusão de dados da organização, termos, aviso de privacidade, SLA nem processo de resposta a incidentes.
 
@@ -61,7 +61,7 @@
 
 **Ação:** adicionar migrações formais, backup e restauração ensaiados, alertas, testes de segurança/isolamento e observabilidade; mover entregas externas para fila durável quando a operação exigir garantias.
 
-## Melhorias feitas nesta revisão local
+## Melhorias feitas nesta revisão
 
 - Removidos KPIs fixos de risco, downtime, confiabilidade, ESG, MTTR e disponibilidade que não eram calculados a partir de dados reais.
 - O cabeçalho agora mostra painéis cadastrados, painéis online, alarmes ativos/reconhecidos e ordens em aberto, atualizados com o polling do painel.
