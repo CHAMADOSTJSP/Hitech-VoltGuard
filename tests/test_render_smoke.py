@@ -325,6 +325,60 @@ class VoltGuardSmokeTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/export/executive-report", headers=manager_headers).status_code, 403)
         self.assertEqual(self.client.get("/api/export/executive-report", headers=technician_headers).status_code, 403)
 
+        panel = self.client.get("/api/panels", headers=ceo_headers).json()["panels"][0]
+        panel_id = panel["id"]
+
+        # CEO-only mutations must reject both lower roles before making changes.
+        ceo_only_mutations = (
+            ("post", "/api/users", {"username": "should_not_be_created", "password": "Senha-forte-de-teste-2026!", "role": "Gerente"}),
+            ("patch", "/api/users/tech_rolematrix", {"is_active": False}),
+            ("post", "/api/users/tech_rolematrix/revoke-sessions", None),
+            ("post", "/api/tenant/webhook", {"webhook_url": ""}),
+        )
+        for method, endpoint, payload in ceo_only_mutations:
+            for role, headers in (("Gerente", manager_headers), ("Técnico de Campo", technician_headers)):
+                response = self.client.request(method.upper(), endpoint, headers=headers, json=payload)
+                self.assertEqual(response.status_code, 403, f"{role} {method.upper()} {endpoint}: {response.text}")
+
+        # Organization managers may configure the service; technicians may
+        # perform field work but cannot change tenant/device configuration.
+        manager_writes = (
+            ("post", "/api/tenant/rules", {"max_temperature": 90, "max_current": 600}),
+            ("post", "/api/panels/add", {"id": "ROLE-MATRIX-NEW", "name": "Painel de teste", "location": "Local de teste"}),
+            ("put", f"/api/panels/{panel_id}/alarm-rules", {"max_temperature": 90, "max_current": 600}),
+            ("delete", f"/api/panels/{panel_id}/alarm-rules", None),
+            ("post", "/api/demo/force-failure", {"panel_id": panel_id}),
+            ("post", "/api/inventory/update", {"part_name": "Peça de teste", "quantity_change": 1}),
+            ("post", "/api/work-order-checklist-templates", {"name": "Modelo de teste", "items": ["Verificar item"]}),
+            ("patch", "/api/assets/999999", {"notes": "Tentativa de edição"}),
+            ("post", "/api/devices/credentials", {"panel_id": panel_id, "name": "Gateway de teste"}),
+            ("post", "/api/devices/credentials/999999/revoke", None),
+        )
+        for method, endpoint, payload in manager_writes:
+            response = self.client.request(method.upper(), endpoint, headers=technician_headers, json=payload)
+            self.assertEqual(response.status_code, 403, f"Técnico {method.upper()} {endpoint}: {response.text}")
+
+        # Verify the allowed edges too: a manager can configure, while a field
+        # technician can create the operational records needed for field work.
+        self.assertEqual(
+            self.client.post("/api/tenant/rules", headers=manager_headers,
+                             json={"max_temperature": 91, "max_current": 610}).status_code,
+            200,
+        )
+        asset = self.client.post("/api/assets", headers=technician_headers, json={
+            "asset_tag": "ROLE-TECH-ASSET", "name": "Ativo do técnico", "panel_id": panel_id,
+        })
+        self.assertEqual(asset.status_code, 201, asset.text)
+        work_order = self.client.post("/api/work-orders", headers=technician_headers, json={
+            "panel_id": panel_id, "title": "OS do técnico",
+        })
+        self.assertEqual(work_order.status_code, 201, work_order.text)
+
+        with SessionLocal() as db:
+            self.assertIsNone(db.query(UserModel).filter_by(username="should_not_be_created").first())
+            technician = db.query(UserModel).filter_by(username="tech_rolematrix").one()
+            self.assertTrue(technician.is_active)
+
     def test_every_api_route_requires_user_or_explicit_machine_authentication(self):
         intentionally_public = {
             "/api/token",  # Credentials are validated by the login endpoint.
