@@ -8,6 +8,7 @@
 - [ ] `.env`, banco local e segredos reais não foram enviados ao Git.
 - [ ] `render.yaml` revisado; planos/região/recursos confirmados no painel do Render.
 - [ ] Dependências e testes locais executados em ambiente com as dependências de `requirements.txt` instaladas.
+- [ ] Rever `SECURITY_REVIEW.md`; não considerar pendências de segurança/operação como aceites para dados reais sem decisão explícita.
 
 ## Durante o deploy
 

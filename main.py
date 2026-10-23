@@ -29,6 +29,11 @@ from sqlalchemy.orm import sessionmaker, Session
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+
+def utcnow() -> datetime:
+    """Return naive UTC timestamps for compatibility with existing DB columns."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 # Configurações de Segurança e JWT
 # Configure SECRET_KEY in the environment for deployments. The fallback is intentionally
@@ -110,7 +115,7 @@ class AuditLogModel(Base):
     __tablename__ = "audit_logs"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     tenant_id = Column(String, default="HITECH-DEFAULT", index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=utcnow)
     user_name = Column(String, nullable=False)
     role = Column(String, nullable=False)
     action = Column(String, nullable=False)
@@ -121,7 +126,7 @@ class WorkOrderHistoryModel(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     tenant_id = Column(String, nullable=False, index=True)
     work_order_id = Column(Integer, nullable=False, index=True)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    timestamp = Column(DateTime, default=utcnow, nullable=False, index=True)
     user_name = Column(String, nullable=False)
     role = Column(String, nullable=False)
     action = Column(String, nullable=False)
@@ -137,7 +142,7 @@ class WorkOrderChecklistItemModel(Base):
     is_completed = Column(Boolean, default=False, nullable=False)
     completed_at = Column(DateTime, nullable=True)
     completed_by = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
 
 class WorkOrderChecklistTemplateModel(Base):
     __tablename__ = "work_order_checklist_templates"
@@ -146,7 +151,7 @@ class WorkOrderChecklistTemplateModel(Base):
     name = Column(String(120), nullable=False)
     items_json = Column(Text, nullable=False)
     created_by = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
     __table_args__ = (Index("uq_work_order_checklist_template_tenant_name", tenant_id, name, unique=True),)
 
 class TenantSubscriptionModel(Base):
@@ -154,7 +159,7 @@ class TenantSubscriptionModel(Base):
     tenant_id = Column(String, primary_key=True, index=True)
     plan_name = Column(String, default="Enterprise")
     status = Column(String, default="ACTIVE")
-    expires_at = Column(DateTime, default=datetime.utcnow() + timedelta(days=365))
+    expires_at = Column(DateTime, default=lambda: utcnow() + timedelta(days=365))
     max_panels = Column(Integer, default=25)
     webhook_url = Column(String, nullable=True, default="https://httpbin.org/post")
 
@@ -174,7 +179,7 @@ class PanelAlarmRuleModel(Base):
     max_current = Column(Float, nullable=False, default=500.0)
     temperature_hysteresis = Column(Float, nullable=False, default=3.0)
     current_hysteresis = Column(Float, nullable=False, default=10.0)
-    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, nullable=False)
 
 
 class WorkOrderModel(Base):
@@ -187,7 +192,7 @@ class WorkOrderModel(Base):
     priority = Column(String, default="ALTA")
     status = Column(String, default="ABERTA")
     assigned_technician = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     description = Column(String, nullable=True)
     due_at = Column(DateTime, nullable=True)
     started_at = Column(DateTime, nullable=True)
@@ -216,8 +221,8 @@ class AlarmModel(Base):
     severity = Column(String, default="WARNING", nullable=False)
     message = Column(String, nullable=False)
     status = Column(String, default="ACTIVE", nullable=False)  # ACTIVE, ACKNOWLEDGED, CLEARED
-    first_triggered_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    last_triggered_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    first_triggered_at = Column(DateTime, default=utcnow, nullable=False)
+    last_triggered_at = Column(DateTime, default=utcnow, nullable=False)
     acknowledged_at = Column(DateTime, nullable=True)
     acknowledged_by = Column(String, nullable=True)
     cleared_at = Column(DateTime, nullable=True)
@@ -237,7 +242,7 @@ class AssetModel(Base):
     panel_id = Column(String, nullable=True, index=True)
     status = Column(String, default="ATIVO")
     notes = Column(String, default="")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 class MaintenancePlanModel(Base):
     __tablename__ = "maintenance_plans"
@@ -249,7 +254,7 @@ class MaintenancePlanModel(Base):
     interval_days = Column(Integer, default=30)
     next_due_at = Column(DateTime, nullable=False)
     active = Column(Integer, default=1)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
 
 class MaintenanceTaskModel(Base):
     __tablename__ = "maintenance_tasks"
@@ -262,7 +267,7 @@ class MaintenanceTaskModel(Base):
     status = Column(String, default="PENDENTE")
     assigned_to = Column(String, nullable=True)
     notes = Column(String, default="")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     completed_at = Column(DateTime, nullable=True)
 
 class DeviceCredentialModel(Base):
@@ -272,7 +277,7 @@ class DeviceCredentialModel(Base):
     panel_id = Column(String, index=True, nullable=False)
     name = Column(String, nullable=False)
     token_hash = Column(String, unique=True, index=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utcnow)
     last_used_at = Column(DateTime, nullable=True)
     revoked_at = Column(DateTime, nullable=True)
 
@@ -379,12 +384,85 @@ async def post_webhook_event(value: str, payload: dict) -> int:
         ) as response:
             return response.status_code
 
+
+class ApiRequestBodyLimitMiddleware:
+    """Bound API request bodies even when clients omit Content-Length/chunk."""
+
+    API_LIMIT_BYTES = 1_048_576
+    TELEMETRY_LIMIT_BYTES = 16_384
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http" or not scope.get("path", "").startswith("/api/"):
+            await self.app(scope, receive, send)
+            return
+
+        limit = (self.TELEMETRY_LIMIT_BYTES
+                 if scope.get("path") == "/api/device/telemetry"
+                 else self.API_LIMIT_BYTES)
+        content_length = next(
+            (value for name, value in scope.get("headers", []) if name.lower() == b"content-length"),
+            None,
+        )
+        if content_length is not None:
+            try:
+                declared_size = int(content_length)
+            except (TypeError, ValueError):
+                response = JSONResponse(status_code=400, content={"detail": "Content-Length inválido."})
+                await response(scope, receive, send)
+                return
+            if declared_size < 0:
+                response = JSONResponse(status_code=400, content={"detail": "Content-Length inválido."})
+                await response(scope, receive, send)
+                return
+            if declared_size > limit:
+                response = JSONResponse(status_code=413, content={"detail": "Corpo da requisição excede o limite permitido."})
+                await response(scope, receive, send)
+                return
+
+        messages = []
+        body_size = 0
+        while True:
+            message = await receive()
+            messages.append(message)
+            if message.get("type") == "http.request":
+                body_size += len(message.get("body", b""))
+                if body_size > limit:
+                    response = JSONResponse(
+                        status_code=413,
+                        content={"detail": "Corpo da requisição excede o limite permitido."},
+                    )
+                    await response(scope, receive, send)
+                    return
+                if not message.get("more_body", False):
+                    break
+            else:
+                break
+
+        async def replay_receive():
+            if messages:
+                return messages.pop(0)
+            return await receive()
+
+        await self.app(scope, replay_receive, send)
+
 # Instanciação primária da aplicação FastAPI
 app = FastAPI(
     title="HITECH VoltGuard SCADA Enterprise",
     description="MVP SaaS de demonstração para monitoramento e manutenção. Não certificado para proteção ou comando industrial.",
-    version="0.64.0",
+    version="0.65.0",
 )
+app.add_middleware(ApiRequestBodyLimitMiddleware)
+configured_hosts = [host.strip() for host in os.getenv("ALLOWED_HOSTS", "").split(",") if host.strip()]
+render_hostname = os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip()
+if render_hostname:
+    configured_hosts.append(render_hostname)
+if os.getenv("RENDER") and not configured_hosts:
+    raise RuntimeError("Configure RENDER_EXTERNAL_HOSTNAME ou ALLOWED_HOSTS para validar o Host.")
+allowed_hosts = list(dict.fromkeys(configured_hosts)) or ["*"]
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 # RATE_LIMIT_STORAGE_URI is optional. Leave it unset for the current per-process
 # memory store; use a managed Redis URL in the hosting provider for shared limits.
 # Never log this value because Redis URLs can contain credentials.
@@ -399,8 +477,21 @@ if RATE_LIMIT_STORAGE_URI:
         raise RuntimeError("RATE_LIMIT_STORAGE_URI contém uma porta inválida.") from exc
     del parsed_rate_limit_storage
 
+
+def rate_limit_client_address(request: Request) -> str:
+    """Use Cloudflare's single client-IP header on Render, never client XFF."""
+    if os.getenv("RENDER"):
+        forwarded_ip = request.headers.get("cf-connecting-ip", "").strip()
+        try:
+            return ipaddress.ip_address(forwarded_ip).compressed
+        except ValueError:
+            # Fail closed if Render's edge header is unexpectedly missing/invalid.
+            return "render-client-ip-unavailable"
+    return get_remote_address(request)
+
+
 limiter = Limiter(
-    key_func=get_remote_address,
+    key_func=rate_limit_client_address,
     default_limits=[],
     storage_uri=RATE_LIMIT_STORAGE_URI or "memory://",
     in_memory_fallback_enabled=True,
@@ -422,21 +513,7 @@ app.mount("/vendor", StaticFiles(directory=VENDOR_DIR), name="vendor")
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
-    response = None
-    if request.url.path == "/api/device/telemetry":
-        content_length = request.headers.get("content-length")
-        if content_length:
-            try:
-                declared_size = int(content_length)
-            except ValueError:
-                response = JSONResponse(status_code=400, content={"detail": "Content-Length inválido."})
-            else:
-                if declared_size < 0:
-                    response = JSONResponse(status_code=400, content={"detail": "Content-Length inválido."})
-                elif declared_size > 16_384:
-                    response = JSONResponse(status_code=413, content={"detail": "Payload de telemetria excede o limite de 16 KB."})
-    if response is None:
-        response = await call_next(request)
+    response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
@@ -466,7 +543,9 @@ async def security_headers(request: Request, call_next):
     if request.url.path.startswith("/api/") or request.url.path.startswith("/vendor/") or request.url.path in {"/", "/health", "/app.js", "/styles.css", "/report.css"}:
         response.headers["Cache-Control"] = "no-store"
     response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
-    if request.url.scheme == "https":
+    forwarded_scheme = request.headers.get("x-forwarded-proto", "").split(",", 1)[0].strip().lower()
+    is_https = request.url.scheme == "https" or (bool(os.getenv("RENDER")) and forwarded_scheme == "https")
+    if is_https:
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
 
@@ -765,7 +844,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         AuthSessionModel.token_id_hash == hashlib.sha256(token_id.encode()).hexdigest(),
         AuthSessionModel.user_name == username,
         AuthSessionModel.revoked_at.is_(None),
-        AuthSessionModel.expires_at > datetime.utcnow(),
+        AuthSessionModel.expires_at > utcnow(),
     ).first()
     if not session_record:
         raise HTTPException(status_code=401, detail="Sessão encerrada ou expirada. Entre novamente.")
@@ -805,7 +884,7 @@ def login(request: Request, credentials: dict, db: Session = Depends(get_db)):
         db_user.password = hash_password(password)
         db.commit()
     
-    now = datetime.utcnow()
+    now = utcnow()
     expires_at = now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     db.query(AuthSessionModel).filter(
         AuthSessionModel.expires_at < now - timedelta(days=30)
@@ -877,7 +956,7 @@ def confirm_mfa_setup(request: Request, data: dict, db: Session = Depends(get_db
         raise HTTPException(status_code=400, detail="Código inválido ou configuração expirada. Inicie a configuração novamente.")
     setup_challenge = secrets.token_urlsafe(32)
     db_user.totp_setup_challenge_hash = hashlib.sha256(setup_challenge.encode("ascii")).hexdigest()
-    db_user.totp_setup_challenge_expires_at = datetime.utcnow() + timedelta(minutes=10)
+    db_user.totp_setup_challenge_expires_at = utcnow() + timedelta(minutes=10)
     db.commit()
     return {"status": "verified", "setup_challenge": setup_challenge,
             "message": "Código confirmado. Escolha agora uma nova senha para concluir a ativação do MFA."}
@@ -903,7 +982,7 @@ def complete_mfa_setup(request: Request, data: dict, db: Session = Depends(get_d
     if len(new_password) < 12 or len(new_password) > 256:
         raise HTTPException(status_code=422, detail="A nova senha deve ter entre 12 e 256 caracteres.")
 
-    now = datetime.utcnow()
+    now = utcnow()
     challenge_hash = hashlib.sha256(challenge.encode("ascii", errors="ignore")).hexdigest()
     db_user = db.query(UserModel).filter(
         UserModel.username == current_user.username,
@@ -977,7 +1056,7 @@ def disable_mfa(request: Request, data: dict, db: Session = Depends(get_db),
     valid_totp = bool(secret and verify_and_record_totp(db, db_user, code, secret))
     if not valid_totp and not consume_recovery_code(db, db_user, code):
         raise HTTPException(status_code=400, detail="Senha ou código MFA inválido.")
-    now = datetime.utcnow()
+    now = utcnow()
     db_user.totp_enabled = False
     db_user.totp_secret_encrypted = None
     db_user.totp_pending_secret_encrypted = None
@@ -1001,7 +1080,7 @@ def logout(db: Session = Depends(get_db), current_user: User = Depends(get_curre
         AuthSessionModel.revoked_at.is_(None),
     ).first()
     if session_record:
-        session_record.revoked_at = datetime.utcnow()
+        session_record.revoked_at = utcnow()
         db.commit()
     return {"status": "success", "message": "Sessão encerrada."}
 
@@ -1036,7 +1115,7 @@ def change_own_password(request: Request, data: dict, db: Session = Depends(get_
         valid_totp = bool(secret and verify_and_record_totp(db, db_user, supplied_mfa_code, secret))
         if not valid_totp and not consume_recovery_code(db, db_user, supplied_mfa_code):
             raise HTTPException(status_code=400, detail="Código do autenticador ou de recuperação inválido.")
-    now = datetime.utcnow()
+    now = utcnow()
     db_user.password = hash_password(new_password)
     db.query(AuthSessionModel).filter(
         AuthSessionModel.user_name == current_user.username,
@@ -1051,7 +1130,7 @@ def change_own_password(request: Request, data: dict, db: Session = Depends(get_
 @app.post("/api/ws-ticket", tags=["Authentication"])
 def create_websocket_ticket(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Emite um segredo opaco, de uso único, para autenticar a conexão WebSocket."""
-    now = datetime.utcnow()
+    now = utcnow()
     db.query(WebSocketTicketModel).filter(
         WebSocketTicketModel.expires_at < now - timedelta(days=1)
     ).delete(synchronize_session=False)
@@ -1114,7 +1193,7 @@ def register_tenant(request: Request, data: dict, db: Session = Depends(get_db))
             recommendation=recommendation, esg_waste_kwh=0.0,
         )
         db.add(panel)
-        db.add(PanelHistoryModel(panel_id=panel_id, tenant_id=tenant_id, timestamp=datetime.utcnow().isoformat(timespec="seconds") + "Z", temperature=temperature, current=panel.current, voltage=panel.voltage))
+        db.add(PanelHistoryModel(panel_id=panel_id, tenant_id=tenant_id, timestamp=utcnow().isoformat(timespec="seconds") + "Z", temperature=temperature, current=panel.current, voltage=panel.voltage))
 
     db.add(AuditLogModel(tenant_id=tenant_id, user_name=admin_user, role="CEO", action="REGISTO_TENANT", details=f"Organização {tenant_id} registada com três painéis demonstrativos."))
     db.commit()
@@ -1177,7 +1256,7 @@ def update_tenant_user(username: str, data: dict, db: Session = Depends(get_db),
             changes.append(f"perfil alterado para {row.role}")
             db.query(AuthSessionModel).filter(AuthSessionModel.user_name == row.username,
                                                AuthSessionModel.revoked_at.is_(None)).update(
-                {AuthSessionModel.revoked_at: datetime.utcnow()}, synchronize_session=False)
+                {AuthSessionModel.revoked_at: utcnow()}, synchronize_session=False)
     if "is_active" in data:
         if not isinstance(data["is_active"], bool):
             raise HTTPException(status_code=422, detail="is_active deve ser verdadeiro ou falso.")
@@ -1187,7 +1266,7 @@ def update_tenant_user(username: str, data: dict, db: Session = Depends(get_db),
             if not row.is_active:
                 db.query(AuthSessionModel).filter(AuthSessionModel.user_name == row.username,
                                                    AuthSessionModel.revoked_at.is_(None)).update(
-                    {AuthSessionModel.revoked_at: datetime.utcnow()}, synchronize_session=False)
+                    {AuthSessionModel.revoked_at: utcnow()}, synchronize_session=False)
     if changes:
         db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username,
                              role=current_user.role, action="ATUALIZAR_USUARIO",
@@ -1211,7 +1290,7 @@ def revoke_tenant_user_sessions(request: Request, username: str, db: Session = D
         raise HTTPException(status_code=409, detail="As sessões da conta CEO não podem ser encerradas por esta operação.")
     if not row.is_active:
         raise HTTPException(status_code=409, detail="A conta está desativada e não possui acesso.")
-    now = datetime.utcnow()
+    now = utcnow()
     result = db.query(AuthSessionModel).filter(
         AuthSessionModel.user_name == row.username,
         AuthSessionModel.revoked_at.is_(None),
@@ -1254,7 +1333,7 @@ async def test_webhook(db: Session = Depends(get_db), current_user: User = Depen
             "event": "WEBHOOK_TEST",
             "event_id": event_id,
             "organization_id": current_user.tenant_id,
-            "sent_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+            "sent_at": utcnow().isoformat(timespec="seconds") + "Z",
         })
         delivered = 200 <= http_status < 300
     except Exception:
@@ -1345,7 +1424,7 @@ def add_panel(data: dict, db: Session = Depends(get_db), current_user: User = De
         recommendation="Painel recém-comissionado. Operação estável.", esg_waste_kwh=1.0
     )
     db.add(new_panel)
-    db.add(PanelHistoryModel(panel_id=panel_id, tenant_id=current_user.tenant_id, timestamp=datetime.utcnow().isoformat(timespec="seconds") + "Z", temperature=new_panel.temperature, current=new_panel.current, voltage=new_panel.voltage))
+    db.add(PanelHistoryModel(panel_id=panel_id, tenant_id=current_user.tenant_id, timestamp=utcnow().isoformat(timespec="seconds") + "Z", temperature=new_panel.temperature, current=new_panel.current, voltage=new_panel.voltage))
     db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="ADICIONAR_PAINEL", details=f"Painel {panel_id} adicionado."))
     db.commit()
     return {"status": "success", "message": f"Painel {panel_id} adicionado com sucesso!"}
@@ -1400,7 +1479,7 @@ def save_panel_alarm_rules(panel_id: str, data: dict, db: Session = Depends(get_
         rule = PanelAlarmRuleModel(tenant_id=current_user.tenant_id, panel_id=panel_id)
         db.add(rule)
     for key, value in values.items(): setattr(rule, key, value)
-    rule.updated_at = datetime.utcnow()
+    rule.updated_at = utcnow()
     db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role,
         action="CONFIGURAR_REGRAS_PAINEL", details=f"Regras atualizadas para {panel_id}: temperatura={values['max_temperature']}°C, corrente={values['max_current']}A."))
     db.commit()
@@ -1473,7 +1552,7 @@ def ingest_telemetry(data: TelemetryData, current_user: User = Depends(get_curre
     if condition_is_active(data.current, current_limit, rule.current_hysteresis, "HIGH_CURRENT" in open_types):
         active_conditions.append(("HIGH_CURRENT", "CRITICAL", f"Corrente {data.current} A acima do limite configurado de {current_limit} A."))
     active_types = {condition[0] for condition in active_conditions}
-    now = datetime.utcnow()
+    now = utcnow()
     for alarm_type, severity, message in active_conditions:
         alarm = next((item for item in open_alarms if item.alarm_type == alarm_type), None)
         if alarm:
@@ -1510,7 +1589,7 @@ async def force_failure(data: dict, db: Session = Depends(get_db), current_user:
     panel.predictive_failure_hours = 2
     panel.recommendation = "ALERTA CRÍTICO: falha elétrica simulada para teste da Central de Alarmes."
 
-    now = datetime.utcnow()
+    now = utcnow()
     simulated_conditions = [
         ("HIGH_TEMPERATURE", f"Temperatura simulada {panel.temperature} °C acima do limite configurado de {temp_limit} °C."),
         ("HIGH_CURRENT", f"Corrente simulada {panel.current} A acima do limite configurado de {current_limit} A."),
@@ -1598,7 +1677,7 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
             elif last_seen is None:
                 connectivity_status = "NEVER_CONNECTED"
             else:
-                age_seconds = max(0, (datetime.utcnow() - last_seen).total_seconds())
+                age_seconds = max(0, (utcnow() - last_seen).total_seconds())
                 connectivity_status = "ONLINE" if age_seconds <= offline_after_seconds else "OFFLINE"
 
             panels_data.append({
@@ -1814,7 +1893,7 @@ def acknowledge_alarm(alarm_id: int, db: Session = Depends(get_db), current_user
         raise HTTPException(status_code=409, detail="Um alarme encerrado não pode ser reconhecido.")
     if alarm.status != "ACKNOWLEDGED":
         alarm.status = "ACKNOWLEDGED"
-        alarm.acknowledged_at = datetime.utcnow()
+        alarm.acknowledged_at = utcnow()
         alarm.acknowledged_by = current_user.username
         db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="RECONHECER_ALARME", details=f"Alarme {alarm_id} reconhecido."))
         db.commit()
@@ -1912,7 +1991,7 @@ def clear_alarm(alarm_id: int, db: Session = Depends(get_db), current_user: User
         raise HTTPException(status_code=404, detail="Alarme não encontrado nesta organização.")
     if alarm.status != "CLEARED":
         alarm.status = "CLEARED"
-        alarm.cleared_at = datetime.utcnow()
+        alarm.cleared_at = utcnow()
         db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="ENCERRAR_ALARME", details=f"Alarme {alarm_id} encerrado manualmente."))
         db.commit()
     return {"status": "success", "id": alarm.id, "alarm_status": alarm.status}
@@ -1937,7 +2016,7 @@ def get_panel_by_qr(qr_code: str, db: Session = Depends(get_db), current_user: U
     elif last_seen is None:
         connectivity_status = "NEVER_CONNECTED"
     else:
-        age_seconds = max(0, (datetime.utcnow() - last_seen).total_seconds())
+        age_seconds = max(0, (utcnow() - last_seen).total_seconds())
         connectivity_status = "ONLINE" if age_seconds <= offline_after_seconds else "OFFLINE"
     return {
         "id": panel.id, "name": panel.name, "location": panel.location, "voltage": panel.voltage,
@@ -2028,7 +2107,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
     db = SessionLocal()
     try:
-        now = datetime.utcnow()
+        now = utcnow()
         ticket_hash = hashlib.sha256(ticket.encode()).hexdigest()
         ticket_row = db.query(WebSocketTicketModel).filter(
             WebSocketTicketModel.ticket_hash == ticket_hash,
@@ -2116,7 +2195,7 @@ def export_executive_report(db: Session = Depends(get_db), current_user: User = 
         title_cell.alignment = Alignment(vertical="center")
         sheet.row_dimensions[1].height = 30
         sheet.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(headers))
-        sheet.cell(2, 1, f"Organização: {safe_text(current_user.tenant_id)}  |  Gerado em UTC: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}")
+        sheet.cell(2, 1, f"Organização: {safe_text(current_user.tenant_id)}  |  Gerado em UTC: {utcnow().strftime('%Y-%m-%d %H:%M:%S')}")
         sheet.cell(2, 1).font = Font(italic=True, color="4B5563", size=10)
         sheet.cell(2, 1).alignment = Alignment(wrap_text=True, vertical="center")
         sheet.row_dimensions[2].height = 24
@@ -2202,7 +2281,7 @@ def export_executive_report(db: Session = Depends(get_db), current_user: User = 
     summary.row_dimensions[1].height = 42
     merge_styled(
         2, 1, 12,
-        f"Organização: {safe_text(current_user.tenant_id)}   |   Gerado em UTC: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}",
+        f"Organização: {safe_text(current_user.tenant_id)}   |   Gerado em UTC: {utcnow().strftime('%Y-%m-%d %H:%M:%S')}",
         "ECFDF5", Font(name="Calibri", size=10, bold=True, color=dark_green),
         Alignment(vertical="center", horizontal="left", indent=1), report_border,
     )
@@ -2442,9 +2521,9 @@ def update_work_order(order_id: int, data: WorkOrderUpdate, db: Session = Depend
             if pending_checklist:
                 raise HTTPException(status_code=422, detail=f"Conclua os {pending_checklist} item(ns) pendente(s) do checklist antes de encerrar a ordem.")
             order.resolution = completion_note
-            order.completed_at = datetime.utcnow()
+            order.completed_at = utcnow()
         if data.status == "EM_ANDAMENTO" and order.started_at is None:
-            order.started_at = datetime.utcnow()
+            order.started_at = utcnow()
         order.status = data.status
     if data.priority is not None:
         if data.priority not in {"BAIXA", "MEDIA", "MÉDIA", "ALTA", "CRITICA", "CRÍTICA"}:
@@ -2518,7 +2597,7 @@ def update_work_order_checklist_item(
     event_data = None
     if item.is_completed != data.is_completed:
         item.is_completed = data.is_completed
-        item.completed_at = datetime.utcnow() if data.is_completed else None
+        item.completed_at = utcnow() if data.is_completed else None
         item.completed_by = current_user.username if data.is_completed else None
         action = "marcado como concluído" if data.is_completed else "reaberto"
         details = f'Checklist: "{item.label}" {action}.'
@@ -2691,7 +2770,7 @@ def create_maintenance_plan(data: MaintenancePlanCreate, db: Session = Depends(g
         raise HTTPException(status_code=422, detail="Título, periodicidade ou checklist inválido.")
     asset = db.query(AssetModel).filter(AssetModel.id == data.asset_id, AssetModel.tenant_id == current_user.tenant_id).first()
     if not asset: raise HTTPException(status_code=404, detail="Ativo não encontrado nesta organização.")
-    due = data.next_due_at or (datetime.utcnow() + timedelta(days=data.interval_days))
+    due = data.next_due_at or (utcnow() + timedelta(days=data.interval_days))
     row = MaintenancePlanModel(tenant_id=current_user.tenant_id, asset_id=asset.id, title=data.title.strip(), interval_days=data.interval_days, next_due_at=due, checklist=data.checklist.strip())
     db.add(row); db.flush()
     task = MaintenanceTaskModel(tenant_id=current_user.tenant_id, plan_id=row.id, asset_id=asset.id, title=row.title, due_at=due, notes="Checklist: " + row.checklist)
@@ -2712,7 +2791,7 @@ def create_maintenance_task(data: MaintenanceTaskCreate, db: Session = Depends(g
     if not asset: raise HTTPException(status_code=404, detail="Ativo não encontrado nesta organização.")
     if not data.title.strip() or len(data.title) > 180 or len(data.notes) > 4000:
         raise HTTPException(status_code=422, detail="Título ou observações inválidos.")
-    row = MaintenanceTaskModel(tenant_id=current_user.tenant_id, asset_id=asset.id, title=data.title.strip(), due_at=data.due_at or datetime.utcnow(), assigned_to=(data.assigned_to or "").strip() or None, notes=data.notes.strip())
+    row = MaintenanceTaskModel(tenant_id=current_user.tenant_id, asset_id=asset.id, title=data.title.strip(), due_at=data.due_at or utcnow(), assigned_to=(data.assigned_to or "").strip() or None, notes=data.notes.strip())
     db.add(row); db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="CRIAR_TAREFA_MANUTENCAO", details=f"Tarefa {row.title}; ativo {asset.asset_tag}")); db.commit(); db.refresh(row)
     return {"id": row.id, "asset_id": row.asset_id, "title": row.title, "due_at": row.due_at.isoformat(), "status": row.status}
 
@@ -2748,7 +2827,7 @@ def update_maintenance_task(task_id: int, data: MaintenanceTaskUpdate, db: Sessi
         changed_fields.append("prazo")
     if data.status == "CONCLUIDA":
         if not was_completed or row.completed_at is None:
-            row.completed_at = datetime.utcnow()
+            row.completed_at = utcnow()
     else:
         row.completed_at = None
     if changed_fields:
@@ -2757,7 +2836,7 @@ def update_maintenance_task(task_id: int, data: MaintenanceTaskUpdate, db: Sessi
     if row.status == "CONCLUIDA" and not was_completed and row.plan_id:
         plan = db.query(MaintenancePlanModel).filter(MaintenancePlanModel.id == row.plan_id, MaintenancePlanModel.tenant_id == current_user.tenant_id, MaintenancePlanModel.active == 1).first()
         if plan:
-            next_due = max(plan.next_due_at, datetime.utcnow()) + timedelta(days=plan.interval_days)
+            next_due = max(plan.next_due_at, utcnow()) + timedelta(days=plan.interval_days)
             plan.next_due_at = next_due
             db.add(MaintenanceTaskModel(tenant_id=current_user.tenant_id, plan_id=plan.id, asset_id=plan.asset_id, title=plan.title, due_at=next_due, notes="Checklist: " + plan.checklist))
     db.commit()
@@ -2788,7 +2867,7 @@ def revoke_device_credential(credential_id: int, db: Session = Depends(get_db), 
     if not row: raise HTTPException(status_code=404, detail="Credencial não encontrada.")
     if row.revoked_at:
         return {"status": "already_revoked", "id": credential_id}
-    row.revoked_at = datetime.utcnow(); db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="REVOGAR_CREDENCIAL_DISPOSITIVO", details=f"Credencial {credential_id} revogada.")); db.commit()
+    row.revoked_at = utcnow(); db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="REVOGAR_CREDENCIAL_DISPOSITIVO", details=f"Credencial {credential_id} revogada.")); db.commit()
     return {"status": "revoked", "id": credential_id}
 
 @app.post("/api/device/telemetry", tags=["Device Ingestion"])
@@ -2835,7 +2914,7 @@ def ingest_device_telemetry(request: Request, data: DeviceTelemetry, authorizati
             setattr(panel, field, value)
     if data.voltage_v is not None and data.voltage is None:
         panel.voltage = f"{data.voltage_v:g} V"
-    now = datetime.utcnow()
+    now = utcnow()
     opened = db.query(AlarmModel).filter(AlarmModel.tenant_id == credential.tenant_id, AlarmModel.panel_id == panel.id, AlarmModel.status.in_(["ACTIVE", "ACKNOWLEDGED"])).all()
     opened_types = {item.alarm_type for item in opened}
     active_conditions = []

@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.65.0 — Hardening e correções de validação
+
+- Limites de corpo em streaming: 1 MiB para rotas da API e 16 KiB para ingestão de telemetria, incluindo pedidos sem `Content-Length`.
+- No Render, rate limits usam `CF-Connecting-IP`, Uvicorn não confia genericamente em proxy headers e `Host` fica restrito ao hostname de serviço e `ALLOWED_HOSTS`.
+- Data de expiração de assinatura calculada por inserção; UTC usa função compatível com as versões atuais do Python.
+- Limiares mínimos das dependências elevadas para corrigir advisories conhecidos de Starlette, PyJWT, python-multipart e cryptography.
+- Testes isolam o rate limit por IP de cliente e cobrem corpo chunked acima do limite.
+- Revisão e pendências documentadas em `SECURITY_REVIEW.md`.
+
 ## Empacotamento reproduzível do backend e gateway
 
 - Dependências de MFA (PyOTP, QR Code e cryptography) e do gateway Modbus agora estão declaradas em `requirements.txt`, compartilhado por instalação local e Docker.

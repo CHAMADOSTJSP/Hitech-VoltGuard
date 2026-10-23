@@ -3,6 +3,10 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from datetime import datetime, timedelta
+from unittest.mock import patch
+import httpx
+from starlette.requests import Request
 
 _DB_FILE = Path(tempfile.gettempdir()) / f"voltguard-test-{os.getpid()}.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{_DB_FILE.as_posix()}"
@@ -11,13 +15,24 @@ os.environ["ENABLE_DEMO_USERS"] = "0"
 os.environ["SIMULATE_TELEMETRY"] = "0"
 
 from fastapi.testclient import TestClient
-from main import app
+from main import app, TenantSubscriptionModel, rate_limit_client_address
 
 
 class VoltGuardSmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.client = TestClient(app)
+        # SlowAPI correctly applies IP-based limits in production. Give each
+        # test a distinct synthetic client address so one test cannot consume
+        # another test's registration/login quota through shared limiter state.
+        cls._client_ip_counter = 1
+
+    def setUp(self):
+        type(self)._client_ip_counter += 1
+        client_ip = f"192.0.2.{type(self)._client_ip_counter}"
+        self.client = TestClient(app, client=(client_ip, 12345))
+
+    def tearDown(self):
+        self.client.close()
 
     def create_tenant(self, suffix):
         tenant_id = f"TEST-{suffix}".upper()
@@ -35,11 +50,57 @@ class VoltGuardSmokeTests(unittest.TestCase):
         self.assertEqual(login.status_code, 200, login.text)
         return tenant_id, {"Authorization": f"Bearer {login.json()['access_token']}"}
 
+    def test_subscription_expiry_is_calculated_for_each_insert(self):
+        first_created = datetime(2026, 1, 1)
+        second_created = datetime(2026, 1, 2)
+        expiry_default = TenantSubscriptionModel.__table__.c.expires_at.default
+        self.assertTrue(callable(expiry_default.arg))
+        with patch("main.utcnow", side_effect=[first_created, second_created]):
+            first_expiry = expiry_default.arg(None)
+            second_expiry = expiry_default.arg(None)
+        self.assertEqual(second_expiry - first_expiry, timedelta(days=1))
+
+    def test_chunked_device_payload_is_limited_without_content_length(self):
+        body = iter((b"x" * 16_000, b"x" * 1_000))
+        response = self.client.post(
+            "/api/device/telemetry",
+            headers={"Authorization": "Bearer invalid"},
+            content=body,
+        )
+        self.assertEqual(response.status_code, 413, response.text)
+        self.assertEqual(response.headers.get("x-content-type-options"), "nosniff")
+        self.assertEqual(response.headers.get("cache-control"), "no-store")
+
+    def test_render_rate_limit_uses_cloudflare_ip_not_forwarded_for(self):
+        request = Request({
+            "type": "http", "http_version": "1.1", "method": "GET", "scheme": "http",
+            "path": "/api/token", "raw_path": b"/api/token", "query_string": b"",
+            "headers": [(b"cf-connecting-ip", b"198.51.100.8"),
+                        (b"x-forwarded-for", b"203.0.113.99")],
+            "client": ("10.0.0.2", 12345), "server": ("testserver", 80),
+        })
+        with patch.dict(os.environ, {"RENDER": "true"}):
+            self.assertEqual(rate_limit_client_address(request), "198.51.100.8")
+
+    def test_local_rate_limit_ignores_forwarded_for(self):
+        request = Request({
+            "type": "http", "http_version": "1.1", "method": "GET", "scheme": "http",
+            "path": "/api/token", "raw_path": b"/api/token", "query_string": b"",
+            "headers": [(b"x-forwarded-for", b"203.0.113.99")],
+            "client": ("192.0.2.24", 12345), "server": ("testserver", 80),
+        })
+        with patch.dict(os.environ):
+            os.environ.pop("RENDER", None)
+            self.assertEqual(rate_limit_client_address(request), "192.0.2.24")
+
     def test_health_and_headers(self):
         response = self.client.get("/health")
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()["status"], "ok")
         self.assertEqual(response.headers.get("x-content-type-options"), "nosniff")
+        with patch.dict(os.environ, {"RENDER": "true"}):
+            proxied_https = self.client.get("/health", headers={"X-Forwarded-Proto": "https"})
+        self.assertEqual(proxied_https.headers.get("strict-transport-security"), "max-age=31536000; includeSubDomains")
 
     def test_registration_login_and_tenant_isolation(self):
         tenant_a, headers_a = self.create_tenant("A")

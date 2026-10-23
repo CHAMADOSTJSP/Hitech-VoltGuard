@@ -6,6 +6,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 
 ## Melhorias aplicadas nesta revisão
 
+- v0.65.0: limite de corpo aplicado durante o recebimento (1 MiB para API e 16 KiB para telemetria, inclusive sem `Content-Length`); no Render, limitador usa `CF-Connecting-IP`, Uvicorn não confia genericamente em cabeçalhos proxy e o Host é restrito; expiração da assinatura calculada em cada inserção; timestamps UTC atualizados; dependências elevadas para versões com patches de segurança conhecidos. A suíte passou com 18 testes. Pendências de segurança e validação operacional estão em `SECURITY_REVIEW.md`.
 - v0.64.0: a API exige CEO para exportar o relatório executivo e CEO/Gerente para consultar credenciais de dispositivos, alinhando a autorização do backend à interface e mantendo os dados limitados ao tenant autenticado.
 - Operação do banco: documentado o fluxo de exportação e recuperação do PostgreSQL em instância separada, incluindo os limites do plano Free e a preservação de `SECRET_KEY`. O procedimento ainda precisa ser executado e a restauração validada pelo responsável do ambiente.
 - v0.63.2: o Dockerfile instala explicitamente PyOTP, qrcode/Pillow e cryptography, e valida as importações durante o build.
@@ -78,7 +79,7 @@ Esta entrega organiza e endurece o MVP para **demonstração/homologação contr
 ### Controles implementados na versão 0.44.0
 
 - A ingestão de dispositivo limita 600 requisições por minuto por endereço IP usando SlowAPI.
-- A rota recusa requisições que declarem `Content-Length` maior que 16 KB antes do processamento do corpo.
+- A API limita os corpos a 1 MiB e a ingestão de telemetria a 16 KB durante a leitura, inclusive sem `Content-Length`.
 - O modelo de telemetria rejeita campos desconhecidos e limita os tamanhos de `panel_id`, `voltage` e `gateway_qr`.
 - O rate limiting usa memória por processo quando `RATE_LIMIT_STORAGE_URI` não está configurada. Com Redis configurado, os contadores são compartilhados entre instâncias; se Redis ficar indisponível, há fallback em memória e a contagem deixa de ser global até a recuperação.
 

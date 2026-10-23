@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.65.0 — Limites de requisição, prazos e dependências
+
+Os corpos de `/api/*` agora têm limite durante a leitura, inclusive em requisições transmitidas em blocos sem `Content-Length`: 1 MiB para a API e 16 KiB para telemetria. No Render, o limitador usa o IP enviado pela Cloudflare, o Docker não confia genericamente em cabeçalhos de proxy e o Host é validado. A validade da assinatura é calculada por organização no momento do cadastro. Dependências críticas foram elevadas para versões com correções de segurança conhecidas; veja [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md) para o resultado da revisão e as pendências antes de dados reais.
+
 ## v0.64.0 — Permissões do relatório executivo e credenciais
 
 O backend agora exige perfil CEO para exportar o relatório executivo e CEO/Gerente para consultar metadados das credenciais de dispositivos, alinhando as rotas às permissões já exibidas na interface.
@@ -114,7 +118,7 @@ O script principal da interface foi separado em `app.js`, servido em `/app.js` s
 
 ## v0.44.0 — Limites básicos para ingestão de telemetria
 
-A rota de telemetria limita cada IP a 600 requisições por minuto e recusa corpos com `Content-Length` acima de 16 KB. O payload rejeita campos desconhecidos e restringe o tamanho dos identificadores e da tensão textual. Sem Redis, os limites ficam em memória por processo; com `RATE_LIMIT_STORAGE_URI`, os contadores são compartilhados entre instâncias. A política por credencial no proxy/WAF continua pendente.
+A rota de telemetria limita cada IP a 600 requisições por minuto e o backend limita o corpo a 16 KB durante a leitura, mesmo sem `Content-Length`. As demais rotas da API aceitam até 1 MiB por requisição. O payload rejeita campos desconhecidos e restringe o tamanho dos identificadores e da tensão textual. Sem Redis, os limites ficam em memória por processo; com `RATE_LIMIT_STORAGE_URI`, os contadores são compartilhados entre instâncias. A política por credencial no proxy/WAF continua pendente.
 
 ## v0.43.0 — Revogação de sessão no logout
 
