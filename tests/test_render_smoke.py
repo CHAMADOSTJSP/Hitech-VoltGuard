@@ -18,7 +18,14 @@ os.environ["SIMULATE_TELEMETRY"] = "0"
 os.environ["ALLOW_SELF_SERVICE_REGISTRATION"] = "1"
 
 from fastapi.testclient import TestClient
-from main import app, TenantSubscriptionModel, UserModel, SessionLocal, encrypt_totp_secret, hash_recovery_code, pyotp, rate_limit_client_address, get_current_user
+from main import (
+    app, TenantSubscriptionModel, UserModel, SessionLocal, encrypt_totp_secret,
+    hash_recovery_code, pyotp, rate_limit_client_address, get_current_user,
+    PanelModel, PanelHistoryModel, AlarmModel, WorkOrderModel,
+    WorkOrderChecklistItemModel, WorkOrderChecklistTemplateModel,
+    AuditLogModel, InventoryModel, AssetModel, MaintenancePlanModel,
+    MaintenanceTaskModel, DeviceCredentialModel,
+)
 
 
 class VoltGuardSmokeTests(unittest.TestCase):
@@ -122,6 +129,122 @@ class VoltGuardSmokeTests(unittest.TestCase):
         foreign_panel = next(iter(ids_b))
         forbidden_access = self.client.get(f"/api/panels/qr/{foreign_panel}", headers=headers_a)
         self.assertEqual(forbidden_access.status_code, 404)
+
+    def test_tenant_isolation_across_operational_reads_and_mutations(self):
+        _, headers_a = self.create_tenant("ISOLATIONREADA")
+        tenant_b, headers_b = self.create_tenant("ISOLATIONREADB")
+        foreign_panel_id = "FOREIGN-ISOLATION-PANEL"
+
+        with SessionLocal() as db:
+            panel = PanelModel(
+                id=foreign_panel_id, tenant_id=tenant_b, name="Registro confidencial B",
+                location="Localização confidencial B", voltage="380 V AC",
+                gateway_qr="QR-FOREIGN-ISOLATION",
+            )
+            db.add(panel)
+            db.flush()
+            history = PanelHistoryModel(
+                panel_id=panel.id, tenant_id=tenant_b, timestamp="2026-10-23T12:00:00Z",
+                temperature=88.5, current=42.0,
+            )
+            alarm = AlarmModel(
+                tenant_id=tenant_b, panel_id=panel.id, alarm_type="TEST_ISOLATION",
+                severity="CRITICAL", message="Alarme privado da organização B",
+            )
+            asset = AssetModel(
+                tenant_id=tenant_b, asset_tag="ASSET-ISOLATION-B",
+                name="Ativo privado B", location="Sala B",
+            )
+            db.add_all([history, alarm, asset])
+            db.flush()
+            order = WorkOrderModel(
+                tenant_id=tenant_b, alarm_id=alarm.id, panel_id=panel.id,
+                title="OS privada B", description="Detalhe operacional privado B",
+            )
+            db.add(order)
+            db.flush()
+            checklist_item = WorkOrderChecklistItemModel(
+                tenant_id=tenant_b, work_order_id=order.id,
+                label="Item privado B",
+            )
+            template = WorkOrderChecklistTemplateModel(
+                tenant_id=tenant_b, name="Modelo privado B", items_json='["Passo privado B"]',
+                created_by="admin_ISOLATIONREADB",
+            )
+            plan = MaintenancePlanModel(
+                tenant_id=tenant_b, asset_id=asset.id, title="Plano privado B",
+                next_due_at=datetime(2026, 11, 1),
+            )
+            task = MaintenanceTaskModel(
+                tenant_id=tenant_b, asset_id=asset.id, title="Tarefa privada B",
+                due_at=datetime(2026, 11, 1), notes="Nota privada B",
+            )
+            credential = DeviceCredentialModel(
+                tenant_id=tenant_b, panel_id=panel.id, name="Gateway privado B",
+                token_hash=secrets.token_hex(32),
+            )
+            audit = AuditLogModel(
+                tenant_id=tenant_b, user_name="admin_ISOLATIONREADB", role="CEO",
+                action="TESTE_ISOLAMENTO", details="Auditoria privada B",
+            )
+            inventory = InventoryModel(
+                tenant_id=tenant_b, part_name="Peça privada B", quantity_in_stock=7,
+            )
+            db.add_all([checklist_item, template, plan, task, credential, audit, inventory])
+            db.commit()
+            alarm_id, order_id = alarm.id, order.id
+            checklist_id, template_id = checklist_item.id, template.id
+            asset_id, task_id, credential_id = asset.id, task.id, credential.id
+
+        # Each tenant-scoped collection must omit records owned by tenant B.
+        dashboard = self.client.get("/api/panels", headers=headers_a)
+        self.assertEqual(dashboard.status_code, 200, dashboard.text)
+        self.assertNotIn(foreign_panel_id, dashboard.text)
+        for endpoint, marker in (
+            ("/api/alarms", "Alarme privado da organização B"),
+            ("/api/assets", "Ativo privado B"),
+            ("/api/maintenance/plans", "Plano privado B"),
+            ("/api/maintenance/tasks", "Tarefa privada B"),
+            ("/api/work-order-checklist-templates", "Modelo privado B"),
+            ("/api/devices/credentials", "Gateway privado B"),
+            ("/api/audit-logs", "Auditoria privada B"),
+        ):
+            response = self.client.get(endpoint, headers=headers_a)
+            self.assertEqual(response.status_code, 200, f"{endpoint}: {response.text}")
+            self.assertNotIn(marker, response.text, endpoint)
+        self.assertEqual(
+            self.client.get(f"/api/telemetry/history/{foreign_panel_id}", headers=headers_a).status_code,
+            404,
+        )
+
+        # CEO has the broadest application role; foreign identifiers must still
+        # be indistinguishable from missing records and must remain unchanged.
+        foreign_mutations = (
+            ("post", f"/api/alarms/{alarm_id}/acknowledge", None),
+            ("post", f"/api/alarms/{alarm_id}/work-order", None),
+            ("post", f"/api/alarms/{alarm_id}/clear", None),
+            ("get", f"/api/panels/{foreign_panel_id}/alarm-rules", None),
+            ("put", f"/api/panels/{foreign_panel_id}/alarm-rules", {"max_temperature": 90, "max_current": 600}),
+            ("delete", f"/api/panels/{foreign_panel_id}/alarm-rules", None),
+            ("patch", f"/api/work-orders/{order_id}", {"title": "Tentativa de alteração"}),
+            ("patch", f"/api/work-orders/{order_id}/checklist/{checklist_id}", {"is_completed": True}),
+            ("delete", f"/api/work-order-checklist-templates/{template_id}", None),
+            ("patch", f"/api/assets/{asset_id}", {"notes": "Tentativa de alteração"}),
+            ("patch", f"/api/maintenance/tasks/{task_id}", {"status": "CONCLUIDA"}),
+            ("post", f"/api/devices/credentials/{credential_id}/revoke", None),
+        )
+        for method, endpoint, payload in foreign_mutations:
+            response = self.client.request(method.upper(), endpoint, headers=headers_a, json=payload)
+            self.assertEqual(response.status_code, 404, f"{method.upper()} {endpoint}: {response.text}")
+
+        with SessionLocal() as db:
+            self.assertEqual(db.query(AlarmModel).filter_by(id=alarm_id, tenant_id=tenant_b).one().status, "ACTIVE")
+            self.assertEqual(db.query(WorkOrderModel).filter_by(id=order_id, tenant_id=tenant_b).one().title, "OS privada B")
+            self.assertFalse(db.query(WorkOrderChecklistItemModel).filter_by(id=checklist_id, tenant_id=tenant_b).one().is_completed)
+            self.assertIsNotNone(db.query(WorkOrderChecklistTemplateModel).filter_by(id=template_id, tenant_id=tenant_b).one())
+            self.assertEqual(db.query(AssetModel).filter_by(id=asset_id, tenant_id=tenant_b).one().notes, "")
+            self.assertEqual(db.query(MaintenanceTaskModel).filter_by(id=task_id, tenant_id=tenant_b).one().status, "PENDENTE")
+            self.assertIsNone(db.query(DeviceCredentialModel).filter_by(id=credential_id, tenant_id=tenant_b).one().revoked_at)
 
     def test_hosted_public_registration_is_closed_by_default(self):
         with patch.dict(os.environ, {"RENDER": "true"}):

@@ -19,6 +19,7 @@ Revisão do código e das dependências do branch `codex/commercial-readiness-au
 
 - Senhas novas usam scrypt; JWT fixa o algoritmo HS256; sessões têm identificador aleatório, expiração e revogação consultada no banco.
 - As operações sensíveis verificam papel e organização no servidor. Os testes agora cobrem a matriz básica CEO/Gerente/Técnico de Campo para administração de usuários, auditoria, credenciais de dispositivo e relatório executivo, além de isolamento entre organizações nos fluxos principais; ainda não cobrem cada combinação de rota/papel.
+- Um teste multiempresa adicional cria dados operacionais de uma organização e confirma que outra não os lê nem os altera por IDs conhecidos: inclui painel/dashboard, histórico, alarmes, ordens e checklists, ativos, manutenção, templates, auditoria, estoque e credenciais. As mutações cross-tenant esperam `404` e verificam que os registros da organização proprietária permanecem intactos.
 - Um teste de inventário percorre todas as rotas `/api/` e exige a dependência `get_current_user`, exceto login, status/cadastro opt-in e ingestão de dispositivo, que usa bearer token próprio.
 - Tokens de dispositivo são aleatórios, armazenados como hash, limitados a um painel e revogáveis.
 - Quando MFA TOTP está habilitado, o login agora exige o código TOTP ou um código de recuperação de uso único; senha correta sem segundo fator não cria sessão.
@@ -32,11 +33,11 @@ Revisão do código e das dependências do branch `codex/commercial-readiness-au
 
 - O piloto sem custo usa rate limit em memória por processo. Sem Redis, várias instâncias ou reinícios não compartilham contadores; o fallback continua permissivo para disponibilidade. Configure armazenamento compartilhado antes de escalar.
 - Não há confirmação de e-mail, convite, recuperação de senha ou onboarding comercial. O cadastro público agora fica fechado por padrão; não habilite a variável de self-service em produção antes de implementar verificação de e-mail, prevenção contra abuso e fluxo de suporte.
-- Ainda não foram executados pentest, teste de carga, scanner de segredos de todo o histórico Git ou revisão independente. Nesta revisão local, os 28 testes passaram; `compileall`, `node --check`, `pip check` e `git diff --check` passaram. A CI do commit `0b182cf` passou em `pip-audit`, integração, sintaxe e build Docker; o mesmo commit está ativo em `voltguard-pilot-free`, `/health` retorna `ok` e o auto-cadastro permanece desativado. A disponibilidade pública não substitui teste de carga ou homologação.
+- Ainda não foram executados pentest, teste de carga, scanner de segredos de todo o histórico Git ou revisão independente. Na validação local atual, os 29 testes passaram; `compileall`, `node --check`, `pip check` e `git diff --check` passaram. A execução GitHub Actions `40038925325` do commit `df6247b` passou em `pip-audit`, integração, sintaxe e build Docker. O deploy correspondente está `live` em `voltguard-pilot-free`; `/health` retorna `ok` e o auto-cadastro permanece desativado. A disponibilidade pública não substitui teste de carga ou homologação.
 - Em Render, adicione cada domínio personalizado ao `ALLOWED_HOSTS` separado por vírgulas; sem isso, apenas o hostname padrão do serviço é autorizado.
 - Backup/restauração do PostgreSQL, migrações formais com rollback, alertas, rotação de credenciais, recuperação de conta, retenção/exclusão de dados e resposta a incidentes ainda precisam de processo e validação operacional.
 - A telemetria Modbus ainda precisa ser validada com o modelo/firmware do medidor em laboratório. Não conecte esta aplicação a funções de comando, proteção ou intertravamento e não declare conformidade NR-10, IEC 62443 ou LGPD com base nesta revisão.
-- Os testes cobrem os fluxos principais e o cadastro do painel sem telemetria fictícia; ainda não formam uma matriz negativa completa de autorização multiempresa para todos os endpoints.
+- Os testes cobrem os fluxos principais, os acessos cross-tenant listados acima e o cadastro do painel sem telemetria fictícia; ainda não formam uma matriz negativa completa de autorização para cada rota, papel e recurso. Revisar essa matriz antes de ampliar o piloto.
 
 ## Referências de advisories consultados
 
