@@ -120,6 +120,66 @@ class VoltGuardSmokeTests(unittest.TestCase):
         forbidden_access = self.client.get(f"/api/panels/qr/{foreign_panel}", headers=headers_a)
         self.assertEqual(forbidden_access.status_code, 404)
 
+    def test_new_panel_waits_for_real_telemetry(self):
+        _, headers = self.create_tenant("NEWPANEL")
+        created = self.client.post("/api/panels/add", headers=headers, json={
+            "id": "NEW-PANEL-01", "name": "Painel recém-cadastrado",
+            "location": "Sala elétrica", "voltage": "380 V AC",
+            "gateway_qr": "QR-NEW-PANEL-01",
+        })
+        self.assertEqual(created.status_code, 200, created.text)
+
+        panel_response = self.client.get("/api/panels", headers=headers)
+        panel = next(p for p in panel_response.json()["panels"] if p["id"] == "NEW-PANEL-01")
+        self.assertEqual(panel["status"], "SEM_DADOS")
+        self.assertFalse(panel["data_available"])
+        self.assertFalse(panel["temperature_measured"])
+        self.assertEqual(panel["current"], 0)
+        self.assertEqual(panel["temperature"], 0)
+        self.assertEqual(panel["connectivity_status"], "NOT_CONFIGURED")
+        history = self.client.get("/api/telemetry/history/NEW-PANEL-01", headers=headers)
+        self.assertEqual(history.status_code, 200, history.text)
+        self.assertEqual(history.json()["count"], 0)
+
+        first_reading = self.client.post("/api/telemetry", headers=headers, json={
+            "panel_id": "NEW-PANEL-01", "temperature": 32.5,
+            "current": 12.0, "voltage": "381.2 V",
+        })
+        self.assertEqual(first_reading.status_code, 200, first_reading.text)
+        updated = self.client.get("/api/panels", headers=headers).json()
+        panel_after_reading = next(p for p in updated["panels"] if p["id"] == "NEW-PANEL-01")
+        self.assertEqual(panel_after_reading["status"], "NORMAL")
+        self.assertTrue(panel_after_reading["data_available"])
+        self.assertTrue(panel_after_reading["temperature_measured"])
+        self.assertEqual(panel_after_reading["current"], 12.0)
+        self.assertEqual(panel_after_reading["temperature"], 32.5)
+
+    def test_partial_device_reading_is_not_reported_as_normal(self):
+        _, headers = self.create_tenant("PARTIAL")
+        self.client.post("/api/panels/add", headers=headers, json={
+            "id": "PARTIAL-PANEL", "name": "Painel parcial",
+            "location": "Sala elétrica", "voltage": "380 V AC",
+        })
+        credential = self.client.post("/api/devices/credentials", headers=headers, json={
+            "panel_id": "PARTIAL-PANEL", "name": "Gateway parcial",
+        })
+        self.assertEqual(credential.status_code, 201, credential.text)
+        partial = self.client.post("/api/device/telemetry", headers={
+            "Authorization": f"Bearer {credential.json()['device_token']}"
+        }, json={"panel_id": "PARTIAL-PANEL", "voltage_v": 381.2})
+        self.assertEqual(partial.status_code, 200, partial.text)
+
+        panel = next(p for p in self.client.get("/api/panels", headers=headers).json()["panels"]
+                     if p["id"] == "PARTIAL-PANEL")
+        self.assertEqual(panel["status"], "PARCIAL")
+        self.assertTrue(panel["data_available"])
+        self.assertFalse(panel["temperature_has_reading"])
+        self.assertFalse(panel["temperature_measured"])
+        self.assertFalse(panel["current_has_reading"])
+        self.assertFalse(panel["current_measured"])
+        self.assertTrue(panel["voltage_has_reading"])
+        self.assertTrue(panel["voltage_measured"])
+
     def test_inventory_cannot_become_negative(self):
         _, headers = self.create_tenant("STOCK")
         panels = self.client.get("/api/panels", headers=headers).json()["panels"]

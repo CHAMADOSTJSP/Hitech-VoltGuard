@@ -38,6 +38,27 @@
                 : numero.toLocaleString('pt-BR', {minimumFractionDigits:casas, maximumFractionDigits:2});
         }
 
+        function formatarLeituraPainel(painel, campo, casas = 1) {
+            if (painel[`${campo}_has_reading`] === false || (painel.data_available === false && !painel[`${campo}_has_reading`])) return 'Sem leitura';
+            const valor = formatarMedida(painel[campo], casas);
+            if (painel[`${campo}_measured`] === false && valor !== 'Sem dado') {
+                return `${valor} (última leitura preservada)`;
+            }
+            return valor;
+        }
+
+        function statusOperacionalPainel(painel) {
+            if (painel.data_available === false) return 'AGUARDANDO TELEMETRIA';
+            if (painel.status === 'PARCIAL') return 'PARCIAL — AVALIAÇÃO INCOMPLETA';
+            return painel.status || 'INDEFINIDO';
+        }
+
+        function rotuloTensaoPainel(painel) {
+            if (String(painel.name || '').includes('DEMO')) return 'Tensão simulada (DEMO)';
+            if (painel.voltage_measured) return 'Tensão medida';
+            return painel.voltage_has_reading ? 'Tensão (última leitura preservada)' : 'Tensão de referência';
+        }
+
         function resumirConectividade(painel) {
             const estado = painel.connectivity_status || 'INDEFINIDO';
             const labels = {
@@ -404,13 +425,13 @@
                         <h3>Cubículo Encontrado: ${escapeHtml(p.id)} - ${escapeHtml(p.name)}</h3>
                         <p><strong>Local:</strong> ${escapeHtml(p.location)}</p>
                         <p><strong>Gateway QR:</strong> ${escapeHtml(p.gateway_qr)}</p>
-                        <p><strong>Tensão:</strong> ${escapeHtml(p.voltage_v == null ? (p.voltage || 'Sem dado') : `${formatarMedida(p.voltage_v, 1)} V`)} | <strong>Corrente:</strong> ${escapeHtml(formatarMedida(p.current))} A</p>
-                        <p><strong>Temperatura:</strong> ${escapeHtml(formatarMedida(p.temperature))} °C${p.temperature_measured === false ? ' (última leitura preservada)' : ''}</p>
+                        <p><strong>${escapeHtml(rotuloTensaoPainel(p))}:</strong> ${escapeHtml(p.voltage_v == null ? (p.voltage || 'Sem dado') : `${formatarMedida(p.voltage_v, 1)} V`)} | <strong>Corrente:</strong> ${escapeHtml(formatarLeituraPainel(p, 'current'))}${p.current_has_reading ? ' A' : ''}</p>
+                        <p><strong>Temperatura:</strong> ${escapeHtml(formatarLeituraPainel(p, 'temperature'))}${p.temperature_has_reading ? ' °C' : ''}</p>
                         ${p.active_power_kw == null ? '' : `<p><strong>Potência ativa:</strong> ${escapeHtml(formatarMedida(p.active_power_kw, 2))} kW</p>`}
                         ${p.active_energy_kwh == null ? '' : `<p><strong>Energia acumulada:</strong> ${escapeHtml(formatarMedida(p.active_energy_kwh, 2))} kWh</p>`}
                         ${p.frequency_hz == null ? '' : `<p><strong>Frequência:</strong> ${escapeHtml(formatarMedida(p.frequency_hz, 2))} Hz</p>`}
                         ${p.power_factor == null ? '' : `<p><strong>Fator de potência:</strong> ${escapeHtml(formatarMedida(p.power_factor, 3))}</p>`}
-                        <p><strong>Status operacional:</strong> ${escapeHtml(p.status)}</p>
+                        <p><strong>Status operacional:</strong> ${escapeHtml(statusOperacionalPainel(p))}</p>
                         <p><strong>Conectividade:</strong> ${escapeHtml(resumirConectividade(p))}</p>
                         <p><strong>Diagnóstico:</strong> ${escapeHtml(p.recommendation)}</p>
                     </div>`;
@@ -1799,13 +1820,13 @@
                         <h3>${escapeHtml(p.id)} - ${escapeHtml(p.name)}</h3>
                         <p><strong>Local:</strong> ${escapeHtml(p.location)}</p>
                         <p><strong>Gateway QR:</strong> ${escapeHtml(p.gateway_qr)}</p>
-                        <p><strong>Tensão:</strong> ${escapeHtml(p.voltage_v == null ? (p.voltage || 'Sem dado') : `${formatarMedida(p.voltage_v, 1)} V`)} | <strong>Corrente:</strong> ${escapeHtml(formatarMedida(p.current))} A</p>
-                        <p><strong>Temperatura:</strong> ${escapeHtml(formatarMedida(p.temperature))} °C</p>
+                        <p><strong>${escapeHtml(rotuloTensaoPainel(p))}:</strong> ${escapeHtml(p.voltage_v == null ? (p.voltage || 'Sem dado') : `${formatarMedida(p.voltage_v, 1)} V`)} | <strong>Corrente:</strong> ${escapeHtml(formatarLeituraPainel(p, 'current'))}${p.current_has_reading ? ' A' : ''}</p>
+                        <p><strong>Temperatura:</strong> ${escapeHtml(formatarLeituraPainel(p, 'temperature'))}${p.temperature_has_reading ? ' °C' : ''}</p>
                         ${p.active_power_kw == null ? '' : `<p><strong>Potência ativa:</strong> ${escapeHtml(formatarMedida(p.active_power_kw, 2))} kW</p>`}
                         ${p.active_energy_kwh == null ? '' : `<p><strong>Energia acumulada:</strong> ${escapeHtml(formatarMedida(p.active_energy_kwh, 2))} kWh</p>`}
                         ${p.frequency_hz == null ? '' : `<p><strong>Frequência:</strong> ${escapeHtml(formatarMedida(p.frequency_hz, 2))} Hz</p>`}
                         ${p.power_factor == null ? '' : `<p><strong>Fator de potência:</strong> ${escapeHtml(formatarMedida(p.power_factor, 3))}</p>`}
-                        <p><strong>Status operacional:</strong> ${escapeHtml(p.status)}</p>
+                        <p><strong>Status operacional:</strong> ${escapeHtml(statusOperacionalPainel(p))}</p>
                         <p><strong>Conectividade:</strong> ${escapeHtml(resumirConectividade(p))}</p>
                     </div>`).join('');
             } else if (currentTab === 'predictive') {

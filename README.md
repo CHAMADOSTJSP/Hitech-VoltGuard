@@ -1,5 +1,9 @@
 # HITECH VoltGuard SCADA Enterprise — pacote para Render
 
+## v0.66.0 — Integridade e completude das leituras
+
+Um painel recém-cadastrado aguarda a primeira amostra sem gerar corrente, temperatura ou histórico fictício. A interface distingue tensão de referência de medição e identifica grandezas nunca recebidas. Se uma amostra não trouxer temperatura ou corrente, o estado será `PARCIAL`, sem afirmar operação normal até que ambos os limites de alarme possam ser avaliados. Painéis explicitamente marcados como demonstração continuam usando dados simulados.
+
 ## v0.65.0 — Limites de requisição, prazos e dependências
 
 Os corpos de `/api/*` agora têm limite durante a leitura, inclusive em requisições transmitidas em blocos sem `Content-Length`: 1 MiB para a API e 16 KiB para telemetria. No Render, o limitador usa o IP enviado pela Cloudflare, o Docker não confia genericamente em cabeçalhos de proxy e o Host é validado. A validade da assinatura é calculada por organização no momento do cadastro. Dependências críticas foram elevadas para versões com correções de segurança conhecidas; veja [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md) para o resultado da revisão e as pendências antes de dados reais.

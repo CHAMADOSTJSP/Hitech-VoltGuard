@@ -11,7 +11,9 @@ Revisão do código e das dependências do branch `codex/commercial-readiness-au
 - O manifesto passou a exigir versões com correções de segurança conhecidas: FastAPI 0.161+, Starlette 1.3.1+, PyJWT 2.15+, python-multipart 0.0.31+ e cryptography 49+. As faixas também mantêm limites de versão major.
 - O rate limit no Render usa o `CF-Connecting-IP` validado como endereço IP; ignora `X-Forwarded-For` fornecido pelo cliente. Localmente continua usando o IP da conexão.
 - O Docker desativa a interpretação genérica de cabeçalhos proxy pelo Uvicorn. O `Host` é verificado contra `RENDER_EXTERNAL_HOSTNAME` e a lista opcional `ALLOWED_HOSTS`; HSTS reconhece HTTPS encaminhado apenas em Render.
-- GitHub Actions executará testes e `pip-audit` em push/PR e semanalmente; Dependabot abrirá atualizações semanais para pacotes Python e Actions.
+- Painéis recém-cadastrados não recebem leituras aleatórias nem uma amostra inicial fictícia. A API marca `SEM_DADOS` até receber telemetria; a interface separa tensão de referência das leituras medidas.
+- Amostras sem temperatura ou corrente não são apresentadas como operação normal: o painel fica `PARCIAL` até ser possível avaliar os dois limites de alarme. A API diferencia medições atuais de valores preservados de amostras anteriores.
+- GitHub Actions executa testes e `pip-audit` em push/PR e semanalmente; Dependabot abre atualizações semanais para pacotes Python e Actions.
 
 ## Controles verificados no código
 
@@ -26,11 +28,11 @@ Revisão do código e das dependências do branch `codex/commercial-readiness-au
 
 - O piloto sem custo usa rate limit em memória por processo. Sem Redis, várias instâncias ou reinícios não compartilham contadores; o fallback continua permissivo para disponibilidade. Configure armazenamento compartilhado antes de escalar.
 - O cadastro público ainda cria organizações sem confirmação de e-mail, convite ou validação comercial; pode ser abusado para criar contas/consumir recursos. Adicione onboarding protegido antes de abrir a clientes pagantes.
-- A revisão não executou pentest, teste de carga, `pip-audit` local, scanner de segredos do histórico ou revisão independente. O workflow `.github/workflows/security.yml` agora roda `pip-audit` em push, PR e semanalmente; o primeiro resultado remoto ainda precisa ser conferido. `pip check` confirmou dependências consistentes; as faixas acima foram conferidas contra os avisos indicados nas referências.
+- Ainda não foram executados pentest, teste de carga, scanner de segredos de todo o histórico Git ou revisão independente. O workflow remoto de segurança, testes e `pip-audit` concluiu com sucesso no commit `a7b6e82`; a validação local desta atualização executa 20 testes. `pip check` confirmou dependências consistentes no ambiente local.
 - Em Render, adicione cada domínio personalizado ao `ALLOWED_HOSTS` separado por vírgulas; sem isso, apenas o hostname padrão do serviço é autorizado.
 - Backup/restauração do PostgreSQL, migrações formais com rollback, alertas, rotação de credenciais, recuperação de conta, retenção/exclusão de dados e resposta a incidentes ainda precisam de processo e validação operacional.
 - A telemetria Modbus ainda precisa ser validada com o modelo/firmware do medidor em laboratório. Não conecte esta aplicação a funções de comando, proteção ou intertravamento e não declare conformidade NR-10, IEC 62443 ou LGPD com base nesta revisão.
-- Os testes exercitam 18 fluxos automatizados; ainda não formam uma matriz negativa completa de autorização multiempresa para todos os endpoints.
+- Os testes cobrem os fluxos principais e o cadastro do painel sem telemetria fictícia; ainda não formam uma matriz negativa completa de autorização multiempresa para todos os endpoints.
 
 ## Referências de advisories consultados
 

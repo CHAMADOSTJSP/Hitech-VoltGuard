@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.66.0 — Integridade e completude das leituras
+
+- Painéis cadastrados manualmente começam como `SEM_DADOS`; o cadastro não inventa valores nem grava telemetria inicial.
+- Leituras parciais do gateway passam a indicar `PARCIAL`; o sistema não afirma operação normal sem temperatura e corrente para avaliar alarmes.
+- API distingue a última grandeza recebida das leituras preservadas e não registra tensão de referência como telemetria quando o campo não foi enviado.
+- Telas de tempo real e consulta por QR mostram “Sem leitura” antes da primeira amostra e distinguem tensão configurada de tensão medida.
+- Consultas de histórico e credenciais foram agrupadas para evitar consultas por painel a cada atualização do dashboard.
+- Testes de integração cobrem cadastro sem amostra, primeira leitura e amostra incompleta.
+
 ## v0.65.0 — Hardening e correções de validação
 
 - Limites de corpo em streaming: 1 MiB para rotas da API e 16 KiB para ingestão de telemetria, incluindo pedidos sem `Content-Length`.

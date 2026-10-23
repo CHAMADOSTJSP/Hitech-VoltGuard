@@ -1,8 +1,8 @@
 # Auditoria de prontidão — HITECH VoltGuard
 
-**Data:** 22/10/2026  
-**Escopo:** código disponível no workspace, configuração do serviço `Hitech-VoltGuard` no Render, estado do PostgreSQL associado e logs recentes.  
-**Resultado:** o aplicativo está acessível, mas não está pronto para produção comercial nem para receber dados operacionais reais.
+**Atualização:** 23/10/2026
+**Escopo:** código da branch de prontidão, deploy do piloto no Render e observações do banco registradas na auditoria inicial de 22/10.
+**Resultado:** o piloto está acessível, mas ainda não está pronto para produção comercial nem para receber dados operacionais reais.
 
 ## Bloqueios prioritários
 
@@ -10,18 +10,19 @@
 
 - O PostgreSQL `voltguard-db` (`dpg-db9as5gn74is73f2felg-a`) está disponível, mas a consulta somente leitura a `pg_tables` não encontrou tabela alguma.
 - Os logs da aplicação no mesmo ambiente registram cadastro de organização e autenticação com HTTP 200. O app cria as tabelas na inicialização, portanto esses fatos não combinam com o app gravando nesse PostgreSQL vazio.
-- `main.py` escolhe `sqlite:///./voltguard.db` quando `DATABASE_URL` não está definida. A configuração atual do serviço não mostrou a variável no resultado de `get_service`; não foi possível confirmar qual banco o processo usa.
-- Nesta revisão, foi adicionada à branch uma verificação de inicialização que recusa ausência de `DATABASE_URL` e SQLite no Render. A alteração precisa ser aplicada somente depois de confirmar PostgreSQL persistente, caso contrário o novo deploy falhará com segurança.
+- A auditoria inicial não conseguiu confirmar a variável `DATABASE_URL` no serviço nem localizar tabelas no PostgreSQL consultado.
+- O código da branch agora encerra a inicialização no Render se `DATABASE_URL` estiver ausente ou apontar para SQLite. O deploy atual do piloto iniciou, o que indica que a proteção de banco passou, mas não confirma qual banco contém os dados anteriores nem a persistência/expiração do destino.
 - O banco PostgreSQL atual está no plano Free, com expiração informada para **15/11/2026**. O serviço web também está no plano Free. O Render documenta que o sistema de arquivos de serviços Free é efêmero, inclusive para SQLite, e que bancos PostgreSQL Free expiram após 30 dias. Esses planos são destinados a teste, não à produção ([limitações do plano Free do Render](https://render.com/docs/free)).
 
 **Ação para liberar:** no Dashboard, confirmar a origem efetiva de `DATABASE_URL` sem copiar o segredo para o chat; vincular o serviço ao PostgreSQL correto; migrar para plano persistente antes de 15/11; fazer backup/exportação e validar uma restauração; só então reiniciar/deployar. Antes de decidir qual banco usar, preservar qualquer dado existente no serviço.
 
 ### P0 — Tornar o health check HTTP efetivo
 
-- O serviço Render retornou `healthCheckPath` vazio, embora `render.yaml` defina `/health` e `main.py` implemente a rota.
-- Sem esse caminho, o Render não verifica se o app consegue atender uma rota HTTP nem se o banco está acessível; a configuração observada usa apenas a checagem TCP padrão. O Render permite configurar uma checagem HTTP para validar disponibilidade da aplicação ([Health Checks](https://render.com/docs/health-checks)).
+- A configuração inicial do serviço estava sem `healthCheckPath`; `/health` foi definido no Render em 23/10 e o deploy da configuração concluiu como `live`.
+- A rota implementa `SELECT 1` e responde erro se o banco não responder. A URL pública `/health` retornou HTTP 200 com `{"status":"ok","service":"voltguard","mode":"stored-data"}` após essa configuração.
+- O modo automático de deploy do Render foi alterado de `On Commit` para `After CI Checks Pass`; a próxima revisão só será publicada após os checks configurados no GitHub passarem.
 
-**Ação para liberar:** aplicar `/health` no serviço atual e confirmar que a rota falha quando o banco de aplicação não estiver acessível. A rota atual faz `SELECT 1`, mas não identifica se o banco correto é o usado pelo app.
+**Ação para liberar:** validar novamente `/health` depois do deploy do código revisado e confirmar que `DATABASE_URL` aponta para o PostgreSQL persistente correto; `SELECT 1` confirma conexão, mas não identidade nem histórico do banco.
 
 ## Lacunas de produto e operação
 
@@ -64,16 +65,19 @@
 - Removidos KPIs fixos de risco, downtime, confiabilidade, ESG, MTTR e disponibilidade que não eram calculados a partir de dados reais.
 - O cabeçalho agora mostra painéis cadastrados, painéis online, alarmes ativos/reconhecidos e ordens em aberto, atualizados com o polling do painel.
 - Adicionada proteção para impedir que uma configuração do Render sem `DATABASE_URL` use o SQLite descartável como se fosse persistente.
+- O cadastro de ativos não cria medições aleatórias nem histórico fictício; leituras parciais ficam identificadas e não são exibidas como estado normal.
+- Health check HTTP `/health` configurado e respondendo no serviço piloto Render, além da configuração declarada no Blueprint.
+- Deploy do serviço configurado para aguardar CI do GitHub. A revisão atual ainda precisa ser enviada e ter seus workflows confirmados.
 
 ## Ordem sugerida de liberação
 
 1. Identificar sem ambiguidade o banco que contém os dados atuais e corrigir o vínculo antes de qualquer reinício.
 2. Migrar o banco e o serviço para recursos persistentes e configurar backup/restauração.
-3. Configurar o health check HTTP e validar o conjunto completo em homologação.
+3. Manter o health check HTTP `/health` e validar a revisão atual em homologação.
 4. Fechar onboarding, recuperação de conta, privacidade, suporte e cobrança.
 5. Validar hardware/protocolo e isolamento industrial com piloto pago e métricas de sucesso acordadas.
 6. Só então habilitar clientes de produção e anunciar métricas/benefícios que tenham evidência.
 
 ## Limites desta auditoria
 
-Esta revisão não substitui revisão independente de segurança, validação em medidor físico, assessoria jurídica/tributária ou confirmação do vínculo de `DATABASE_URL` no painel do Render. Não foram alterados recursos pagos, segredos, banco de dados ou configuração do serviço ao vivo. Não foram executados testes automatizados.
+Esta revisão não substitui revisão independente de segurança, validação em medidor físico, assessoria jurídica/tributária ou confirmação do vínculo e da persistência de `DATABASE_URL` no painel do Render. Não foram alterados recursos pagos, segredos ou banco de dados. O Render foi configurado para verificar `/health` e aguardar o CI do GitHub antes de publicar.

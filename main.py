@@ -23,7 +23,7 @@ import jwt
 import pyotp
 import qrcode
 from cryptography.fernet import Fernet, InvalidToken
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Index, Text, text, or_
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Index, Text, text, or_, case, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -820,7 +820,7 @@ class TelemetryData(BaseModel):
     panel_id: str
     temperature: float
     current: float
-    voltage: Optional[str] = "380V AC"
+    voltage: Optional[str] = None
     gateway_qr: Optional[str] = None
 
 
@@ -1418,13 +1418,14 @@ def add_panel(data: dict, db: Session = Depends(get_db), current_user: User = De
 
     new_panel = PanelModel(
         id=panel_id, tenant_id=current_user.tenant_id, name=name, location=location,
-        voltage=voltage, current=round(random.uniform(100.0, 400.0), 2),
-        temperature=round(random.uniform(45.0, 68.0), 2), gateway_qr=gateway_qr,
-        status="NORMAL", component=component, predictive_failure_hours=180,
-        recommendation="Painel recém-comissionado. Operação estável.", esg_waste_kwh=1.0
+        # Cadastro descreve o ativo; ele não é uma medição. Deixe o painel em
+        # estado explícito de espera até a primeira amostra de telemetria.
+        voltage=voltage, current=0.0, temperature=0.0, temperature_measured=False,
+        gateway_qr=gateway_qr, status="SEM_DADOS", component=component,
+        predictive_failure_hours=0,
+        recommendation="Aguardando a primeira leitura de telemetria.", esg_waste_kwh=0.0
     )
     db.add(new_panel)
-    db.add(PanelHistoryModel(panel_id=panel_id, tenant_id=current_user.tenant_id, timestamp=utcnow().isoformat(timespec="seconds") + "Z", temperature=new_panel.temperature, current=new_panel.current, voltage=new_panel.voltage))
     db.add(AuditLogModel(tenant_id=current_user.tenant_id, user_name=current_user.username, role=current_user.role, action="ADICIONAR_PAINEL", details=f"Painel {panel_id} adicionado."))
     db.commit()
     return {"status": "success", "message": f"Painel {panel_id} adicionado com sucesso!"}
@@ -1523,6 +1524,7 @@ def ingest_telemetry(data: TelemetryData, current_user: User = Depends(get_curre
     temp_limit, current_limit = rule.max_temperature, rule.max_current
     
     panel.temperature = data.temperature
+    panel.temperature_measured = True
     panel.current = data.current
     if data.voltage:
         panel.voltage = data.voltage
@@ -1565,7 +1567,7 @@ def ingest_telemetry(data: TelemetryData, current_user: User = Depends(get_curre
         if alarm.alarm_type in {"HIGH_TEMPERATURE", "HIGH_CURRENT"} and alarm.alarm_type not in active_types:
             alarm.status = "CLEARED"
             alarm.cleared_at = now
-    db.add(PanelHistoryModel(panel_id=panel.id, tenant_id=current_user.tenant_id, timestamp=now.isoformat(timespec="seconds") + "Z", temperature=panel.temperature, current=panel.current, voltage=panel.voltage))
+    db.add(PanelHistoryModel(panel_id=panel.id, tenant_id=current_user.tenant_id, timestamp=now.isoformat(timespec="seconds") + "Z", temperature=panel.temperature, temperature_measured=True, current=panel.current, voltage=data.voltage))
     db.commit()
     return {"status": "success", "message": f"Telemetria de {data.panel_id} atualizada com base nos limites configurados.", "active_alarms": len(active_conditions)}
 
@@ -1649,10 +1651,58 @@ async def force_failure(data: dict, db: Session = Depends(get_db), current_user:
     ).count()
     return {"status": "success", "message": f"Falha simulada em {panel.id}. {active_alarm_count} alarme(s) ativo(s) ou reconhecido(s) registrado(s).", "active_alarms": active_alarm_count, "webhook_delivery": webhook_delivery, "webhook_http_status": webhook_http_status}
 
+def get_panel_measurement_states(db: Session, tenant_id: str, panel_ids: list[str]) -> dict[str, dict]:
+    """Load per-panel measurement flags in two queries, independent of panel count."""
+    if not panel_ids:
+        return {}
+    aggregates = db.query(
+        PanelHistoryModel.panel_id,
+        func.max(PanelHistoryModel.id).label("latest_id"),
+        func.max(case((PanelHistoryModel.temperature_measured.is_(True), 1), else_=0)).label("temperature_has_reading"),
+        func.max(case((PanelHistoryModel.current.is_not(None), 1), else_=0)).label("current_has_reading"),
+        func.max(case((or_(PanelHistoryModel.voltage.is_not(None), PanelHistoryModel.voltage_v.is_not(None)), 1), else_=0)).label("voltage_has_reading"),
+    ).filter(
+        PanelHistoryModel.tenant_id == tenant_id,
+        PanelHistoryModel.panel_id.in_(panel_ids),
+    ).group_by(PanelHistoryModel.panel_id).all()
+    if not aggregates:
+        return {}
+    latest_by_panel = {
+        item.panel_id: item for item in db.query(PanelHistoryModel).filter(
+            PanelHistoryModel.id.in_([row.latest_id for row in aggregates])
+        ).all()
+    }
+    result = {}
+    for aggregate in aggregates:
+        latest = latest_by_panel.get(aggregate.panel_id)
+        result[aggregate.panel_id] = {
+            "data_available": latest is not None,
+            "temperature_has_reading": bool(aggregate.temperature_has_reading),
+            "temperature_measured": bool(latest and latest.temperature_measured),
+            "current_has_reading": bool(aggregate.current_has_reading),
+            "current_measured": bool(latest and latest.current is not None),
+            "voltage_has_reading": bool(aggregate.voltage_has_reading),
+            "voltage_measured": bool(latest and (latest.voltage is not None or latest.voltage_v is not None)),
+        }
+    return result
+
+
 @app.get("/api/panels")
 def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         panels = db.query(PanelModel).filter(PanelModel.tenant_id == current_user.tenant_id).all()
+        panel_ids = [panel.id for panel in panels]
+        measurement_states = get_panel_measurement_states(db, current_user.tenant_id, panel_ids)
+        device_state_rows = db.query(
+            DeviceCredentialModel.panel_id,
+            func.count(DeviceCredentialModel.id).label("credential_count"),
+            func.max(DeviceCredentialModel.last_used_at).label("last_seen"),
+        ).filter(
+            DeviceCredentialModel.tenant_id == current_user.tenant_id,
+            DeviceCredentialModel.panel_id.in_(panel_ids),
+            DeviceCredentialModel.revoked_at.is_(None),
+        ).group_by(DeviceCredentialModel.panel_id).all() if panel_ids else []
+        device_states = {row.panel_id: (row.credential_count, row.last_seen) for row in device_state_rows}
         
         panels_data = []
         offline_after_seconds = int(os.getenv("DEVICE_OFFLINE_AFTER_SECONDS", "300"))
@@ -1660,19 +1710,23 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
         for p in panels:
             curr = p.current
             temp = p.temperature
-            if os.getenv("SIMULATE_TELEMETRY", "0").lower() in {"1", "true", "yes"} and p.status != "CRITICO":
-                curr = round(max(0.0, p.current + random.uniform(-1.2, 1.2)), 2)
-                temp = round(max(-50.0, p.temperature + random.uniform(-0.3, 0.3)), 2)
+            if os.getenv("SIMULATE_TELEMETRY", "0").lower() in {"1", "true", "yes"} and p.status not in {"CRITICO", "SEM_DADOS"}:
+                if p.current is not None:
+                    curr = round(max(0.0, p.current + random.uniform(-1.2, 1.2)), 2)
+                if p.temperature is not None:
+                    temp = round(max(-50.0, p.temperature + random.uniform(-0.3, 0.3)), 2)
+
+            measurement_state = measurement_states.get(p.id, {
+                "data_available": False, "temperature_has_reading": False,
+                "temperature_measured": False, "current_has_reading": False,
+                "current_measured": False, "voltage_has_reading": False,
+                "voltage_measured": False,
+            })
 
             # Connectivity is based on real device-token activity, not seeded/demo history.
             # A panel without an active device credential is reported as NOT_CONFIGURED.
-            device_rows = db.query(DeviceCredentialModel).filter(
-                DeviceCredentialModel.tenant_id == current_user.tenant_id,
-                DeviceCredentialModel.panel_id == p.id,
-                DeviceCredentialModel.revoked_at.is_(None),
-            ).all()
-            last_seen = max((x.last_used_at for x in device_rows if x.last_used_at), default=None)
-            if not device_rows:
+            credential_count, last_seen = device_states.get(p.id, (0, None))
+            if not credential_count:
                 connectivity_status = "NOT_CONFIGURED"
             elif last_seen is None:
                 connectivity_status = "NEVER_CONNECTED"
@@ -1688,6 +1742,7 @@ def get_panels(db: Session = Depends(get_db), current_user: User = Depends(get_c
                 "current": curr, "temperature": temp, "temperature_measured": p.temperature_measured, "gateway_qr": p.gateway_qr,
                 "status": p.status, "component": p.component, "predictive_failure_hours": p.predictive_failure_hours,
                 "recommendation": p.recommendation, "esg_waste_kwh": p.esg_waste_kwh, "assigned_to": p.assigned_to,
+                **measurement_state,
                 "connectivity_status": connectivity_status,
                 "last_seen_at": last_seen.isoformat() + "Z" if last_seen else None,
                 "offline_after_seconds": offline_after_seconds,
@@ -2018,6 +2073,12 @@ def get_panel_by_qr(qr_code: str, db: Session = Depends(get_db), current_user: U
     else:
         age_seconds = max(0, (utcnow() - last_seen).total_seconds())
         connectivity_status = "ONLINE" if age_seconds <= offline_after_seconds else "OFFLINE"
+    measurement_state = get_panel_measurement_states(db, current_user.tenant_id, [panel.id]).get(panel.id, {
+        "data_available": False, "temperature_has_reading": False,
+        "temperature_measured": False, "current_has_reading": False,
+        "current_measured": False, "voltage_has_reading": False,
+        "voltage_measured": False,
+    })
     return {
         "id": panel.id, "name": panel.name, "location": panel.location, "voltage": panel.voltage,
         "voltage_v": panel.voltage_v, "active_power_kw": panel.active_power_kw,
@@ -2025,6 +2086,7 @@ def get_panel_by_qr(qr_code: str, db: Session = Depends(get_db), current_user: U
         "power_factor": panel.power_factor,
         "current": panel.current, "temperature": panel.temperature, "gateway_qr": panel.gateway_qr,
         "temperature_measured": panel.temperature_measured,
+        **measurement_state,
         "status": panel.status, "component": panel.component, "predictive_failure_hours": panel.predictive_failure_hours,
         "recommendation": panel.recommendation, "esg_waste_kwh": panel.esg_waste_kwh, "assigned_to": panel.assigned_to,
         "connectivity_status": connectivity_status, "last_seen_at": last_seen.isoformat() + "Z" if last_seen else None,
@@ -2930,8 +2992,20 @@ def ingest_device_telemetry(request: Request, data: DeviceTelemetry, authorizati
         if measurement_received and alarm.alarm_type not in active_types:
             alarm.status = "CLEARED"; alarm.cleared_at = now
     remaining_open = [alarm for alarm in opened if alarm.status in {"ACTIVE", "ACKNOWLEDGED"}]
-    panel.status = "CRITICO" if active_conditions or remaining_open else "NORMAL"
-    panel.recommendation = "ALERTA: " + "; ".join(message for _, message in active_conditions) if active_conditions else ("Há alarmes abertos; consulte a Central de Alarmes." if remaining_open else ("Leitura recebida; temperatura e corrente não foram informadas nesta amostra." if data.temperature is None and data.current is None else "Sistema a operar dentro dos parâmetros configurados."))
+    if active_conditions or remaining_open:
+        panel.status = "CRITICO"
+        panel.recommendation = "ALERTA: " + "; ".join(message for _, message in active_conditions) if active_conditions else "Há alarmes abertos; consulte a Central de Alarmes."
+    elif data.temperature is None or data.current is None:
+        panel.status = "PARCIAL"
+        missing = []
+        if data.temperature is None:
+            missing.append("temperatura")
+        if data.current is None:
+            missing.append("corrente")
+        panel.recommendation = "Leitura parcial; aguardando " + " e ".join(missing) + " para avaliar todos os limites de alarme."
+    else:
+        panel.status = "NORMAL"
+        panel.recommendation = "Sistema a operar dentro dos parâmetros configurados."
     credential.last_used_at = now
     db.add(PanelHistoryModel(
         panel_id=panel.id, tenant_id=credential.tenant_id,
