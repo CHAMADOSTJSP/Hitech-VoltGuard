@@ -19,7 +19,7 @@
 ### P0 — Tornar o health check HTTP efetivo
 
 - A configuração inicial do serviço estava sem `healthCheckPath`; `/health` foi definido no Render em 23/10 e o deploy da configuração concluiu como `live`.
-- A rota implementa `SELECT 1` e responde erro se o banco não responder. A URL pública `/health` retornou HTTP 200 com `{"status":"ok","service":"voltguard","mode":"stored-data"}` após essa configuração.
+- A rota implementa `SELECT 1` e responde erro se o banco não responder. A URL pública `/health` retornou HTTP 200 com `{"status":"ok","service":"voltguard","mode":"stored-data"}` após a configuração e novamente depois do deploy do código `a13252d`. A página pública de login também foi conferida.
 - O modo automático de deploy do Render foi alterado de `On Commit` para `After CI Checks Pass`; a próxima revisão só será publicada após os checks configurados no GitHub passarem.
 
 **Ação para liberar:** validar novamente `/health` depois do deploy do código revisado e confirmar que `DATABASE_URL` aponta para o PostgreSQL persistente correto; `SELECT 1` confirma conexão, mas não identidade nem histórico do banco.
@@ -67,13 +67,13 @@
 - Adicionada proteção para impedir que uma configuração do Render sem `DATABASE_URL` use o SQLite descartável como se fosse persistente.
 - O cadastro de ativos não cria medições aleatórias nem histórico fictício; leituras parciais ficam identificadas e não são exibidas como estado normal.
 - Health check HTTP `/health` configurado e respondendo no serviço piloto Render, além da configuração declarada no Blueprint.
-- Deploy do serviço configurado para aguardar CI do GitHub. A revisão atual ainda precisa ser enviada e ter seus workflows confirmados.
+- Deploy do serviço configurado para aguardar CI do GitHub. O commit `a13252d` passou no workflow (incluindo `pip-audit` e 20 testes de integração) e está `live` no Render.
 
 ## Ordem sugerida de liberação
 
 1. Identificar sem ambiguidade o banco que contém os dados atuais e corrigir o vínculo antes de qualquer reinício.
 2. Migrar o banco e o serviço para recursos persistentes e configurar backup/restauração.
-3. Manter o health check HTTP `/health` e validar a revisão atual em homologação.
+3. Manter o health check HTTP `/health` e validar a próxima revisão em homologação.
 4. Fechar onboarding, recuperação de conta, privacidade, suporte e cobrança.
 5. Validar hardware/protocolo e isolamento industrial com piloto pago e métricas de sucesso acordadas.
 6. Só então habilitar clientes de produção e anunciar métricas/benefícios que tenham evidência.
