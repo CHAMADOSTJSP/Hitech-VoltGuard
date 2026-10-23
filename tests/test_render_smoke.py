@@ -18,7 +18,7 @@ os.environ["SIMULATE_TELEMETRY"] = "0"
 os.environ["ALLOW_SELF_SERVICE_REGISTRATION"] = "1"
 
 from fastapi.testclient import TestClient
-from main import app, TenantSubscriptionModel, UserModel, SessionLocal, encrypt_totp_secret, hash_recovery_code, pyotp, rate_limit_client_address
+from main import app, TenantSubscriptionModel, UserModel, SessionLocal, encrypt_totp_secret, hash_recovery_code, pyotp, rate_limit_client_address, get_current_user
 
 
 class VoltGuardSmokeTests(unittest.TestCase):
@@ -201,6 +201,30 @@ class VoltGuardSmokeTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/export/executive-report", headers=ceo_headers).status_code, 200)
         self.assertEqual(self.client.get("/api/export/executive-report", headers=manager_headers).status_code, 403)
         self.assertEqual(self.client.get("/api/export/executive-report", headers=technician_headers).status_code, 403)
+
+    def test_every_api_route_requires_user_or_explicit_machine_authentication(self):
+        intentionally_public = {
+            "/api/token",  # Credentials are validated by the login endpoint.
+            "/api/tenant/registration-status",  # Exposes only signup availability.
+            "/api/tenant/register",  # Fail-closed unless explicitly enabled.
+            "/api/device/telemetry",  # Requires a dedicated per-device bearer token.
+        }
+        unprotected = []
+        for route in app.routes:
+            path = getattr(route, "path", "")
+            if not path.startswith("/api/") or path in intentionally_public:
+                continue
+            dependencies = list(getattr(getattr(route, "dependant", None), "dependencies", []))
+            requires_user = False
+            while dependencies:
+                dependency = dependencies.pop()
+                if dependency.call is get_current_user:
+                    requires_user = True
+                    break
+                dependencies.extend(dependency.dependencies)
+            if not requires_user:
+                unprotected.append(path)
+        self.assertEqual(unprotected, [], f"API routes lack server-side user auth: {unprotected}")
 
     def test_new_panel_waits_for_real_telemetry(self):
         _, headers = self.create_tenant("NEWPANEL")

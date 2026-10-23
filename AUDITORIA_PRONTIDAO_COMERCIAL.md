@@ -69,8 +69,9 @@
 - O cadastro de ativos não cria medições aleatórias nem histórico fictício; leituras parciais ficam identificadas e não são exibidas como estado normal.
 - Login de contas com MFA habilitado exige segundo fator. Cadastro público fecha por padrão e só abre com `ALLOW_SELF_SERVICE_REGISTRATION=1` configurado explicitamente.
 - Acrescentado `scripts/provision_first_tenant.py`: inicializa a primeira organização apenas quando todas as tabelas estão vazias, exige confirmação e senha em terminal interativo, e reaproveita as validações do endpoint existente. Não altera dados de uma base preenchida nem ativa o cadastro público do serviço.
+- Novo teste percorre todas as rotas `/api/` e falha se alguma não exigir usuário autenticado ou credencial de dispositivo explicitamente.
 - Health check HTTP `/health` configurado e respondendo no serviço piloto Render, além da configuração declarada no Blueprint.
-- Deploy do serviço configurado para aguardar CI do GitHub. O commit `eeb9c29` passou em `pip-audit`, 27 testes, sintaxe e build Docker, e está `live` no Render.
+- Deploy do serviço configurado para aguardar CI do GitHub. O commit `d4acc2e` passou em `pip-audit`, 27 testes, sintaxe e build Docker, e está `live` no Render. A revisão seguinte elevou a suíte local para 28 testes com uma verificação automática de autenticação para todas as rotas `/api/`.
 
 ## Ordem sugerida de liberação
 

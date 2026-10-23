@@ -6,7 +6,7 @@
 - Cadastro público fica desativado por padrão no Render; um comando separado provisiona a primeira organização somente em banco sem registros e exige confirmação explícita.
 - O comando exige um terminal interativo para receber a senha sem eco, verifica todas as tabelas antes e depois da inicialização do esquema e é testado contra bancos temporários.
 - Textos da interface foram alinhados ao escopo real de monitoramento e manutenção; não apresentam o produto como SCADA ou sistema de proteção certificado.
-- Testes adicionais cobrem permissões CEO/Gerente/Técnico nas rotas de usuários, auditoria, credenciais e relatórios.
+- Testes adicionais cobrem permissões CEO/Gerente/Técnico nas rotas de usuários, auditoria, credenciais e relatórios, além de inventariar autenticação em todas as rotas de API.
 - Incluída matriz brasileira de prontidão com LGPD, NR-10, INMETRO, privacidade, recuperação de conta, cobrança, persistência, backup e homologação de hardware.
 - Esta atualização não altera dados, segredos, recursos Render, infraestrutura ou cadastro do banco.
 

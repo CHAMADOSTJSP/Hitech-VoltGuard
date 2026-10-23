@@ -358,7 +358,7 @@ curl -X POST "https://SEU-SERVICO.onrender.com/api/device/telemetry" \
 3. A resposta deve conter `status: success` e listar `measurements_received`. Consulte o painel e o histórico para confirmar as grandezas recebidas. Alarmes de temperatura e corrente só são avaliados quando a leitura inclui o respectivo campo; a ausência de uma medição não limpa um alarme existente.
 4. Em **Dispositivos**, confirme que “Último uso” foi atualizado. Revogue a credencial e repita a chamada: a API deve responder `401`.
 
-Validação local atual: 27 testes aprovados com as dependências completas, cobrindo rate limiting, MFA, isolamento entre organizações, matriz básica de perfis e recusas seguras do comando de bootstrap. O caminho de criação do bootstrap também foi exercitado manualmente em um SQLite temporário vazio. A CI do GitHub valida dependências, sintaxe, testes e build Docker.
+Validação local atual: 28 testes aprovados com as dependências completas, cobrindo rate limiting, MFA, isolamento entre organizações, autenticação em todas as rotas da API, matriz básica de perfis e recusas seguras do comando de bootstrap. O caminho de criação do bootstrap também foi exercitado manualmente em um SQLite temporário vazio. A CI do GitHub valida dependências, sintaxe, testes e build Docker.
 
 ## Publicação recomendada no Render
 
