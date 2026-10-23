@@ -527,3 +527,5 @@ Consulte `REVISAO_TECNICA.md`. A aplicação permanece candidata a demonstraçã
 - Endereços Modbus permanecem sem preencher até validação do mapa do modelo e firmware reais.
 - Sem validação física, buffer offline ou uso operacional; ver `gateway/README.md`.
 
+
+- Removido do controle de versão um bytecode Python gerado localmente; o .gitignore já exclui arquivos .pyc futuros.
