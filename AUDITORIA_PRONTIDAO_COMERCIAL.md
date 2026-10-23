@@ -20,7 +20,7 @@
 ### P0 — Tornar o health check HTTP efetivo
 
 - A configuração inicial do serviço estava sem `healthCheckPath`; `/health` foi definido no Render em 23/10 e o deploy da configuração concluiu como `live`.
-- A rota implementa `SELECT 1` e responde erro se o banco não responder. A URL pública `/health` retornou HTTP 200 com `{"status":"ok","service":"voltguard","mode":"stored-data"}` após a configuração e novamente depois dos deploys de `a13252d` e `eeb9c29`. A resposta mais recente foi `ok`; o endpoint de status confirmou auto-cadastro desativado.
+- A rota implementa `SELECT 1` e responde erro se o banco não responder. A URL pública `/health` retornou HTTP 200 com `{"status":"ok","service":"voltguard","mode":"stored-data"}` após a configuração e novamente depois dos deploys de `a13252d`, `eeb9c29` e `0b182cf`. A resposta mais recente foi `ok`; o endpoint de status confirmou auto-cadastro desativado.
 - O modo automático de deploy do Render foi alterado de `On Commit` para `After CI Checks Pass`; a próxima revisão só será publicada após os checks configurados no GitHub passarem.
 
 **Ação para liberar:** validar novamente `/health` depois do deploy do código revisado e confirmar que `DATABASE_URL` aponta para o PostgreSQL persistente correto; `SELECT 1` confirma conexão, mas não identidade nem histórico do banco.
@@ -71,7 +71,7 @@
 - Acrescentado `scripts/provision_first_tenant.py`: inicializa a primeira organização apenas quando todas as tabelas estão vazias, exige confirmação e senha em terminal interativo, e reaproveita as validações do endpoint existente. Não altera dados de uma base preenchida nem ativa o cadastro público do serviço.
 - Novo teste percorre todas as rotas `/api/` e falha se alguma não exigir usuário autenticado ou credencial de dispositivo explicitamente.
 - Health check HTTP `/health` configurado e respondendo no serviço piloto Render, além da configuração declarada no Blueprint.
-- Deploy do serviço configurado para aguardar CI do GitHub. O commit `d4acc2e` passou em `pip-audit`, 27 testes, sintaxe e build Docker, e está `live` no Render. A revisão seguinte elevou a suíte local para 28 testes com uma verificação automática de autenticação para todas as rotas `/api/`.
+- Deploy do serviço configurado para aguardar CI do GitHub. O commit `0b182cf` passou em `pip-audit`, 28 testes, sintaxe e build Docker, e está `live` no Render.
 
 ## Ordem sugerida de liberação
 
